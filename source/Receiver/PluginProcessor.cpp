@@ -45,7 +45,6 @@ void HomeSidechainReceiverAudioProcessor::prepareToPlay (double newSampleRate, i
     envelopePhase = 0.0f;
     envelopeActive = false;
     remainingSamples = 0;
-    smoothedGain = 1.0f;
     gainSmoother.reset (sampleRate, 0.01);
     gainSmoother.setCurrentAndTargetValue (1.0f);
     juce::ignoreUnused (samplesPerBlock);
