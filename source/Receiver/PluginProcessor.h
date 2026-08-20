@@ -33,7 +33,11 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     juce::AudioProcessorValueTreeState apvts;
+
+    // Smoothed visual activity for the editor. This is intentionally independent
+    // of the audio envelope so the user can clearly see that MIDI arrived.
     std::atomic<float> triggerActivity { 0.0f };
+    std::atomic<int> triggerCount { 0 };
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     void setShapePoint (int index, float value);
@@ -42,16 +46,16 @@ public:
 
 private:
     double sampleRate = 44100.0;
-    int noteOffCounter = 0;
     float envelopePhase = 0.0f;
     bool envelopeActive = false;
     int remainingSamples = 0;
-    float smoothedGain = 1.0f;
     juce::LinearSmoothedValue<float> gainSmoother;
 
     float shapeValue (float phase) const noexcept;
     float modulationGain (float shape) const noexcept;
     double cycleSamples() const noexcept;
+
+    void triggerEnvelope();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessor)
 };

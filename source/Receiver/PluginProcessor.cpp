@@ -143,6 +143,15 @@ void HomeSidechainReceiverAudioProcessor::setShapePoint (int index, float value)
         p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
 }
 
+void HomeSidechainReceiverAudioProcessor::triggerEnvelope()
+{
+    envelopeActive = true;
+    envelopePhase = 0.0f;
+    remainingSamples = juce::jmax (1, static_cast<int> (std::round (cycleSamples())));
+    triggerActivity.store (1.0f, std::memory_order_relaxed);
+    triggerCount.fetch_add (1, std::memory_order_relaxed);
+}
+
 void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                                         juce::MidiBuffer& midi)
 {
@@ -150,56 +159,70 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
 
     const int targetNote = homeSidechain::midiNoteForLink (
         static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
-
-    for (const auto metadata : midi)
-    {
-        const auto message = metadata.getMessage();
-        if (message.isNoteOn() && message.getChannel() == 1 && message.getNoteNumber() == targetNote)
-        {
-            envelopeActive = true;
-            envelopePhase = 0.0f;
-            remainingSamples = static_cast<int> (cycleSamples());
-            triggerActivity.store (1.0f, std::memory_order_relaxed);
-        }
-    }
-
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
     const float mix = apvts.getRawParameterValue ("MIX")->load();
     const int samples = buffer.getNumSamples();
-    const double totalCycle = cycleSamples();
 
-    triggerActivity.store (triggerActivity.load() * 0.92f, std::memory_order_relaxed);
-
-    if (bypassed)
-        return;
-
-    auto getGainForSample = [&]()
+    // The Receiver must accept notes arriving from normal DAW MIDI routing,
+    // regardless of MIDI channel. The Trigger uses channel 1, but many DAWs or
+    // users can remap MIDI channels on the way to the Receiver.
+    juce::Array<int, juce::CriticalSection> triggerPositions;
+    for (const auto metadata : midi)
     {
-        if (! envelopeActive || remainingSamples <= 0)
-            return 1.0f;
+        const auto message = metadata.getMessage();
+        if (message.isNoteOn() && message.getNoteNumber() == targetNote)
+            triggerPositions.add (juce::jlimit (0, samples - 1, metadata.samplePosition));
+    }
 
-        const float phase = 1.0f - static_cast<float> (remainingSamples / totalCycle);
-        return modulationGain (shapeValue (phase));
-    };
+    triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.94f,
+                           std::memory_order_relaxed);
 
-    for (int i = 0; i < samples; ++i)
+    if (! bypassed)
     {
-        const float targetGain = getGainForSample();
-        const float currentGain = juce::jmap (mix, 1.0f, targetGain);
-        gainSmoother.setTargetValue (currentGain);
-        const float gain = gainSmoother.getNextValue();
+        int triggerIndex = 0;
+        const double totalCycle = cycleSamples();
 
-        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-            buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
-
-        if (envelopeActive)
+        for (int i = 0; i < samples; ++i)
         {
-            --remainingSamples;
-            if (remainingSamples <= 0)
+            // Process MIDI at its actual sample offset. This prevents the Receiver
+            // from starting the envelope early when a host places the MIDI event
+            // halfway through an audio block.
+            while (triggerIndex < triggerPositions.size() && triggerPositions[triggerIndex] == i)
             {
-                remainingSamples = 0;
-                envelopeActive = false;
+                triggerEnvelope();
+                ++triggerIndex;
             }
+
+            float targetGain = 1.0f;
+            if (envelopeActive && remainingSamples > 0)
+            {
+                const float phase = 1.0f - static_cast<float> (
+                    static_cast<double> (remainingSamples) / juce::jmax (1.0, totalCycle));
+                targetGain = modulationGain (shapeValue (phase));
+
+                --remainingSamples;
+                if (remainingSamples <= 0)
+                {
+                    remainingSamples = 0;
+                    envelopeActive = false;
+                }
+            }
+
+            const float currentGain = juce::jmap (mix, 1.0f, targetGain);
+            gainSmoother.setTargetValue (currentGain);
+            const float gain = gainSmoother.getNextValue();
+
+            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+                buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
+        }
+    }
+    else
+    {
+        // Still allow the editor to show that a MIDI event arrived while bypassed.
+        if (! triggerPositions.isEmpty())
+        {
+            triggerActivity.store (1.0f, std::memory_order_relaxed);
+            triggerCount.fetch_add (triggerPositions.size(), std::memory_order_relaxed);
         }
     }
 }

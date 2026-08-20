@@ -32,7 +32,6 @@ private:
 
     void timerCallback() override;
     void styleSlider (juce::Slider& slider, bool bipolar = false);
-    void addLabeledSlider (juce::Graphics& g, juce::Slider&, juce::Rectangle<float>, const juce::String& label);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };
