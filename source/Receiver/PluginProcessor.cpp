@@ -156,16 +156,27 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
 {
     juce::ScopedNoDenormals noDenormals;
 
+    const int samples = buffer.getNumSamples();
+    if (samples <= 0)
+        return;
+
     const int targetNote = homeSidechain::midiNoteForLink (
         static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const float mix = apvts.getRawParameterValue ("MIX")->load();
-    const int samples = buffer.getNumSamples();
+    const float mix = juce::jlimit (0.0f, 1.0f,
+                                    apvts.getRawParameterValue ("MIX")->load());
 
-    // The Receiver accepts MIDI from the host. First detect ANY incoming MIDI
-    // event so the UI can prove whether REAPER/another host is routing MIDI to
-    // the plugin. Then collect matching note-ons for the selected Home link.
-    juce::Array<int, juce::CriticalSection> triggerPositions;
+    triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.94f,
+                           std::memory_order_relaxed);
+    midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.94f,
+                        std::memory_order_relaxed);
+
+    // Keep this allocation-free on the real-time audio thread. In normal DAW use
+    // there will be only a handful of MIDI events per block, so a small fixed
+    // stack buffer is sufficient. Extra events are still counted/diagnosed but
+    // matching triggers beyond this capacity are ignored for this block.
+    std::array<int, 64> triggerPositions {};
+    int triggerPositionCount = 0;
     int incomingMidiEvents = 0;
     int mostRecentNote = -1;
     int mostRecentChannel = 0;
@@ -174,43 +185,36 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
     {
         const auto message = metadata.getMessage();
         ++incomingMidiEvents;
+
         if (message.getChannel() > 0)
             mostRecentChannel = message.getChannel();
 
         if (message.isNoteOn())
         {
             mostRecentNote = message.getNoteNumber();
-            if (message.getNoteNumber() == targetNote)
-                triggerPositions.add (juce::jlimit (0, samples - 1, metadata.samplePosition));
+
+            if (message.getNoteNumber() == targetNote && triggerPositionCount < static_cast<int> (triggerPositions.size()))
+                triggerPositions[static_cast<size_t> (triggerPositionCount++)]
+                    = juce::jlimit (0, samples - 1, metadata.samplePosition);
         }
     }
-
-    midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.94f,
-                        std::memory_order_relaxed);
-    triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.94f,
-                           std::memory_order_relaxed);
 
     if (incomingMidiEvents > 0)
     {
         midiActivity.store (1.0f, std::memory_order_relaxed);
         midiEventCount.fetch_add (incomingMidiEvents, std::memory_order_relaxed);
-        if (mostRecentNote >= 0)
-            lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
-        if (mostRecentChannel > 0)
-            lastMidiChannel.store (mostRecentChannel, std::memory_order_relaxed);
+        lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
+        lastMidiChannel.store (juce::jmax (0, mostRecentChannel), std::memory_order_relaxed);
     }
 
     if (! bypassed)
     {
         int triggerIndex = 0;
-        const double totalCycle = cycleSamples();
+        double totalCycle = cycleSamples();
 
         for (int i = 0; i < samples; ++i)
         {
-            // Process MIDI at its actual sample offset. This prevents the Receiver
-            // from starting the envelope early when a host places the MIDI event
-            // halfway through an audio block.
-            while (triggerIndex < triggerPositions.size() && triggerPositions[triggerIndex] == i)
+            while (triggerIndex < triggerPositionCount && triggerPositions[static_cast<size_t> (triggerIndex)] == i)
             {
                 triggerEnvelope();
                 ++triggerIndex;
@@ -239,14 +243,12 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
                 buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
         }
     }
-    else
+    else if (triggerPositionCount > 0)
     {
-        // Still allow the editor to show that a MIDI event arrived while bypassed.
-        if (! triggerPositions.isEmpty())
-        {
-            triggerActivity.store (1.0f, std::memory_order_relaxed);
-            triggerCount.fetch_add (triggerPositions.size(), std::memory_order_relaxed);
-        }
+        // Bypass should not process audio, but the Receiver must still confirm
+        // that the routed MIDI trigger actually arrived.
+        triggerActivity.store (1.0f, std::memory_order_relaxed);
+        triggerCount.fetch_add (triggerPositionCount, std::memory_order_relaxed);
     }
 }
 

@@ -1,40 +1,30 @@
 # Home-Sidechain
 
-Home-Sidechain is a two-plugin MIDI-linked sidechain system for the Dubtach Home plugin series:
+Home-Sidechain is a two-plugin sidechain system for the Dubtach Home plugin series.
 
-- **Home-Sidechain Trigger** detects audio peaks and outputs short MIDI note events.
-- **Home-Sidechain Receiver** accepts those MIDI notes and turns them into a sample-processed gain envelope with a draggable shape and bar-synced timing.
+- **Home-Sidechain Trigger** — detects audio peaks and outputs MIDI trigger notes.
+- **Home-Sidechain Receiver** — receives those MIDI notes and applies a tempo/free-time volume-shaping envelope.
 
-## Pamplejuce setup
+## REAPER routing
 
-This repo intentionally expects your normal Pamplejuce layout with `JUCE/` as the git submodule. Keep the Pamplejuce `packaging/`, `Tests/`, `VERSION`, and other template files in your repo and replace the project `CMakeLists.txt` with the provided one.
+1. Put **Home-Sidechain Trigger** on the source/kick track.
+2. Set Trigger **LINK = A**.
+3. Put **Home-Sidechain Receiver** on the destination/bass track.
+4. Set Receiver **LINK = A**.
+5. Create a send from Trigger to Receiver.
+6. Set the send to **Audio: None** and **MIDI: All -> All**.
+7. On playback, Trigger should show its meter moving and Receiver should change from **WAITING** to **MIDI IN** / **TRIGGER IN** and show the last MIDI note/channel.
 
-## Routing
+Each link maps to its own MIDI note, allowing multiple Trigger/Receiver pairs in one project.
 
-The two instances must be connected by the DAW's MIDI routing:
+## Pamplejuce / GitHub Actions
 
-1. Put **Home-Sidechain Trigger** on the source track (usually the kick).
-2. Set its `LINK` to A-H.
-3. Route the Trigger's MIDI output to the track containing **Home-Sidechain Receiver**.
-4. Set the Receiver to the same `LINK`.
-5. Put the Receiver on the audio you want to duck.
+This repository is intended to be used with the normal Pamplejuce layout and JUCE git submodule. GitHub Actions builds both plugin targets and pluginval validates both VST3 products.
 
-Link A-H maps to MIDI notes C2-G2 plus H. The Receiver listens only to MIDI channel 1 and its selected link note.
+## Important implementation details
 
-## Important v1 limitation
-
-Whether an audio/MIDI effect can send MIDI to another effect depends on DAW routing. The current architecture intentionally uses standard host MIDI routing rather than OS-level shared memory, so it remains portable across macOS/Windows and compatible with the Pamplejuce/JUCE model.
-
-## Next additions
-
-- Home-series LicenseManager integration
-- Preset system
-- More shaper modes
-- Trigger MIDI-thru option
-- MIDI-note/velocity visualizer
-- Optional audio sidechain input on Receiver for hosts that support it
-
-
-## MIDI routing note
-
-Home-Sidechain Trigger explicitly exposes a VST3 MIDI output and Home-Sidechain Receiver explicitly exposes a VST3 MIDI input. This is required by JUCE's CMake plugin configuration; overriding `producesMidi()`/`acceptsMidi()` in C++ alone does not create the host-facing MIDI bus.
+- Trigger exposes a VST3 MIDI output via `NEEDS_MIDI_OUTPUT TRUE`.
+- Receiver exposes a VST3 MIDI input via `NEEDS_MIDI_INPUT TRUE`.
+- Receiver accepts the matching MIDI note on any MIDI channel.
+- Receiver MIDI events are handled at their actual sample offsets.
+- Both processors avoid dynamic MIDI-event storage on the real-time audio path.

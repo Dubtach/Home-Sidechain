@@ -42,10 +42,10 @@ int HomeSidechainTriggerAudioProcessor::getLink() const noexcept
 void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, int samplesPerBlock)
 {
     sampleRate = newSampleRate;
-    lastBlockSize = samplesPerBlock;
     wasAboveThreshold = false;
     samplesSinceLastTrigger = 100000000;
-    noteOffSamplesRemaining = 0;
+    pendingNoteOff = false;
+    pendingNote = -1;
     triggerMeter.store (0.0f);
 }
 
@@ -73,7 +73,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
-    samplesSinceLastTrigger += numSamples;
+    samplesSinceLastTrigger = juce::jmin (100000000, samplesSinceLastTrigger + numSamples);
     triggerMeter.store (triggerMeter.load() * 0.94f, std::memory_order_relaxed);
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
@@ -83,6 +83,14 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
     const int note = homeSidechain::midiNoteForLink (getLink());
     const int retriggerSamples = static_cast<int> (
         apvts.getRawParameterValue ("RETRIGGER")->load() * 0.001 * sampleRate);
+
+    // Finish a note from the previous block before generating new triggers.
+    if (pendingNoteOff && pendingNote >= 0)
+    {
+        midi.addEvent (juce::MidiMessage::noteOff (1, pendingNote), 0);
+        pendingNoteOff = false;
+        pendingNote = -1;
+    }
 
     if (bypassed)
         return;
@@ -102,7 +110,19 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             const int velocity = juce::jlimit (1, 127, juce::roundToInt (velocityParam));
             midi.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (velocity)),
                            sample);
-            noteOffSamplesRemaining = juce::jmin (numSamples - sample + 1, 32);
+
+            // The Receiver only needs the note-on, but a clean note-off keeps
+            // the generated MIDI valid. If the trigger lands on the final
+            // sample of the block, finish the note at the start of the next
+            // block rather than accidentally placing note-off before note-on.
+            if (sample + 1 < numSamples)
+                midi.addEvent (juce::MidiMessage::noteOff (1, note), sample + 1);
+            else
+            {
+                pendingNoteOff = true;
+                pendingNote = note;
+            }
+
             samplesSinceLastTrigger = 0;
             triggerMeter.store (1.0f, std::memory_order_relaxed);
             triggerCount.fetch_add (1, std::memory_order_relaxed);
@@ -111,12 +131,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         wasAboveThreshold = above;
     }
 
-    if (noteOffSamplesRemaining > 0)
-    {
-        const int offset = juce::jmax (0, numSamples - noteOffSamplesRemaining);
-        midi.addEvent (juce::MidiMessage::noteOff (1, note), midiOffsetForBlock (offset, numSamples));
-        noteOffSamplesRemaining = 0;
-    }
 }
 
 void HomeSidechainTriggerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

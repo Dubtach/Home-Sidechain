@@ -18,7 +18,7 @@ public:
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return "Home-Sidechain Trigger"; }
-    bool acceptsMidi() const override { return true; }
+    bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -45,13 +45,8 @@ private:
     double sampleRate = 44100.0;
     bool wasAboveThreshold = false;
     int samplesSinceLastTrigger = 100000000;
-    int noteOffSamplesRemaining = 0;
-    int lastBlockSize = 0;
-
-    static int midiOffsetForBlock (int sampleOffset, int samplesPerBlock) noexcept
-    {
-        return juce::jlimit (0, juce::jmax (0, samplesPerBlock - 1), sampleOffset);
-    }
+    bool pendingNoteOff = false;
+    int pendingNote = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
 };

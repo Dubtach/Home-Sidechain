@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include "../Shared/SidechainCommon.h"
 
 class HomeSidechainReceiverAudioProcessor : public juce::AudioProcessor
