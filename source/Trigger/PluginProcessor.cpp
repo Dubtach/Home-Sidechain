@@ -18,11 +18,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioPro
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "THRESHOLD", "Threshold", juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SENSITIVITY", "Sensitivity", 0.0f, 1.0f, 0.5f));
+        "SENSITIVITY", "Sensitivity",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.5f));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "RETRIGGER", "Retrigger", juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f));
+        "RETRIGGER", "Retrigger",
+        juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
+        "ms"));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "VELOCITY", "Velocity", 1.0f, 127.0f, 127.0f));
+        "VELOCITY", "Velocity",
+        juce::NormalisableRange<float> (1.0f, 127.0f, 1.0f), 127.0f));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         "LINK", "Link", homeSidechain::linkNames(), 0));
 
@@ -47,10 +51,12 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     pendingNoteOff = false;
     pendingNote = -1;
     triggerMeter.store (0.0f);
+    homeLinkSender.start();
 }
 
 void HomeSidechainTriggerAudioProcessor::releaseResources()
 {
+    homeLinkSender.stop();
 }
 
 bool HomeSidechainTriggerAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const

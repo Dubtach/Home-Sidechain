@@ -111,10 +111,20 @@ namespace homeSidechain
         HomeLinkSender()
             : juce::Thread ("HomeSidechain-Link-Sender")
         {
-            startThread (juce::Thread::Priority::high);
         }
 
         ~HomeLinkSender() override
+        {
+            stop();
+        }
+
+        void start()
+        {
+            if (! isThreadRunning())
+                startThread (juce::Thread::Priority::high);
+        }
+
+        void stop()
         {
             signalThreadShouldExit();
             queueReady.signal();
