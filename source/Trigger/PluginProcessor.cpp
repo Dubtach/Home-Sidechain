@@ -23,7 +23,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioPro
         "THRESHOLD", "Threshold",
         juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "RETRIGGER", "Retrigger",
+        "RETRIGGER", "Minimum Gap",
         juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
         FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -49,8 +49,29 @@ float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noe
 
     const auto write = waveformWriteIndex.load (std::memory_order_acquire);
     const size_t offset = static_cast<size_t> (index);
-    const size_t slot = (write + offset + 1) % waveformPointCount;
+    const size_t slot = (write + offset) % waveformPointCount;
     return waveformBuffer[slot].load (std::memory_order_relaxed);
+}
+
+int HomeSidechainTriggerAudioProcessor::getLatestTriggerPointIndex() const noexcept
+{
+    const int triggerSlot = latestTriggerSlot.load (std::memory_order_acquire);
+    if (triggerSlot < 0)
+        return -1;
+
+    const int write = static_cast<int> (waveformWriteIndex.load (std::memory_order_acquire));
+    const int count = static_cast<int> (waveformPointCount);
+
+    // The graph displays slots in oldest -> newest order, beginning at the
+    // next slot that will be overwritten. Convert the ring-buffer slot into
+    // that visible point index directly.
+    const int pointIndex = (triggerSlot - write + count) % count;
+
+    // If the trigger slot is now the write slot, it is about to be overwritten.
+    if (triggerSlot == write)
+        return -1;
+
+    return pointIndex;
 }
 
 
@@ -67,6 +88,8 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     waveformWriteIndex.store (0, std::memory_order_release);
     waveformAccumPeak = 0.0f;
     waveformAccumSamples = 0;
+    waveformAccumTriggered = false;
+    latestTriggerSlot.store (-1, std::memory_order_release);
     homeLinkSender.start();
 }
 
@@ -192,6 +215,8 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             samplesSinceLastTrigger = 0;
             triggerMeter.store (1.0f, std::memory_order_relaxed);
             triggerCount.fetch_add (1, std::memory_order_relaxed);
+            if (audioTrigger)
+                waveformAccumTriggered = true;
         }
 
         wasAboveThreshold = above;
@@ -202,9 +227,12 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             const size_t writeSlot = waveformWriteIndex.load (std::memory_order_relaxed)
                 % waveformPointCount;
             waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
+            if (waveformAccumTriggered)
+                latestTriggerSlot.store (static_cast<int> (writeSlot), std::memory_order_release);
             waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
             waveformAccumPeak = 0.0f;
             waveformAccumSamples = 0;
+            waveformAccumTriggered = false;
         }
     }
 

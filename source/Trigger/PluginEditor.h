@@ -3,6 +3,13 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
+class HomeSidechainTriggerGapSlider : public juce::Slider
+{
+public:
+    HomeSidechainTriggerGapSlider();
+    void paint (juce::Graphics&) override;
+};
+
 class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEditor,
                                                   private juce::Timer
 {
@@ -19,7 +26,7 @@ public:
 private:
     HomeSidechainTriggerAudioProcessor& processor;
 
-    juce::Slider retrigger;
+    HomeSidechainTriggerGapSlider retrigger;
     juce::ComboBox link;
     juce::ToggleButton bypass { "BYPASS" };
 
@@ -31,7 +38,6 @@ private:
     bool draggingThreshold = false;
 
     void timerCallback() override;
-    void styleSlider (juce::Slider& slider);
     void styleComboBox();
     void styleBypass();
     float thresholdForY (float y) const noexcept;
