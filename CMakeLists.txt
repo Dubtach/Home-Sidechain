@@ -29,6 +29,7 @@ juce_generate_juce_header(HomeSidechainTrigger)
 
 target_sources(HomeSidechainTrigger PRIVATE
     source/Shared/SidechainCommon.h
+    source/Shared/SidechainLinkBus.h
     source/Trigger/PluginProcessor.h
     source/Trigger/PluginProcessor.cpp
     source/Trigger/PluginEditor.h
@@ -66,6 +67,7 @@ juce_generate_juce_header(HomeSidechainReceiver)
 
 target_sources(HomeSidechainReceiver PRIVATE
     source/Shared/SidechainCommon.h
+    source/Shared/SidechainLinkBus.h
     source/Receiver/PluginProcessor.h
     source/Receiver/PluginProcessor.cpp
     source/Receiver/PluginEditor.h

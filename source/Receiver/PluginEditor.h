@@ -38,6 +38,7 @@ private:
 
     juce::ComboBox mode;
     juce::ComboBox link;
+    juce::ComboBox source;
     juce::ComboBox bars;
     juce::ToggleButton sync { "SYNC" };
     juce::ToggleButton bypass { "BYPASS" };
@@ -46,6 +47,7 @@ private:
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> linkAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> sourceAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> barsAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;

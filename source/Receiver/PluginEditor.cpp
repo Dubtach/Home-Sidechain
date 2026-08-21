@@ -112,11 +112,13 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
 
     mode.addItemList ({ "Duck", "Pump", "Gate", "Shape" }, 1);
     link.addItemList (homeSidechain::linkNames(), 1);
+    source.addItemList ({ "HOME-LINK", "MIDI", "BOTH" }, 1);
     bars.addItemList ({ "1/4 Bar", "1/2 Bar", "1 Bar", "2 Bars", "4 Bars" }, 1);
 
     addAndMakeVisible (graph);
     addAndMakeVisible (mode);
     addAndMakeVisible (link);
+    addAndMakeVisible (source);
     addAndMakeVisible (bars);
     addAndMakeVisible (sync);
     addAndMakeVisible (bypass);
@@ -129,6 +131,7 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
 
     modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "MODE", mode);
     linkAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "LINK", link);
+    sourceAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "SOURCE", source);
     barsAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "BARS", bars);
     syncAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "SYNC", sync);
     bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "BYPASS", bypass);
@@ -181,12 +184,15 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
     g.drawText ("LINK", 25, 60, 60, 12, juce::Justification::left);
     g.drawText ("MODE", 104, 60, 60, 12, juce::Justification::left);
-    g.drawText ("TIMING", 243, 60, 60, 12, juce::Justification::left);
+    g.drawText ("SOURCE", 191, 60, 60, 12, juce::Justification::left);
+    g.drawText ("TIMING", 337, 60, 60, 12, juce::Justification::left);
 
     const float midiLed = juce::jlimit (0.0f, 1.0f, processor.midiActivity.load (std::memory_order_relaxed));
     const float triggerLed = juce::jlimit (0.0f, 1.0f, processor.triggerActivity.load (std::memory_order_relaxed));
+    const float homeLed = juce::jlimit (0.0f, 1.0f, processor.homeLinkActivity.load (std::memory_order_relaxed));
     const bool hasMidi = midiLed > 0.10f;
     const bool hasTrigger = triggerLed > 0.10f;
+    const bool connected = processor.homeLinkConnected.load (std::memory_order_relaxed);
     const int lastNote = processor.lastMidiNote.load (std::memory_order_relaxed);
     const int lastChannel = processor.lastMidiChannel.load (std::memory_order_relaxed);
 
@@ -194,11 +200,11 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillRoundedRectangle (392.0f, 54.0f, 230.0f, 32.0f, 8.0f);
     g.setColour (outline);
     g.drawRoundedRectangle (392.0f, 54.0f, 230.0f, 32.0f, 8.0f, 1.0f);
-    g.setColour (hasMidi ? accent : outline);
+    g.setColour (connected ? accent : (hasMidi ? accent : outline));
     g.fillEllipse (402.0f, 64.0f, 12.0f, 12.0f);
     g.setColour (text);
     g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
-    g.drawText (hasMidi ? (hasTrigger ? "TRIGGER IN" : "MIDI IN") : "WAITING", 421, 59, 92, 18, juce::Justification::left);
+    g.drawText (connected ? (hasTrigger ? "HOME-LINK SIGNAL" : "HOME-LINK CONNECTED") : (hasMidi ? "MIDI IN" : "WAITING"), 421, 59, 92, 18, juce::Justification::left);
     g.setColour (muted);
     g.setFont (juce::FontOptions (8.5f));
     const auto diagnostic = lastNote >= 0
@@ -206,7 +212,7 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
         : "NO MIDI EVENTS";
     g.drawText (diagnostic, 510, 59, 100, 14, juce::Justification::right);
 
-    const float led = juce::jmax (midiLed, triggerLed);
+    const float led = juce::jmax (midiLed, juce::jmax (triggerLed, homeLed));
     g.setColour (accent.withAlpha (0.16f + 0.30f * led));
     g.fillRoundedRectangle (22, 92, 596, 202, 12.0f);
     g.setColour (outline);
@@ -236,9 +242,10 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 void HomeSidechainReceiverAudioProcessorEditor::resized()
 {
     link.setBounds (20, 66, 60, 23);
-    mode.setBounds (88, 66, 110, 23);
-    sync.setBounds (207, 65, 62, 24);
-    bars.setBounds (275, 66, 104, 23);
+    mode.setBounds (88, 66, 96, 23);
+    source.setBounds (192, 66, 98, 23);
+    sync.setBounds (300, 65, 62, 24);
+    bars.setBounds (367, 66, 82, 23);
     bypass.setBounds (565, 18, 58, 23);
 
     graph.setBounds (28, 112, 584, 170);
