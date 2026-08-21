@@ -35,6 +35,8 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    // Smoothed visual activity for the editor. This is intentionally independent
+    // of the audio envelope so the user can clearly see that MIDI arrived.
     std::atomic<float> triggerActivity { 0.0f };
     std::atomic<float> midiActivity { 0.0f };
     std::atomic<int> triggerCount { 0 };
@@ -45,39 +47,40 @@ public:
     std::atomic<int> homeLinkTriggerCount { 0 };
     std::atomic<bool> homeLinkConnected { false };
     std::atomic<int> lastHomeLinkVelocity { 0 };
-    std::atomic<int> lastHomeLinkSource { 0 };
 
     int getLink() const noexcept;
+
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     void setShapePoint (int index, float value);
     float getShapePoint (int index) const noexcept;
     double getHostBpm() const noexcept;
 
-    void resetShape();
-    void flipShape();
-    void smoothShape();
-    void snapShape();
-    void applyPreset (int presetIndex);
+    // UI-only diagnostic trigger. It is atomic so the editor never touches the
+    // audio/envelope state directly.
+    void requestTestTrigger() noexcept { testTriggerRequested.store (true, std::memory_order_release); }
 
 private:
     double sampleRate = 44100.0;
+    float envelopePhase = 0.0f;
     bool envelopeActive = false;
-    double envelopePhase = 0.0;
-    int64_t remainingSamples = 0;
-    uint64_t homeLinkLastSequence = 0;
-    int homeLinkLastLink = 0;
-    int64_t localFallbackSample = 0;
+    int remainingSamples = 0;
+    juce::LinearSmoothedValue<float> gainSmoother;
 
-    int64_t getBlockStartSample (int numSamples) noexcept;
-    double cycleSamples() const noexcept;
     float shapeValue (float phase) const noexcept;
     float modulationGain (float shape) const noexcept;
-    void triggerEnvelope (double startPhase = 0.0);
+    double cycleSamples() const noexcept;
 
     homeSidechain::HomeLinkReceiverService& homeLinkService() noexcept
     {
         return homeSidechain::HomeLinkReceiverService::instance();
     }
+
+    std::atomic<bool> testTriggerRequested { false };
+
+    uint64_t homeLinkLastSequence = 0;
+    int homeLinkLastLink = 0;
+
+    void triggerEnvelope();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessor)
 };
