@@ -11,24 +11,29 @@ HomeSidechainTriggerAudioProcessor::HomeSidechainTriggerAudioProcessor()
 
 juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioProcessor::createParameters()
 {
+    using FloatAttributes = juce::AudioParameterFloatAttributes;
+    using BoolAttributes = juce::AudioParameterBoolAttributes;
+    using ChoiceAttributes = juce::AudioParameterChoiceAttributes;
+
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
     params.push_back (std::make_unique<juce::AudioParameterBool> (
-        "BYPASS", "Bypass", false));
+        "BYPASS", "Bypass", false, BoolAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "THRESHOLD", "Threshold", juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f));
+        "THRESHOLD", "Threshold",
+        juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "SENSITIVITY", "Sensitivity",
-        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.5f));
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.5f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "RETRIGGER", "Retrigger",
         juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
-        "ms"));
+        FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "VELOCITY", "Velocity",
-        juce::NormalisableRange<float> (1.0f, 127.0f, 1.0f), 127.0f));
+        juce::NormalisableRange<float> (1.0f, 127.0f, 1.0f), 127.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "LINK", "Link", homeSidechain::linkNames(), 0));
+        "LINK", "Link", homeSidechain::linkNames(), 0, ChoiceAttributes{}));
 
     return { params.begin(), params.end() };
 }

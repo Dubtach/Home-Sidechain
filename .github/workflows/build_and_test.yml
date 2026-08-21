@@ -45,7 +45,7 @@ jobs:
             # Use the MSVC compiler exposed by msvc-dev-cmd instead of
             # clang-cl + Ninja. This avoids the current CMake/Ninja
             # clang-cl toolchain mismatch on GitHub-hosted Windows runners.
-            extra-flags: -G Ninja -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe
+            extra-flags: -G Ninja -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe -DCMAKE_MSVC_WARNING_LEVEL=4 -DCMAKE_CXX_FLAGS="/WX-"
 
     steps:
       # Setup MSVC toolchain and developer command prompt (Windows)

@@ -11,32 +11,51 @@ HomeSidechainReceiverAudioProcessor::HomeSidechainReceiverAudioProcessor()
 
 juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioProcessor::createParameters()
 {
+    using FloatAttributes = juce::AudioParameterFloatAttributes;
+    using BoolAttributes = juce::AudioParameterBoolAttributes;
+    using ChoiceAttributes = juce::AudioParameterChoiceAttributes;
+
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("BYPASS", "Bypass", false));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> ("MODE", "Mode",
-        juce::StringArray { "Duck", "Pump", "Gate", "Shape" }, 0));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> ("LINK", "Link", homeSidechain::linkNames(), 0));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> ("SOURCE", "Source",
-        juce::StringArray { "Home-Link", "MIDI", "Both" }, 0));
-    params.push_back (std::make_unique<juce::AudioParameterBool> ("SYNC", "Sync", true));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> ("BARS", "Bars",
-        juce::StringArray { "1/4", "1/2", "1", "2", "4" }, 2));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("DEPTH", "Depth", juce::NormalisableRange<float> (0.0f, 48.0f, 0.01f), 12.0f, "dB"));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        "BYPASS", "Bypass", false, BoolAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "MODE", "Mode", juce::StringArray { "Duck", "Pump", "Gate", "Shape" }, 0, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "LINK", "Link", homeSidechain::linkNames(), 0, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "SOURCE", "Source", juce::StringArray { "Home-Link", "MIDI", "Both" }, 0, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        "SYNC", "Sync", true, BoolAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "BARS", "Bars", juce::StringArray { "1/4", "1/2", "1", "2", "4" }, 2, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "ATTACK", "Attack", juce::NormalisableRange<float> (0.1f, 250.0f, 0.1f, 0.35f), 2.0f));
+        "DEPTH", "Depth", juce::NormalisableRange<float> (0.0f, 48.0f, 0.01f), 12.0f,
+        FloatAttributes{}.withLabel ("dB")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "HOLD", "Hold", juce::NormalisableRange<float> (0.0f, 1000.0f, 0.1f, 0.4f), 0.0f));
+        "ATTACK", "Attack", juce::NormalisableRange<float> (0.1f, 250.0f, 0.1f, 0.35f), 2.0f,
+        FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "RELEASE", "Release", juce::NormalisableRange<float> (5.0f, 2000.0f, 0.1f, 0.4f), 180.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("CURVE", "Curve", juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f));
+        "HOLD", "Hold", juce::NormalisableRange<float> (0.0f, 1000.0f, 0.1f, 0.4f), 0.0f,
+        FloatAttributes{}.withLabel ("ms")));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "RELEASE", "Release", juce::NormalisableRange<float> (5.0f, 2000.0f, 0.1f, 0.4f), 180.0f,
+        FloatAttributes{}.withLabel ("ms")));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "CURVE", "Curve", juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
 
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("SHAPE_1", "Shape 1", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("SHAPE_2", "Shape 2", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.2f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("SHAPE_3", "Shape 3", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.05f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("SHAPE_4", "Shape 4", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.15f));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> ("SHAPE_5", "Shape 5", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.75f));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "SHAPE_1", "Shape 1", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "SHAPE_2", "Shape 2", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.2f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "SHAPE_3", "Shape 3", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.05f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "SHAPE_4", "Shape 4", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.15f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "SHAPE_5", "Shape 5", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.75f, FloatAttributes{}));
 
     return { params.begin(), params.end() };
 }

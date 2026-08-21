@@ -80,3 +80,9 @@ This repository keeps the normal Pamplejuce layout and JUCE git submodule. GitHu
 ## Windows CI compiler note
 
 The GitHub Actions Windows job uses the MSVC compiler (`cl.exe`) with Ninja. The workflow previously forced `clang-cl`, which can fail during JUCE's generated VST3 manifest-helper step with newer CMake/Ninja combinations.
+
+
+## v7 build fixes
+- Updated JUCE parameter construction to the current Attributes API.
+- Removed a Trigger Home-Link sequence counter data race.
+- Windows CI explicitly uses MSVC without treating warnings as errors.

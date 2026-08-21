@@ -158,7 +158,7 @@ namespace homeSidechain
             slot.velocity = static_cast<uint16_t> (juce::jlimit (1, 127, velocity));
             slot.sourceSampleOffset = static_cast<uint16_t> (juce::jlimit (0, 65535, sampleOffset));
             slot.sourceHostTicks = hostTicks;
-            slot.sequence = ++sequence;
+            slot.sequence = sequence.fetch_add (1, std::memory_order_relaxed) + 1;
             writeIndex.store (w + 1, std::memory_order_release);
             queueReady.signal();
         }
@@ -213,7 +213,7 @@ namespace homeSidechain
                 {
                     HomeLinkPacket heartbeat;
                     heartbeat.type = packetHeartbeat;
-                    heartbeat.sequence = ++sequence;
+                    heartbeat.sequence = sequence.fetch_add (1, std::memory_order_relaxed) + 1;
 
                     // Advertise only the currently selected link so Receiver
                     // status reflects the actual Trigger/Receiver pairing.
