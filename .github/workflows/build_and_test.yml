@@ -42,7 +42,10 @@ jobs:
           - name: Windows
             os: windows-latest
             pluginval-binary: ./pluginval.exe
-            extra-flags: -G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+            # Use the MSVC compiler exposed by msvc-dev-cmd instead of
+            # clang-cl + Ninja. This avoids the current CMake/Ninja
+            # clang-cl toolchain mismatch on GitHub-hosted Windows runners.
+            extra-flags: -G Ninja -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe
 
     steps:
       # Setup MSVC toolchain and developer command prompt (Windows)

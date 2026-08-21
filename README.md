@@ -75,3 +75,8 @@ The current implementation is intended for the VST3/Standalone workflow where th
 ## Pamplejuce / GitHub Actions
 
 This repository keeps the normal Pamplejuce layout and JUCE git submodule. GitHub Actions builds both plugin targets, runs tests, and pluginval-validates both VST3 products.
+
+
+## Windows CI compiler note
+
+The GitHub Actions Windows job uses the MSVC compiler (`cl.exe`) with Ninja. The workflow previously forced `clang-cl`, which can fail during JUCE's generated VST3 manifest-helper step with newer CMake/Ninja combinations.
