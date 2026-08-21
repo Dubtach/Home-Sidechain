@@ -86,6 +86,11 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
                 + "  •  MIDI " + juce::String (homeSidechain::midiNoteForLink (static_cast<int> (processor.apvts.getRawParameterValue ("LINK")->load()))),
                 344, 68, 166, 18, juce::Justification::right);
 
+    g.setColour (muted);
+    g.setFont (juce::FontOptions (8.5f));
+    g.drawText ("HOME-LINK ACTIVE",
+                20, 261, 500, 14, juce::Justification::centred);
+
     const juce::String labels[] = { "THRESHOLD", "SENSITIVITY", "RETRIGGER", "VELOCITY" };
     const int xs[] = { 24, 152, 280, 408 };
     for (int i = 0; i < 4; ++i)
@@ -98,7 +103,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (muted);
     g.setFont (juce::FontOptions (9.0f));
     g.drawText ("Audio peaks are converted to short MIDI triggers for the matching Receiver link.",
-                20, 278, 500, 12, juce::Justification::centred);
+                20, 284, 500, 12, juce::Justification::centred);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()

@@ -1,16 +1,13 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <array>
 #include "../Shared/SidechainCommon.h"
-#include "../Shared/SidechainLinkBus.h"
 
-class HomeSidechainTriggerAudioProcessor : public juce::AudioProcessor,
-                                            private juce::Thread
+class HomeSidechainTriggerAudioProcessor : public juce::AudioProcessor
 {
 public:
     HomeSidechainTriggerAudioProcessor();
-    ~HomeSidechainTriggerAudioProcessor() override;
+    ~HomeSidechainTriggerAudioProcessor() override = default;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -38,33 +35,22 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float> triggerMeter { 0.0f };
     std::atomic<int> triggerCount { 0 };
-    std::atomic<bool> homeLinkActive { false };
+    std::atomic<int> homeLinkCount { 0 };
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
 
     float getThresholdDb() const noexcept;
     int getLink() const noexcept;
 
+    int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
+
 private:
-    struct PendingEvent
-    {
-        homeSidechain::LinkEvent event;
-    };
-
-    static constexpr int queueCapacity = 256;
-    std::array<PendingEvent, queueCapacity> outgoingQueue {};
-    juce::AbstractFifo outgoingFifo { queueCapacity };
-
-    homeSidechain::LinkBus linkBus;
+    homeSidechain::HomeLinkSender homeLinkSender;
     double sampleRate = 44100.0;
     bool wasAboveThreshold = false;
     int samplesSinceLastTrigger = 100000000;
     bool pendingNoteOff = false;
     int pendingNote = -1;
-    juce::int64 lastHeartbeatMs = 0;
-
-    void enqueueHomeTrigger (int link, float velocity, int sampleOffset);
-    void threadRun() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
 };

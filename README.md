@@ -1,22 +1,75 @@
 # Home-Sidechain
 
-Home-Sidechain is a two-plugin sidechain system for the Dubtach Home series:
+Home-Sidechain is a two-plugin sidechain modulation system for the Dubtach Home plugin series.
 
-- **Home-Sidechain Trigger** — detects audio peaks and sends short trigger events.
-- **Home-Sidechain Receiver** — receives those events through **Home-Link** without requiring DAW MIDI routing, then applies the shaper envelope.
+## Plugins
 
-## Basic setup
+- **Home-Sidechain Trigger** — detects audio peaks and publishes Home-Link trigger events. It also outputs MIDI for advanced routing.
+- **Home-Sidechain Receiver** — listens for Home-Link events and applies the ducking / pumping / gate / shape envelope.
 
-1. Put **Home-Sidechain Trigger** on the source track (for example Kick).
-2. Put **Home-Sidechain Receiver** on the track to duck (for example Bass).
-3. Set the same Link (A–H) on both plugins.
-4. Leave the Receiver source set to **HOME-LINK**.
-5. No REAPER MIDI send/routing is required.
+## Simple setup — Home-Link
 
-### Advanced MIDI mode
+The normal user does **not** need to create a REAPER MIDI send.
 
-The Receiver also supports **MIDI**, or **BOTH**, for users who want host MIDI routing as a fallback/advanced workflow.
+1. Put **Home-Sidechain Trigger** on the source/kick track.
+2. Choose a **LINK**, for example `A`.
+3. Put **Home-Sidechain Receiver** on the destination/bass track.
+4. Choose the same **LINK**, for example `A`.
+5. Leave Receiver **SOURCE = HOME-LINK**.
+6. Press play.
 
-## Home-Link behavior
+That is all.
 
-The Trigger and Receiver communicate through a per-DAW-process local link bus. Trigger instances publish heartbeats and trigger events; Receiver instances listen only to the selected Link. The bus is local to the current DAW process and stored in the user's temporary directory.
+The signal path is:
+
+    Kick track
+      -> Home-Sidechain Trigger
+      -> Home-Link
+      -> Home-Sidechain Receiver
+      -> Bass track
+
+The Receiver status should show:
+
+- `WAITING` — no matching Trigger heartbeat is present.
+- `LINKED` — a Trigger is active on the selected Link.
+- `HOME-LINK SIGNAL` — a trigger event has arrived.
+
+## Advanced MIDI fallback
+
+Receiver `SOURCE` also has:
+
+- `MIDI` — use normal DAW MIDI routing only.
+- `BOTH` — accept Home-Link and normal host MIDI.
+
+Trigger continues to expose its MIDI output, so users who want conventional MIDI routing can still use it.
+
+## Links
+
+Eight independent links are available:
+
+`A B C D E F G H`
+
+A Trigger and Receiver must use the same Link.
+
+Each Link maps to a MIDI note for advanced routing:
+
+- A = C2 / MIDI note 36
+- B = C#2 / MIDI note 37
+- C = D2 / MIDI note 38
+- D = D#2 / MIDI note 39
+- E = E2 / MIDI note 40
+- F = F2 / MIDI note 41
+- G = F#2 / MIDI note 42
+- H = G2 / MIDI note 43
+
+## Home-Link implementation
+
+Home-Link uses localhost UDP packets with a port derived from the current DAW process ID and selected Link. This keeps separate DAW processes isolated without requiring the user to create host MIDI sends.
+
+Socket I/O is performed on worker threads. Audio processing uses fixed-size queues/rings and does not perform network I/O directly.
+
+The current implementation is intended for the VST3/Standalone workflow where the Trigger and Receiver run inside the same DAW process. Hosts that isolate plugin instances in separate processes may require a different transport in a future version.
+
+## Pamplejuce / GitHub Actions
+
+This repository keeps the normal Pamplejuce layout and JUCE git submodule. GitHub Actions builds both plugin targets, runs tests, and pluginval-validates both VST3 products.
