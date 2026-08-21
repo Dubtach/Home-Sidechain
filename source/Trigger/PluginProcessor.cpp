@@ -88,6 +88,8 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     waveformWriteIndex.store (0, std::memory_order_release);
     waveformAccumPeak = 0.0f;
     waveformAccumSamples = 0;
+    waveformSampleStride = juce::jmax (16, static_cast<int> (std::round ((waveformHistorySeconds * sampleRate)
+                                                                      / static_cast<double> (waveformPointCount))));
     waveformAccumTriggered = false;
     latestTriggerSlot.store (-1, std::memory_order_release);
     homeLinkSender.start();

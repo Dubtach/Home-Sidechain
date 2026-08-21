@@ -27,49 +27,65 @@ HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
 void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    const float labelY = 3.0f;
-    const float trackY = bounds.getCentreY() + 7.0f;
-    const float trackX = 8.0f;
-    const float trackW = juce::jmax (80.0f, bounds.getWidth() - 94.0f);
-    const float trackH = 6.0f;
+
+    const float labelX = 0.0f;
+    const float labelY = 2.0f;
+    const float trackX = 2.0f;
+    const float valueW = 74.0f;
+    const float gap = 10.0f;
+    const float trackW = juce::jmax (100.0f, bounds.getWidth() - valueW - gap - 4.0f);
+    const float trackY = bounds.getBottom() - 13.0f;
+    const float trackH = 5.0f;
+    const float thumbRadius = 7.0f;
 
     g.setColour (muted);
-    g.setFont (juce::FontOptions (8.5f).withStyle ("Bold"));
-    g.drawText ("COOL DOWN", 0.0f, labelY, 70.0f, 12.0f, juce::Justification::left);
+    g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
+    g.drawText ("COOL DOWN", labelX, labelY, 90.0f, 14.0f, juce::Justification::left);
+
+    // Use the slider's actual NormalisableRange so the painted thumb exactly
+    // matches JUCE's parameter mapping, including the skew used by the APVTS.
+    const auto range = getRange();
+    const double normalised = range.getLength() > 0.0
+        ? range.convertTo0to1 (getValue())
+        : 0.0;
+    const float proportion = static_cast<float> (juce::jlimit (0.0, 1.0, normalised));
+    const float thumbX = trackX + thumbRadius + (trackW - thumbRadius * 2.0f) * proportion;
+
+    const auto track = juce::Rectangle<float> (trackX + thumbRadius,
+                                                trackY - trackH * 0.5f,
+                                                trackW - thumbRadius * 2.0f,
+                                                trackH);
 
     g.setColour (lineColour);
-    g.fillRoundedRectangle (trackX, trackY - trackH * 0.5f, trackW, trackH, trackH * 0.5f);
+    g.fillRoundedRectangle (track, trackH * 0.5f);
 
-    const double rangeStart = getMinimum();
-    const double rangeEnd = getMaximum();
-    const double rangeSpan = rangeEnd - rangeStart;
-    const double value = getValue();
-    double normalised = 0.0;
+    const auto filled = track.withWidth (track.getWidth() * proportion);
+    g.setColour (accent.withAlpha (0.90f));
+    if (filled.getWidth() > 0.1f)
+        g.fillRoundedRectangle (filled, trackH * 0.5f);
 
-    if (rangeSpan > 0.0)
-        normalised = (value - rangeStart) / rangeSpan;
-
-    normalised = juce::jlimit<double> (0.0, 1.0, normalised);
-    const float proportion = static_cast<float> (normalised);
-    const float thumbX = trackX + trackW * proportion;
-
-    g.setColour (accent.withAlpha (0.26f));
-    g.fillRoundedRectangle (trackX, trackY - trackH * 0.5f, juce::jmax (4.0f, thumbX - trackX), trackH, trackH * 0.5f);
-
-    g.setColour (accent);
-    g.fillEllipse (thumbX - 6.0f, trackY - 6.0f, 12.0f, 12.0f);
-    g.setColour (accent.withAlpha (0.22f));
+    // Subtle center line gives the control a physical, hardware-like feel.
+    g.setColour (accent.withAlpha (0.16f));
     g.fillEllipse (thumbX - 10.0f, trackY - 10.0f, 20.0f, 20.0f);
 
-    const juce::String valueText = juce::String (juce::roundToInt (getValue())) + " ms";
+    g.setColour (accent);
+    g.fillEllipse (thumbX - thumbRadius, trackY - thumbRadius,
+                   thumbRadius * 2.0f, thumbRadius * 2.0f);
+
+    const auto valueBox = juce::Rectangle<float> (bounds.getRight() - valueW, 2.0f,
+                                                   valueW, 28.0f);
     g.setColour (surfaceRaised);
-    g.fillRoundedRectangle (trackX + trackW + 12.0f, 5.0f, 70.0f, 28.0f, 8.0f);
+    g.fillRoundedRectangle (valueBox, 8.0f);
     g.setColour (lineColour);
-    g.drawRoundedRectangle (trackX + trackW + 12.0f, 5.0f, 70.0f, 28.0f, 8.0f, 1.0f);
+    g.drawRoundedRectangle (valueBox, 8.0f, 1.0f);
+
     g.setColour (text);
     g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
-    g.drawText (valueText, trackX + trackW + 12.0f, 12.0f, 70.0f, 14.0f, juce::Justification::centred);
+    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms",
+                valueBox.reduced (7.0f, 0.0f).toNearestInt(),
+                juce::Justification::centred);
 }
+
 
 HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
@@ -116,25 +132,31 @@ void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 
 float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 {
-    constexpr float minDb = -60.0f;
+    const float thresholdDb = processor.getThresholdDb();
+    const float minDb = juce::jlimit (-60.0f, -24.0f, thresholdDb - 30.0f);
     constexpr float maxDb = 0.0f;
+
     if (graphBounds.getHeight() <= 0.0f)
         return graphBounds.getBottom();
 
-    const float n = juce::jlimit (0.0f, 1.0f, (db - minDb) / (maxDb - minDb));
+    const float span = juce::jmax (1.0f, maxDb - minDb);
+    const float n = juce::jlimit (0.0f, 1.0f, (db - minDb) / span);
     return graphBounds.getBottom() - n * graphBounds.getHeight();
 }
 
 float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
 {
-    constexpr float minDb = -60.0f;
+    const float thresholdDb = processor.getThresholdDb();
+    const float minDb = juce::jlimit (-60.0f, -24.0f, thresholdDb - 30.0f);
     constexpr float maxDb = 0.0f;
-    if (graphBounds.getHeight() <= 0.0f)
-        return minDb;
 
+    if (graphBounds.getHeight() <= 0.0f)
+        return thresholdDb;
+
+    const float span = juce::jmax (1.0f, maxDb - minDb);
     const float n = juce::jlimit (0.0f, 1.0f,
                                   (graphBounds.getBottom() - y) / graphBounds.getHeight());
-    return minDb + n * (maxDb - minDb);
+    return minDb + n * span;
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y)
@@ -203,15 +225,20 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     auto plot = area.reduced (42.0f, 24.0f);
     plot.removeFromLeft (18.0f);
 
-    for (int db : { 0, -12, -24, -36, -48, -60 })
+    const float thresholdDb = processor.getThresholdDb();
+    const float minDb = juce::jlimit (-60.0f, -24.0f, thresholdDb - 30.0f);
+    constexpr float maxDb = 0.0f;
+    const float gridStep = (maxDb - minDb) > 42.0f ? 12.0f : 6.0f;
+
+    for (float db = maxDb; db >= minDb - 0.1f; db -= gridStep)
     {
-        const float y = yForDb (static_cast<float> (db));
-        g.setColour (gridColour.withAlpha (db == 0 ? 0.85f : 0.55f));
+        const float y = yForDb (db);
+        g.setColour (gridColour.withAlpha (db == 0.0f ? 0.85f : 0.48f));
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
 
         g.setColour (muted.withAlpha (0.82f));
         g.setFont (juce::FontOptions (8.0f));
-        g.drawText (juce::String (db), area.getX() + 8.0f, y - 6.0f, 28.0f, 12.0f,
+        g.drawText (juce::String (juce::roundToInt (db)), area.getX() + 8.0f, y - 6.0f, 30.0f, 12.0f,
                     juce::Justification::left);
     }
 
@@ -336,6 +363,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawControlStrip (juce::Graphics&
     g.setColour (lineColour);
     g.drawVerticalLine (juce::roundToInt (area.getX()), area.getY() + 8.0f, area.getBottom() - 8.0f);
 
+    g.setColour (muted.withAlpha (0.60f));
+    g.setFont (juce::FontOptions (8.0f));
+    g.drawText ("minimum time between events", area.getX() + 148.0f, area.getY() + 9.0f,
+                138.0f, 12.0f, juce::Justification::right);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -360,7 +391,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     link.setBounds (478, 18, 54, 24);
     bypass.setBounds (538, 18, 82, 24);
 
-    retrigger.setBounds (306, 298, 300, 40);
+    retrigger.setBounds (292, 295, 312, 44);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)

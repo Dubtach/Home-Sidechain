@@ -104,3 +104,10 @@ The Trigger editor is built around one large live transient graph. Drag the thre
 ## v17.2.0
 
 Build-stability cleanup for the custom Trigger Cool Down slider: uses Slider minimum/maximum directly with explicit typed clamping, avoiding Range API/template deduction edge cases on MSVC.
+
+## v17.4.0
+
+- Trigger graph now uses an approximately 0.80 second sample-rate-independent rolling history so the display scrolls more calmly.
+- Trigger graph vertical scale now zooms around the threshold, making transients easier to read without changing detection.
+- Cool Down slider now paints from the slider's real NormalisableRange, so the thumb position matches the actual parameter mapping.
+- Cool Down control was redesigned with a cleaner track, larger thumb, and stable value pill.
