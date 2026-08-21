@@ -35,9 +35,10 @@ private:
     void timerCallback() override;
     void styleSlider (juce::Slider& slider);
     float thresholdForY (float y) const noexcept;
-    float yForThreshold (float thresholdDb) const noexcept;
+    float yForDb (float db) const noexcept;
     void setThresholdFromY (float y);
     void drawGraph (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawStatus (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };

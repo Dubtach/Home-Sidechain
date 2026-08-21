@@ -85,6 +85,8 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     for (auto& value : waveformBuffer) value.store (0.0f, std::memory_order_relaxed);
     for (auto& marker : triggerMarkers) marker.store (0, std::memory_order_relaxed);
     waveformWriteIndex.store (0, std::memory_order_release);
+    waveformAccumPeak = 0.0f;
+    waveformAccumSamples = 0;
     homeLinkSender.start();
 }
 
@@ -164,9 +166,9 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
             peak = juce::jmax (peak, std::abs (buffer.getSample (channel, sample)));
 
-        const size_t writeSlot = waveformWriteIndex.load (std::memory_order_relaxed);
-        waveformBuffer[writeSlot].store (peak, std::memory_order_relaxed);
-        triggerMarkers[writeSlot].store (0, std::memory_order_relaxed);
+        waveformAccumPeak = juce::jmax (waveformAccumPeak, peak);
+        const size_t currentWaveSlot = waveformWriteIndex.load (std::memory_order_relaxed)
+            % waveformPointCount;
 
         const float peakDb = homeSidechain::linearToDb (peak);
         const float dynamicThreshold = threshold - sensitivity * 12.0f;
@@ -212,12 +214,24 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
             samplesSinceLastTrigger = 0;
             triggerMeter.store (1.0f, std::memory_order_relaxed);
-            triggerMarkers[writeSlot].store (1, std::memory_order_relaxed);
+            triggerMarkers[currentWaveSlot].store (1, std::memory_order_relaxed);
             triggerCount.fetch_add (1, std::memory_order_relaxed);
         }
 
         wasAboveThreshold = above;
-        waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
+
+        ++waveformAccumSamples;
+        if (waveformAccumSamples >= waveformSampleStride)
+        {
+            const size_t writeSlot = waveformWriteIndex.load (std::memory_order_relaxed)
+                % waveformPointCount;
+            waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
+            if (triggerMarkers[writeSlot].load (std::memory_order_relaxed) != 1)
+                triggerMarkers[writeSlot].store (0, std::memory_order_relaxed);
+            waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
+            waveformAccumPeak = 0.0f;
+            waveformAccumSamples = 0;
+        }
     }
 
 }

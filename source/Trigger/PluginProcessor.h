@@ -39,6 +39,7 @@ public:
     std::atomic<int> homeLinkCount { 0 };
 
     static constexpr size_t waveformPointCount = 512;
+    static constexpr int waveformSampleStride = 64;
     std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
     std::array<std::atomic<std::uint8_t>, waveformPointCount> triggerMarkers {};
     std::atomic<size_t> waveformWriteIndex { 0 };
@@ -53,6 +54,8 @@ public:
     std::array<std::uint8_t, waveformPointCount> getTriggerMarkers() const noexcept;
 
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
+    float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }
+    int getTriggerCount() const noexcept { return triggerCount.load (std::memory_order_relaxed); }
 
     // Automatic smart trigger input: audio peaks and incoming MIDI notes are
     // handled together; there is deliberately no mode switch in the UI.
@@ -64,6 +67,8 @@ private:
     int samplesSinceLastTrigger = 100000000;
     bool pendingNoteOff = false;
     int pendingNote = -1;
+    float waveformAccumPeak = 0.0f;
+    int waveformAccumSamples = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
 };
