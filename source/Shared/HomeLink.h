@@ -6,6 +6,12 @@
 #include <cstdint>
 #include <cstring>
 
+#if JUCE_WINDOWS
+ #include <windows.h>
+#elif JUCE_MAC || JUCE_LINUX
+ #include <unistd.h>
+#endif
+
 namespace homeSidechain
 {
     inline constexpr int firstLinkMidiNote = 36; // C2
@@ -45,9 +51,22 @@ namespace homeSidechain
     // per-link event ring.
     // -------------------------------------------------------------------------
 
+    inline uint32_t currentProcessId() noexcept
+    {
+       #if JUCE_WINDOWS
+        return static_cast<uint32_t> (::GetCurrentProcessId());
+       #elif JUCE_MAC || JUCE_LINUX
+        return static_cast<uint32_t> (::getpid());
+       #else
+        // Fallback for platforms without a native process-id API. The VST3/AU
+        // builds currently target Windows/macOS/Linux.
+        return 1u;
+       #endif
+    }
+
     inline int homeLinkBasePort() noexcept
     {
-        const auto pid = static_cast<uint32_t> (juce::Process::getCurrentProcessId());
+        const auto pid = currentProcessId();
         return 24000 + static_cast<int> (pid % 2000u) * 8;
     }
 
@@ -147,11 +166,13 @@ namespace homeSidechain
         std::atomic<uint64_t> sequence { 0 };
         std::atomic<int> currentLink { 0 };
         juce::WaitableEvent queueReady;
+        juce::DatagramSocket socket;
 
         void sendPacket (const HomeLinkPacket& packet)
         {
-            juce::DatagramSocket socket;
-            socket.write ("127.0.0.1", homeLinkPort (packet.link), &packet, sizeof (packet));
+            const auto bytesSent = socket.write ("127.0.0.1", homeLinkPort (packet.link), &packet, sizeof (packet));
+            if (bytesSent != static_cast<int> (sizeof (packet)))
+                droppedCount.fetch_add (1, std::memory_order_relaxed);
         }
 
         void run() override
@@ -208,7 +229,8 @@ namespace homeSidechain
             {
                 sockets[static_cast<size_t> (link)] = std::make_unique<juce::DatagramSocket>();
                 sockets[static_cast<size_t> (link)]->setEnablePortReuse (true);
-                sockets[static_cast<size_t> (link)]->bindToPort (homeLinkPort (link), "127.0.0.1");
+                const auto result = sockets[static_cast<size_t> (link)]->bindToPort (homeLinkPort (link), "127.0.0.1");
+                socketBound[static_cast<size_t> (link)].store (result, std::memory_order_release);
             }
 
             startThread (juce::Thread::Priority::high);
@@ -259,6 +281,12 @@ namespace homeSidechain
                 .load (std::memory_order_relaxed);
         }
 
+        bool isListening (int link) const noexcept
+        {
+            const auto index = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
+            return socketBound[index].load (std::memory_order_acquire);
+        }
+
         int totalTriggerCount (int link) const noexcept
         {
             return triggerCounts[static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link))]
@@ -278,6 +306,7 @@ namespace homeSidechain
         std::array<std::atomic<uint64_t>, numberOfLinks> latestSeq {};
         std::array<std::atomic<uint32_t>, numberOfLinks> heartbeatMs {};
         std::array<std::atomic<int>, numberOfLinks> triggerCounts {};
+        std::array<std::atomic<bool>, numberOfLinks> socketBound {};
         std::array<std::unique_ptr<juce::DatagramSocket>, numberOfLinks> sockets {};
 
         void publish (const HomeLinkPacket& packet)
