@@ -61,10 +61,10 @@ float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noe
     return waveformBuffer[slot].load (std::memory_order_relaxed);
 }
 
-std::array<uint8_t, HomeSidechainTriggerAudioProcessor::waveformPointCount>
+std::array<std::uint8_t, HomeSidechainTriggerAudioProcessor::waveformPointCount>
 HomeSidechainTriggerAudioProcessor::getTriggerMarkers() const noexcept
 {
-    std::array<uint8_t, waveformPointCount> result {};
+    std::array<std::uint8_t, waveformPointCount> result {};
     const auto write = waveformWriteIndex.load (std::memory_order_acquire);
     for (size_t i = 0; i < waveformPointCount; ++i)
     {
@@ -113,7 +113,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
-    samplesSinceLastTrigger = juce::jmin (100000000, samplesSinceLastTrigger + numSamples);
+    samplesSinceLastTrigger = juce::jmin (100000000, static_cast<int> (samplesSinceLastTrigger + numSamples));
     triggerMeter.store (triggerMeter.load() * 0.94f, std::memory_order_relaxed);
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
@@ -138,7 +138,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         if (message.isNoteOn (true) && midiTriggerCount < static_cast<int> (midiTriggerPositions.size()))
         {
             midiTriggerPositions[static_cast<size_t> (midiTriggerCount)] =
-                juce::jlimit (0, numSamples - 1, metadata.samplePosition);
+                juce::jlimit (0, juce::jmax (0, numSamples - 1), static_cast<int> (metadata.samplePosition));
             midiTriggerVelocities[static_cast<size_t> (midiTriggerCount)] =
                 juce::jlimit (1, 127, static_cast<int> (message.getVelocity()));
             ++midiTriggerCount;
