@@ -19,7 +19,7 @@ namespace
 HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
 {
-    setSize (700, 450);
+    setSize (600, 390);
     setResizable (false, false);
 
     addAndMakeVisible (sensitivity);
@@ -166,28 +166,36 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
                 plot.getX() + 18.0f, thresholdY - 7.0f, 154.0f, 16.0f,
                 juce::Justification::left);
 
-    // Trigger markers are intentionally large and bright.
+    // Show only the most recent trigger events so repeated transients never
+    // turn the graph into a wall of markers. Older visible events fade out.
     const auto markerMask = processor.getTriggerMarkers();
-    const auto meter = processor.getTriggerMeter();
-    for (size_t i = 0; i < markerMask.size(); ++i)
+    constexpr int maxVisibleMarkers = 8;
+    int visibleMarkers = 0;
+    for (int i = static_cast<int> (markerMask.size()) - 1; i >= 0 && visibleMarkers < maxVisibleMarkers; --i)
     {
-        if (markerMask[i] == 0)
+        if (markerMask[static_cast<size_t> (i)] == 0)
             continue;
 
         const float x = plot.getX() + plot.getWidth()
             * (static_cast<float> (i) / static_cast<float> (markerMask.size() - 1));
+        const float fade = 1.0f - 0.085f * static_cast<float> (visibleMarkers);
+        const float lineAlpha = juce::jlimit (0.25f, 0.95f, 0.68f * fade);
+        const float dotAlpha = juce::jlimit (0.28f, 1.0f, fade);
 
-        g.setColour (trigger.withAlpha (0.12f));
-        g.fillEllipse (x - 8.0f, plot.getY() + 5.0f, 16.0f, 16.0f);
-        g.setColour (trigger);
-        g.drawLine (x, plot.getY(), x, plot.getBottom(), 2.2f);
-        g.fillEllipse (x - 3.5f, plot.getY() + 4.0f, 7.0f, 7.0f);
+        g.setColour (trigger.withAlpha (0.045f * fade));
+        g.fillEllipse (x - 7.0f, plot.getY() + 4.0f, 14.0f, 14.0f);
+        g.setColour (trigger.withAlpha (lineAlpha));
+        g.drawLine (x, plot.getY() + 2.0f, x, thresholdY, 1.5f);
+        g.setColour (trigger.withAlpha (dotAlpha));
+        g.fillEllipse (x - 3.0f, plot.getY() + 2.0f, 6.0f, 6.0f);
+        ++visibleMarkers;
     }
 
     // Live trigger playhead at the newest sample/bin.
-    const float playheadX = plot.getRight() - 2.0f;
-    g.setColour (meter > 0.08f ? triggerHot.withAlpha (0.92f) : muted.withAlpha (0.35f));
-    g.fillRoundedRectangle (playheadX - 2.0f, plot.getY(), 4.0f, plot.getHeight(), 2.0f);
+    const auto meter = processor.getTriggerMeter();
+    const float playheadX = plot.getRight() - 1.0f;
+    g.setColour (meter > 0.08f ? triggerHot.withAlpha (0.92f) : muted.withAlpha (0.28f));
+    g.fillRoundedRectangle (playheadX - 1.5f, plot.getY(), 3.0f, plot.getHeight(), 1.5f);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawStatus (juce::Graphics& g, juce::Rectangle<float> area) const
@@ -245,20 +253,20 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawRoundedRectangle (outer, 16.0f, 1.0f);
 
     g.setColour (text);
-    g.setFont (juce::FontOptions (19.0f).withStyle ("Bold"));
-    g.drawText ("HOME TRIGGER", 26, 18, 190, 24, juce::Justification::left);
+    g.setFont (juce::FontOptions (17.0f).withStyle ("Bold"));
+    g.drawText ("HOME TRIGGER", 20, 14, 170, 22, juce::Justification::left);
 
     g.setColour (muted);
-    g.setFont (juce::FontOptions (9.5f));
-    g.drawText ("SMART TRANSIENT → MIDI / HOME-LINK", 27, 43, 260, 14, juce::Justification::left);
+    g.setFont (juce::FontOptions (8.5f));
+    g.drawText ("SMART AUDIO + MIDI", 21, 35, 180, 13, juce::Justification::left);
 
     drawGraph (g, graphBounds);
-    drawStatus (g, { 26.0f, 312.0f, 648.0f, 54.0f });
+    drawStatus (g, { 20.0f, 278.0f, 560.0f, 44.0f });
 
     g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f));
-    g.drawText ("SENSITIVITY", 26, 385, 120, 14, juce::Justification::left);
-    g.drawText ("RETRIGGER", 382, 385, 120, 14, juce::Justification::left);
+    g.setFont (juce::FontOptions (8.5f));
+    g.drawText ("SENSITIVITY", 20, 327, 110, 13, juce::Justification::left);
+    g.drawText ("RETRIGGER", 302, 327, 110, 13, juce::Justification::left);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
@@ -269,7 +277,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     graphBounds = { 26.0f, 68.0f, 648.0f, 230.0f };
 
     sensitivity.setBounds (26, 398, 300, 26);
-    retrigger.setBounds (382, 398, 292, 26);
+    retrigger.setBounds (302, 340, 278, 24);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)

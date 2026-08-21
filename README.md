@@ -91,3 +91,6 @@ The GitHub Actions Windows job uses the MSVC compiler (`cl.exe`) with Ninja. The
 ## Trigger UI
 
 The Trigger editor uses a live waveform/trigger graph instead of a row of rotary controls. Drag the threshold line directly on the graph. Audio and MIDI trigger sources are automatic; there is no mode selector. MIDI output strength is intentionally not exposed as a control: audio-triggered notes use full velocity for predictable hits, while incoming MIDI notes preserve their incoming velocity. Sensitivity and retrigger remain as two compact sliders below the graph.
+
+
+UI checkpoint: compact Trigger editor with capped recent trigger markers (8 visible maximum).
