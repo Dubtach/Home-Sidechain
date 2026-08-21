@@ -23,7 +23,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioPro
         "THRESHOLD", "Threshold",
         juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "RETRIGGER", "Minimum Gap",
+        "RETRIGGER", "Cool Down",
         juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
         FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
