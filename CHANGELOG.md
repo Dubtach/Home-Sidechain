@@ -1,3 +1,9 @@
+# 1.3.1
+
+- Fixed JUCE build error caused by marking `getLatencySamples()` as `override` even though it is not virtual in the JUCE base class used by this project.
+- Kept the plugin latency contract at zero samples through the base/default JUCE implementation.
+- Bumped project version to 1.3.1.
+
 # Home-Sidechain 1.3.0
 
 ## Home-Link

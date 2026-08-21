@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(HomeSidechain VERSION 1.3.0 LANGUAGES C CXX)
+project(HomeSidechain VERSION 1.3.1 LANGUAGES C CXX)
 
 set(COMPANY_NAME "Dubtach")
 set(FORMATS Standalone AU VST3 AUv3)
