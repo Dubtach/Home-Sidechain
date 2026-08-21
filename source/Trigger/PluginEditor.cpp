@@ -18,7 +18,7 @@ namespace
 HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
 {
     setSliderStyle (juce::Slider::LinearHorizontal);
-    setTextBoxStyle (juce::Slider::TextBoxNone, false, 0, 0);
+    setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     setColour (juce::Slider::backgroundColourId, juce::Colours::transparentBlack);
     setColour (juce::Slider::trackColourId, juce::Colours::transparentBlack);
     setColour (juce::Slider::thumbColourId, accent);
