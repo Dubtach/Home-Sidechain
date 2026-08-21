@@ -173,17 +173,24 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         const bool above = peakDb >= dynamicThreshold;
 
         const bool audioTrigger = above && ! wasAboveThreshold;
-        const bool midiTrigger = midiTriggerIndex < midiTriggerCount
-                              && midiTriggerPositions[static_cast<size_t> (midiTriggerIndex)] == sample;
+        bool midiTrigger = false;
+        int midiVelocity = 127;
 
-        if (midiTrigger)
+        while (midiTriggerIndex < midiTriggerCount
+               && midiTriggerPositions[static_cast<size_t> (midiTriggerIndex)] < sample)
             ++midiTriggerIndex;
+
+        if (midiTriggerIndex < midiTriggerCount
+            && midiTriggerPositions[static_cast<size_t> (midiTriggerIndex)] == sample)
+        {
+            midiTrigger = true;
+            midiVelocity = midiTriggerVelocities[static_cast<size_t> (midiTriggerIndex)];
+            ++midiTriggerIndex;
+        }
 
         if ((audioTrigger || midiTrigger) && samplesSinceLastTrigger >= retriggerSamples)
         {
-            const int triggerVelocity = midiTrigger
-                                      ? midiTriggerVelocities[static_cast<size_t> (midiTriggerIndex - 1)]
-                                      : 127;
+            const int triggerVelocity = midiTrigger ? midiVelocity : 127;
 
             midi.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (triggerVelocity)),
                            sample);

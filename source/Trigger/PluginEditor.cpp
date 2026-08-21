@@ -65,6 +65,9 @@ float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const no
 {
     const float minDb = -60.0f;
     const float maxDb = 0.0f;
+    if (graphBounds.getHeight() <= 0.0f)
+        return minDb;
+
     const float n = juce::jlimit (0.0f, 1.0f,
                                   (graphBounds.getBottom() - y) / graphBounds.getHeight());
     return minDb + n * (maxDb - minDb);
@@ -72,10 +75,11 @@ float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const no
 
 void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y)
 {
-    if (! graphBounds.contains (getLocalPoint (this, { 0, y })))
+    if (graphBounds.getHeight() <= 0.0f)
         return;
 
-    const float db = thresholdForY (y);
+    const float db = thresholdForY (juce::jlimit (graphBounds.getY(),
+                                                  graphBounds.getBottom(), y));
     if (auto* param = processor.apvts.getParameter ("THRESHOLD"))
         param->setValueNotifyingHost (param->convertTo0to1 (db));
 }
