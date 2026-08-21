@@ -86,3 +86,8 @@ The GitHub Actions Windows job uses the MSVC compiler (`cl.exe`) with Ninja. The
 - Updated JUCE parameter construction to the current Attributes API.
 - Removed a Trigger Home-Link sequence counter data race.
 - Windows CI explicitly uses MSVC without treating warnings as errors.
+
+
+## Trigger UI
+
+The Trigger editor uses a live waveform/trigger graph instead of a row of rotary controls. Drag the threshold line directly on the graph. Audio and MIDI trigger sources are automatic; there is no mode selector. MIDI output strength is intentionally not exposed as a control: audio-triggered notes use full velocity for predictable hits, while incoming MIDI notes preserve their incoming velocity. Sensitivity and retrigger remain as two compact sliders below the graph.

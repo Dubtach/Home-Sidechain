@@ -37,10 +37,19 @@ public:
     std::atomic<int> triggerCount { 0 };
     std::atomic<int> homeLinkCount { 0 };
 
+    static constexpr size_t waveformPointCount = 512;
+    std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
+    std::array<std::atomic<uint8_t>, waveformPointCount> triggerMarkers {};
+    std::atomic<size_t> waveformWriteIndex { 0 };
+
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
 
     float getThresholdDb() const noexcept;
+    float getSensitivity() const noexcept;
     int getLink() const noexcept;
+    int getWaveformPointCount() const noexcept { return static_cast<int> (waveformPointCount); }
+    float getWaveformPoint (int index) const noexcept;
+    std::array<uint8_t, waveformPointCount> getTriggerMarkers() const noexcept;
 
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
 

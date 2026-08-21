@@ -12,26 +12,32 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
 
 private:
     HomeSidechainTriggerAudioProcessor& processor;
 
-    juce::Slider threshold;
     juce::Slider sensitivity;
     juce::Slider retrigger;
-    juce::Slider velocity;
     juce::ComboBox link;
     juce::ToggleButton bypass { "BYPASS" };
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> thresholdAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sensitivityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> retriggerAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> velocityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> linkAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
 
+    juce::Rectangle<float> graphBounds;
+    bool draggingThreshold = false;
+
     void timerCallback() override;
-    void styleSlider (juce::Slider& slider, bool bipolar = false);
+    void styleSlider (juce::Slider& slider);
+    float thresholdForY (float y) const noexcept;
+    float yForThreshold (float thresholdDb) const noexcept;
+    void setThresholdFromY (float y);
+    void drawGraph (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };
