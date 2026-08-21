@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(HomeSidechain VERSION 17.4.0 LANGUAGES C CXX)
+project(HomeSidechain VERSION 18.0.0 LANGUAGES C CXX)
+
+# JUCE 8/Pamplejuce targets require modern C++; make this explicit instead
+# of relying on the JUCE subdirectory to propagate the language standard.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(COMPANY_NAME "Dubtach")
 set(FORMATS Standalone AU VST3 AUv3)
