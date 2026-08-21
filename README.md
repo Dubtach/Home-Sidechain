@@ -90,7 +90,7 @@ The GitHub Actions Windows job uses the MSVC compiler (`cl.exe`) with Ninja. The
 
 ## Trigger UI
 
-The Trigger editor is built around one large live transient graph. Drag the threshold line directly on the graph. Recent trigger events are shown as a deliberately capped visual trail, while the current event uses a separate live flash so the graph never turns into a wall of markers. Audio and MIDI trigger sources are automatic; there is no mode selector. MIDI output strength is intentionally not exposed as a control: audio-triggered notes use full velocity for predictable hits, while incoming MIDI notes preserve their incoming velocity. Sensitivity and retrigger remain as the only timing/detection controls, with Link and Bypass kept in the header.
+The Trigger editor is built around one large live transient graph. Drag the threshold line directly on the graph. Historical trigger markers are intentionally not drawn; each trigger is shown as a clean live pulse/status flash and the trigger count remains visible in the header. Audio and MIDI trigger sources are automatic; there is no mode selector. MIDI output strength is intentionally not exposed as a control: audio-triggered notes use full velocity for predictable hits, while incoming MIDI notes preserve their incoming velocity. Threshold and Retrigger are the only user-facing detection controls, with Link and Bypass kept in the header.
 
 ## v15 Trigger redesign
 - Compact 640x360 editor with all controls inside the visible bounds.

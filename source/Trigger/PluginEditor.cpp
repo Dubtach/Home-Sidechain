@@ -22,25 +22,19 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     setSize (640, 360);
     setResizable (false, false);
 
-    addAndMakeVisible (sensitivity);
     addAndMakeVisible (retrigger);
     addAndMakeVisible (link);
     addAndMakeVisible (bypass);
 
-    styleSlider (sensitivity);
     styleSlider (retrigger);
     styleComboBox();
     styleBypass();
 
-    sensitivity.setNumDecimalPlacesToDisplay (0);
-    sensitivity.setTextValueSuffix ("%");
     retrigger.setNumDecimalPlacesToDisplay (0);
     retrigger.setTextValueSuffix (" ms");
 
     link.addItemList (homeSidechain::linkNames(), 1);
 
-    sensitivityAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
-        processor.apvts, "SENSITIVITY", sensitivity);
     retriggerAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         processor.apvts, "RETRIGGER", retrigger);
     linkAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
@@ -83,7 +77,7 @@ void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 
 float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 {
-    constexpr float minDb = -48.0f;
+    constexpr float minDb = -60.0f;
     constexpr float maxDb = 0.0f;
     if (graphBounds.getHeight() <= 0.0f)
         return graphBounds.getBottom();
@@ -94,7 +88,7 @@ float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 
 float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
 {
-    constexpr float minDb = -48.0f;
+    constexpr float minDb = -60.0f;
     constexpr float maxDb = 0.0f;
     if (graphBounds.getHeight() <= 0.0f)
         return minDb;
@@ -171,7 +165,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     plot.removeFromLeft (18.0f);
 
     // Quiet, readable grid: only useful reference lines.
-    for (int db : { 0, -12, -24, -36, -48 })
+    for (int db : { 0, -12, -24, -36, -48, -60 })
     {
         const float y = yForDb (static_cast<float> (db));
         g.setColour (gridColour.withAlpha (db == 0 ? 0.85f : 0.55f));
@@ -217,9 +211,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
         g.strokePath (line, juce::PathStrokeType (1.5f, juce::PathStrokeType::curved));
     }
 
-    const float rawThreshold = processor.getThresholdDb();
-    const float activeThreshold = rawThreshold - processor.getSensitivity() * 12.0f;
-    const float thresholdY = yForDb (activeThreshold);
+    const float thresholdDb = processor.getThresholdDb();
+    const float thresholdY = yForDb (thresholdDb);
 
     // Threshold is the one direct-manipulation control of the plugin.
     g.setColour (accent.withAlpha (0.09f));
@@ -240,39 +233,24 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     g.fillRoundedRectangle (plot.getRight() - 112.0f, thresholdY - 12.0f, 106.0f, 24.0f, 8.0f);
     g.setColour (text);
     g.setFont (juce::FontOptions (9.5f).withStyle ("Bold"));
-    g.drawText (juce::String (activeThreshold, 1) + " dB",
+    g.drawText (juce::String (thresholdDb, 1) + " dB",
                 plot.getRight() - 104.0f, thresholdY - 7.0f, 90.0f, 14.0f,
                 juce::Justification::centredRight);
 
-    // Recent events: a small, deliberately bounded visual trail.
-    const auto markerMask = processor.getTriggerMarkers();
-    constexpr int maxVisibleMarkers = 6;
-    int visibleMarkers = 0;
-    for (int i = static_cast<int> (markerMask.size()) - 1;
-         i >= 0 && visibleMarkers < maxVisibleMarkers; --i)
-    {
-        if (markerMask[static_cast<size_t> (i)] == 0)
-            continue;
-
-        const float x = plot.getX() + plot.getWidth()
-            * (static_cast<float> (i) / static_cast<float> (markerMask.size() - 1));
-        const float age = static_cast<float> (visibleMarkers);
-        const float alpha = juce::jlimit (0.18f, 0.82f, 0.72f - age * 0.09f);
-
-        g.setColour (trigger.withAlpha (alpha));
-        g.drawLine (x, plot.getY() + 12.0f, x, plot.getBottom(),
-                    visibleMarkers == 0 ? 2.0f : 1.0f);
-        g.setColour (trigger.withAlpha (alpha + 0.08f));
-        g.fillEllipse (x - 3.0f, plot.getY() + 8.0f, 6.0f, 6.0f);
-        ++visibleMarkers;
-    }
-
-    // Current-event flash is deliberately separate from the history markers.
-    const float meter = processor.getTriggerMeter();
-    const float rightX = plot.getRight() - 2.0f;
-    const float flash = juce::jlimit (0.0f, 1.0f, meter);
-    g.setColour (triggerHot.withAlpha (0.20f + 0.70f * flash));
-    g.fillRoundedRectangle (rightX - 2.0f, plot.getY(), 4.0f, plot.getHeight(), 2.0f);
+    // A single live event indicator replaces the old historical marker trail.
+    // It flashes on each trigger, then decays, so the graph stays clean.
+    const float meter = juce::jlimit (0.0f, 1.0f, processor.getTriggerMeter());
+    const auto eventCentre = juce::Point<float> (plot.getRight() - 18.0f, plot.getY() + 18.0f);
+    const float ring = 5.0f + 7.0f * meter;
+    g.setColour (triggerHot.withAlpha (0.10f + 0.24f * meter));
+    g.fillEllipse (eventCentre.x - ring, eventCentre.y - ring, ring * 2.0f, ring * 2.0f);
+    g.setColour (triggerHot.withAlpha (0.30f + 0.70f * meter));
+    g.fillEllipse (eventCentre.x - 4.0f, eventCentre.y - 4.0f, 8.0f, 8.0f);
+    g.setColour (text);
+    g.setFont (juce::FontOptions (8.5f).withStyle ("Bold"));
+    g.drawText (meter > 0.10f ? "TRIGGER" : "LIVE",
+                eventCentre.x - 64.0f, eventCentre.y - 7.0f, 54.0f, 14.0f,
+                juce::Justification::right);
 
     g.setColour (muted.withAlpha (0.72f));
     g.setFont (juce::FontOptions (8.0f));
@@ -305,9 +283,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawControlStrip (juce::Graphics&
 
     g.setColour (muted);
     g.setFont (juce::FontOptions (8.5f).withStyle ("Bold"));
-    g.drawText ("SENSITIVITY", area.getX() + 16.0f, area.getY() + 7.0f, 80.0f, 12.0f,
-                juce::Justification::left);
-    g.drawText ("RETRIGGER", area.getCentreX() + 8.0f, area.getY() + 7.0f, 80.0f, 12.0f,
+    g.drawText ("RETRIGGER", area.getX() + 16.0f, area.getY() + 7.0f, 80.0f, 12.0f,
                 juce::Justification::left);
 }
 
@@ -333,8 +309,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     link.setBounds (486, 18, 54, 24);
     bypass.setBounds (548, 18, 72, 24);
 
-    sensitivity.setBounds (156, 316, 168, 24);
-    retrigger.setBounds (416, 316, 166, 24);
+    retrigger.setBounds (156, 316, 300, 24);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)

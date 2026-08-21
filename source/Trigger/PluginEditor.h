@@ -19,12 +19,10 @@ public:
 private:
     HomeSidechainTriggerAudioProcessor& processor;
 
-    juce::Slider sensitivity;
     juce::Slider retrigger;
     juce::ComboBox link;
     juce::ToggleButton bypass { "BYPASS" };
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sensitivityAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> retriggerAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> linkAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;

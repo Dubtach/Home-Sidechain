@@ -23,9 +23,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioPro
         "THRESHOLD", "Threshold",
         juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SENSITIVITY", "Sensitivity",
-        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.5f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "RETRIGGER", "Retrigger",
         juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
         FloatAttributes{}.withLabel ("ms")));
@@ -45,11 +42,6 @@ int HomeSidechainTriggerAudioProcessor::getLink() const noexcept
     return static_cast<int> (apvts.getRawParameterValue ("LINK")->load());
 }
 
-float HomeSidechainTriggerAudioProcessor::getSensitivity() const noexcept
-{
-    return apvts.getRawParameterValue ("SENSITIVITY")->load();
-}
-
 float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noexcept
 {
     if (index < 0 || index >= static_cast<int> (waveformPointCount))
@@ -61,18 +53,6 @@ float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noe
     return waveformBuffer[slot].load (std::memory_order_relaxed);
 }
 
-std::array<std::uint8_t, HomeSidechainTriggerAudioProcessor::waveformPointCount>
-HomeSidechainTriggerAudioProcessor::getTriggerMarkers() const noexcept
-{
-    std::array<std::uint8_t, waveformPointCount> result {};
-    const auto write = waveformWriteIndex.load (std::memory_order_acquire);
-    for (size_t i = 0; i < waveformPointCount; ++i)
-    {
-        const size_t slot = (write + i + 1) % waveformPointCount;
-        result[i] = triggerMarkers[slot].load (std::memory_order_relaxed);
-    }
-    return result;
-}
 
 void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, int samplesPerBlock)
 {
@@ -84,7 +64,6 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     triggerMeter.store (0.0f);
     inputLevel.store (0.0f, std::memory_order_relaxed);
     for (auto& value : waveformBuffer) value.store (0.0f, std::memory_order_relaxed);
-    for (auto& marker : triggerMarkers) marker.store (0, std::memory_order_relaxed);
     waveformWriteIndex.store (0, std::memory_order_release);
     waveformAccumPeak = 0.0f;
     waveformAccumSamples = 0;
@@ -122,7 +101,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
     const float threshold = getThresholdDb();
-    const float sensitivity = apvts.getRawParameterValue ("SENSITIVITY")->load();
     const int selectedLink = getLink();
     homeLinkSender.setLink (selectedLink);
     const int note = homeSidechain::midiNoteForLink (selectedLink);
@@ -170,12 +148,8 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
         waveformAccumPeak = juce::jmax (waveformAccumPeak, peak);
         inputLevel.store (juce::jmax (inputLevel.load (std::memory_order_relaxed), peak), std::memory_order_relaxed);
-        const size_t currentWaveSlot = waveformWriteIndex.load (std::memory_order_relaxed)
-            % waveformPointCount;
-
         const float peakDb = homeSidechain::linearToDb (peak);
-        const float dynamicThreshold = threshold - sensitivity * 12.0f;
-        const bool above = peakDb >= dynamicThreshold;
+        const bool above = peakDb >= threshold;
 
         const bool audioTrigger = above && ! wasAboveThreshold;
         bool midiTrigger = false;
@@ -217,7 +191,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
             samplesSinceLastTrigger = 0;
             triggerMeter.store (1.0f, std::memory_order_relaxed);
-            triggerMarkers[currentWaveSlot].store (1, std::memory_order_relaxed);
             triggerCount.fetch_add (1, std::memory_order_relaxed);
         }
 
@@ -229,8 +202,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             const size_t writeSlot = waveformWriteIndex.load (std::memory_order_relaxed)
                 % waveformPointCount;
             waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
-            if (triggerMarkers[writeSlot].load (std::memory_order_relaxed) != 1)
-                triggerMarkers[writeSlot].store (0, std::memory_order_relaxed);
             waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
             waveformAccumPeak = 0.0f;
             waveformAccumSamples = 0;
