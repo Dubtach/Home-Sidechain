@@ -82,6 +82,7 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     pendingNoteOff = false;
     pendingNote = -1;
     triggerMeter.store (0.0f);
+    inputLevel.store (0.0f, std::memory_order_relaxed);
     for (auto& value : waveformBuffer) value.store (0.0f, std::memory_order_relaxed);
     for (auto& marker : triggerMarkers) marker.store (0, std::memory_order_relaxed);
     waveformWriteIndex.store (0, std::memory_order_release);
@@ -116,7 +117,8 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
     const int numSamples = buffer.getNumSamples();
     samplesSinceLastTrigger = juce::jmin (100000000, static_cast<int> (samplesSinceLastTrigger + numSamples));
-    triggerMeter.store (triggerMeter.load() * 0.94f, std::memory_order_relaxed);
+    triggerMeter.store (triggerMeter.load (std::memory_order_relaxed) * 0.88f, std::memory_order_relaxed);
+    inputLevel.store (inputLevel.load (std::memory_order_relaxed) * 0.80f, std::memory_order_relaxed);
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
     const float threshold = getThresholdDb();
@@ -167,6 +169,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             peak = juce::jmax (peak, std::abs (buffer.getSample (channel, sample)));
 
         waveformAccumPeak = juce::jmax (waveformAccumPeak, peak);
+        inputLevel.store (juce::jmax (inputLevel.load (std::memory_order_relaxed), peak), std::memory_order_relaxed);
         const size_t currentWaveSlot = waveformWriteIndex.load (std::memory_order_relaxed)
             % waveformPointCount;
 

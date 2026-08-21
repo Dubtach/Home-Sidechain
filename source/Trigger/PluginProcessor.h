@@ -35,10 +35,11 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float> triggerMeter { 0.0f };
+    std::atomic<float> inputLevel { 0.0f };
     std::atomic<int> triggerCount { 0 };
     std::atomic<int> homeLinkCount { 0 };
 
-    static constexpr size_t waveformPointCount = 512;
+    static constexpr size_t waveformPointCount = 384;
     static constexpr int waveformSampleStride = 64;
     std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
     std::array<std::atomic<std::uint8_t>, waveformPointCount> triggerMarkers {};
@@ -55,6 +56,7 @@ public:
 
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
     float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }
+    float getInputLevel() const noexcept { return inputLevel.load (std::memory_order_relaxed); }
     int getTriggerCount() const noexcept { return triggerCount.load (std::memory_order_relaxed); }
 
     // Automatic smart trigger input: audio peaks and incoming MIDI notes are

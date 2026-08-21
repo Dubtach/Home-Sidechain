@@ -34,11 +34,15 @@ private:
 
     void timerCallback() override;
     void styleSlider (juce::Slider& slider);
+    void styleComboBox();
+    void styleBypass();
     float thresholdForY (float y) const noexcept;
     float yForDb (float db) const noexcept;
     void setThresholdFromY (float y);
+    void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
     void drawGraph (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawStatus (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawControlStrip (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawPill (juce::Graphics&, juce::Rectangle<float>, juce::Colour, const juce::String&, bool) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };
