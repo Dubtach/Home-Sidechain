@@ -111,3 +111,7 @@ Build-stability cleanup for the custom Trigger Cool Down slider: uses Slider min
 - Trigger graph vertical scale now zooms around the threshold, making transients easier to read without changing detection.
 - Cool Down slider now paints from the slider's real NormalisableRange, so the thumb position matches the actual parameter mapping.
 - Cool Down control was redesigned with a cleaner track, larger thumb, and stable value pill.
+
+
+## v18 UI Style Update
+The Trigger keeps the v17.4 layout and behavior while adopting the Home-series visual language: Helvetica typography, near-black surfaces, crisp white text, cyan utility accents, and neon-green active controls. No Trigger/Receiver behavior was intentionally changed.

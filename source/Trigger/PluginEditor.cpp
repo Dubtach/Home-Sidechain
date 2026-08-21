@@ -2,17 +2,19 @@
 
 namespace
 {
-    const juce::Colour background    (0xff0a0d10);
-    const juce::Colour panel         (0xff11161b);
-    const juce::Colour surface       (0xff151b21);
-    const juce::Colour surfaceRaised (0xff1b232b);
-    const juce::Colour lineColour    (0xff2a333d);
-    const juce::Colour gridColour    (0xff222a32);
-    const juce::Colour accent        (0xff57e7ff);
+    // Home-series visual language: near-black surfaces, crisp white type,
+    // cyan utility accents and neon green as the positive/active accent.
+    const juce::Colour background    (0xff09090b);
+    const juce::Colour panel         (0xff161618);
+    const juce::Colour surface       (0xff121215);
+    const juce::Colour surfaceRaised (0xff1a1a1e);
+    const juce::Colour lineColour    (0xff2a2a30);
+    const juce::Colour gridColour    (0xff1e1e24);
+    const juce::Colour accent        (0xff00e5ff);
+    const juce::Colour activeAccent  (0xff00ff87);
     const juce::Colour triggerHot    (0xffff5d5d);
-    const juce::Colour text          (0xfff3f6f8);
-    const juce::Colour muted         (0xff8e98a4);
-    const juce::Colour success       (0xff69e1a4);
+    const juce::Colour text          (0xffffffff);
+    const juce::Colour muted         (0xffffffff);
 }
 
 HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
@@ -21,7 +23,7 @@ HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
     setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     setColour (juce::Slider::backgroundColourId, juce::Colours::transparentBlack);
     setColour (juce::Slider::trackColourId, juce::Colours::transparentBlack);
-    setColour (juce::Slider::thumbColourId, accent);
+    setColour (juce::Slider::thumbColourId, activeAccent);
 }
 
 void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
@@ -38,8 +40,8 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     const float trackH = 5.0f;
     const float thumbRadius = 7.0f;
 
-    g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
+    g.setColour (text.withAlpha (0.55f));
+    g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("COOL DOWN", labelX, labelY, 90.0f, 14.0f, juce::Justification::left);
 
     // Use the slider's actual NormalisableRange so the painted thumb exactly
@@ -60,15 +62,15 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.fillRoundedRectangle (track, trackH * 0.5f);
 
     const auto filled = track.withWidth (track.getWidth() * proportion);
-    g.setColour (accent.withAlpha (0.90f));
+    g.setColour (activeAccent.withAlpha (0.90f));
     if (filled.getWidth() > 0.1f)
         g.fillRoundedRectangle (filled, trackH * 0.5f);
 
     // Subtle center line gives the control a physical, hardware-like feel.
-    g.setColour (accent.withAlpha (0.16f));
+    g.setColour (activeAccent.withAlpha (0.13f));
     g.fillEllipse (thumbX - 10.0f, trackY - 10.0f, 20.0f, 20.0f);
 
-    g.setColour (accent);
+    g.setColour (juce::Colours::white);
     g.fillEllipse (thumbX - thumbRadius, trackY - thumbRadius,
                    thumbRadius * 2.0f, thumbRadius * 2.0f);
 
@@ -80,7 +82,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.drawRoundedRectangle (valueBox, 8.0f, 1.0f);
 
     g.setColour (text);
-    g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
+    g.setFont (juce::FontOptions (10.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText (juce::String (juce::roundToInt (getValue())) + " ms",
                 valueBox.reduced (7.0f, 0.0f).toNearestInt(),
                 juce::Justification::centred);
@@ -90,8 +92,10 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
 HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
 {
+    juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
     setSize (640, 360);
     setResizable (false, false);
+    setLookAndFeel (&homeSeriesLaf);
 
     addAndMakeVisible (retrigger);
     addAndMakeVisible (link);
@@ -116,7 +120,7 @@ void HomeSidechainTriggerAudioProcessorEditor::styleComboBox()
 {
     link.setJustificationType (juce::Justification::centred);
     link.setColour (juce::ComboBox::backgroundColourId, surfaceRaised);
-    link.setColour (juce::ComboBox::textColourId, text);
+    link.setColour (juce::ComboBox::textColourId, text.withAlpha (0.86f));
     link.setColour (juce::ComboBox::outlineColourId, lineColour);
     link.setColour (juce::ComboBox::arrowColourId, accent);
     link.setColour (juce::ComboBox::focusedOutlineColourId, accent);
@@ -125,9 +129,9 @@ void HomeSidechainTriggerAudioProcessorEditor::styleComboBox()
 void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 {
     bypass.setClickingTogglesState (true);
-    bypass.setColour (juce::ToggleButton::textColourId, muted);
-    bypass.setColour (juce::ToggleButton::tickColourId, accent);
-    bypass.setColour (juce::ToggleButton::tickDisabledColourId, muted);
+    bypass.setColour (juce::ToggleButton::textColourId, text.withAlpha (0.66f));
+    bypass.setColour (juce::ToggleButton::tickColourId, activeAccent);
+    bypass.setColour (juce::ToggleButton::tickDisabledColourId, text.withAlpha (0.25f));
 }
 
 float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
@@ -174,26 +178,36 @@ void HomeSidechainTriggerAudioProcessorEditor::drawPill (juce::Graphics& g,
                                                           const juce::String& label,
                                                           bool bright) const
 {
-    g.setColour (colour.withAlpha (bright ? 0.18f : 0.07f));
+    g.setColour (colour.withAlpha (bright ? 0.18f : 0.055f));
     g.fillRoundedRectangle (area, area.getHeight() * 0.5f);
-    g.setColour (colour.withAlpha (bright ? 0.8f : 0.28f));
+    g.setColour (colour.withAlpha (bright ? 0.92f : 0.28f));
     g.drawRoundedRectangle (area, area.getHeight() * 0.5f, 1.0f);
-    g.setColour (bright ? text : muted);
-    g.setFont (juce::FontOptions (9.5f).withStyle ("Bold"));
+    g.setColour (bright ? text : text.withAlpha (0.60f));
+    g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText (label, area.toNearestInt(), juce::Justification::centred);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
                                                             juce::Rectangle<float> area) const
 {
-    g.setColour (text);
-    g.setFont (juce::FontOptions (16.0f).withStyle ("Bold"));
-    g.drawText ("HOME TRIGGER", area.getX(), area.getY(), 180.0f, 22.0f,
-                juce::Justification::left);
+    const juce::Font titleFont (juce::FontOptions (18.0f).withName ("Helvetica").withStyle ("Bold"));
+    const auto homeText = juce::String ("Home-");
+    const auto triggerText = juce::String ("Trigger");
+    const int homeWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, homeText);
+    const int triggerWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, triggerText);
 
-    g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f));
-    g.drawText ("TRANSIENT → NOTE", area.getX(), area.getY() + 21.0f, 150.0f, 15.0f,
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawText (homeText, area.getX() + 1.0f, area.getY() + 1.0f, homeWidth, 24.0f, juce::Justification::left);
+    g.drawText (triggerText, area.getX() + homeWidth + 1.0f, area.getY() + 1.0f, triggerWidth, 24.0f, juce::Justification::left);
+
+    g.setColour (text);
+    g.drawText (homeText, area.getX(), area.getY(), homeWidth, 24.0f, juce::Justification::left);
+    g.setColour (activeAccent);
+    g.drawText (triggerText, area.getX() + homeWidth, area.getY(), triggerWidth, 24.0f, juce::Justification::left);
+
+    g.setColour (text.withAlpha (0.42f));
+    g.setFont (juce::FontOptions (8.5f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 22.0f, 120.0f, 14.0f,
                 juce::Justification::left);
 
     const auto meter = processor.getTriggerMeter();
@@ -201,13 +215,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
     const auto linkIndex = processor.getLink();
 
     drawPill (g, { area.getRight() - 318.0f, area.getY() + 1.0f, 76.0f, 24.0f },
-              firing ? triggerHot : success,
+              firing ? triggerHot : activeAccent,
               firing ? "TRIGGER" : "READY", firing);
     drawPill (g, { area.getRight() - 234.0f, area.getY() + 1.0f, 96.0f, 24.0f },
               accent, "AUDIO + MIDI", false);
 
-    g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f));
+    g.setColour (text.withAlpha (0.42f));
+    g.setFont (juce::FontOptions (8.5f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("LINK " + homeSidechain::linkName (linkIndex)
                     + "  •  " + juce::String (processor.getTriggerCount()) + " triggers",
                 area.getRight() - 326.0f, area.getY() + 26.0f, 206.0f, 14.0f,
@@ -218,9 +232,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
                                                            juce::Rectangle<float> area) const
 {
     g.setColour (surface);
-    g.fillRoundedRectangle (area, 14.0f);
+    g.fillRoundedRectangle (area, 10.0f);
     g.setColour (lineColour);
-    g.drawRoundedRectangle (area, 14.0f, 1.0f);
+    g.drawRoundedRectangle (area, 10.0f, 1.0f);
 
     auto plot = area.reduced (42.0f, 24.0f);
     plot.removeFromLeft (18.0f);
@@ -237,7 +251,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
 
         g.setColour (muted.withAlpha (0.82f));
-        g.setFont (juce::FontOptions (8.0f));
+        g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Plain"));
         g.drawText (juce::String (juce::roundToInt (db)), area.getX() + 8.0f, y - 6.0f, 30.0f, 12.0f,
                     juce::Justification::left);
     }
@@ -270,9 +284,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
         fill.lineTo (plot.getRight(), baseline);
         fill.closeSubPath();
 
-        g.setColour (accent.withAlpha (0.050f));
+        g.setColour (accent.withAlpha (0.035f));
         g.fillPath (fill);
-        g.setColour (accent.withAlpha (0.16f));
+        g.setColour (accent.withAlpha (0.12f));
         g.strokePath (line, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved));
         g.setColour (accent.withAlpha (0.92f));
         g.strokePath (line, juce::PathStrokeType (1.35f, juce::PathStrokeType::curved));
@@ -328,13 +342,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     g.setColour (surfaceRaised.withAlpha (0.96f));
     g.fillRoundedRectangle (plot.getRight() - 112.0f, labelY - 2.0f, 106.0f, 24.0f, 8.0f);
     g.setColour (text);
-    g.setFont (juce::FontOptions (9.5f).withStyle ("Bold"));
+    g.setFont (juce::FontOptions (9.5f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("THRESHOLD  " + juce::String (thresholdDb, 1) + " dB",
                 plot.getRight() - 106.0f, labelY + 4.0f, 94.0f, 14.0f,
                 juce::Justification::centredRight);
 
     g.setColour (muted.withAlpha (0.72f));
-    g.setFont (juce::FontOptions (8.0f));
+    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Plain"));
     g.drawText ("PAST", plot.getX(), area.getBottom() - 15.0f, 34.0f, 12.0f,
                 juce::Justification::left);
     g.drawText ("NOW", plot.getRight() - 34.0f, area.getBottom() - 15.0f, 34.0f, 12.0f,
@@ -345,26 +359,26 @@ void HomeSidechainTriggerAudioProcessorEditor::drawControlStrip (juce::Graphics&
                                                                   juce::Rectangle<float> area) const
 {
     g.setColour (panel);
-    g.fillRoundedRectangle (area, 12.0f);
+    g.fillRoundedRectangle (area, 10.0f);
     g.setColour (lineColour);
-    g.drawRoundedRectangle (area, 12.0f, 1.0f);
+    g.drawRoundedRectangle (area, 10.0f, 1.0f);
 
     const auto meter = processor.getTriggerMeter();
     const bool firing = meter > 0.10f;
 
     auto statusArea = area.removeFromLeft (148.0f).reduced (12.0f, 8.0f);
-    g.setColour (firing ? triggerHot : success);
+    g.setColour (firing ? triggerHot : activeAccent);
     g.fillEllipse (statusArea.getX(), statusArea.getCentreY() - 5.0f, 10.0f, 10.0f);
     g.setColour (text);
-    g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
+    g.setFont (juce::FontOptions (10.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText (firing ? "TRIGGERING" : "READY", statusArea.getX() + 17.0f,
                 statusArea.getY(), 100.0f, 16.0f, juce::Justification::left);
 
     g.setColour (lineColour);
     g.drawVerticalLine (juce::roundToInt (area.getX()), area.getY() + 8.0f, area.getBottom() - 8.0f);
 
-    g.setColour (muted.withAlpha (0.60f));
-    g.setFont (juce::FontOptions (8.0f));
+    g.setColour (text.withAlpha (0.34f));
+    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("minimum time between events", area.getX() + 148.0f, area.getY() + 9.0f,
                 138.0f, 12.0f, juce::Justification::right);
 }
@@ -375,11 +389,13 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 
     const auto outer = getLocalBounds().toFloat().reduced (10.0f);
     g.setColour (panel);
-    g.fillRoundedRectangle (outer, 16.0f);
+    g.fillRoundedRectangle (outer, 12.0f);
     g.setColour (lineColour);
-    g.drawRoundedRectangle (outer, 16.0f, 1.0f);
+    g.drawRoundedRectangle (outer, 12.0f, 1.0f);
 
-    drawHeader (g, { 22.0f, 16.0f, getWidth() - 44.0f, 44.0f });
+    drawHeader (g, { 22.0f, 14.0f, getWidth() - 44.0f, 46.0f });
+    g.setColour (juce::Colour (0xff1e1e24));
+    g.drawLine (22.0f, 60.0f, 618.0f, 60.0f, 1.0f);
     drawGraph (g, graphBounds);
     drawControlStrip (g, { 20.0f, 292.0f, 600.0f, 52.0f });
 }
