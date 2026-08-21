@@ -112,8 +112,18 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     preset.addItemList ({ "Classic Duck", "Deep Duck", "EDM Pump", "Fast Pump", "Slow Pump",
                           "Kick Pocket", "Bass Duck", "Reverse", "Hard Gate", "Ghost Pump" }, 1);
 
-    for (auto* c : { &mode, &link, &source, &bars, &preset, &sync, &bypass, &resetShape, &flipShape, &smoothShape, &snapShape, &graph })
-        addAndMakeVisible (*c);
+    addAndMakeVisible (mode);
+    addAndMakeVisible (link);
+    addAndMakeVisible (source);
+    addAndMakeVisible (bars);
+    addAndMakeVisible (preset);
+    addAndMakeVisible (sync);
+    addAndMakeVisible (bypass);
+    addAndMakeVisible (resetShape);
+    addAndMakeVisible (flipShape);
+    addAndMakeVisible (smoothShape);
+    addAndMakeVisible (snapShape);
+    addAndMakeVisible (graph);
 
     for (auto* s : { &depth, &attack, &hold, &release, &curve, &mix, &offset })
     {
