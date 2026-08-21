@@ -162,19 +162,43 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
     const float mix = apvts.getRawParameterValue ("MIX")->load();
     const int samples = buffer.getNumSamples();
 
-    // The Receiver must accept notes arriving from normal DAW MIDI routing,
-    // regardless of MIDI channel. The Trigger uses channel 1, but many DAWs or
-    // users can remap MIDI channels on the way to the Receiver.
+    // The Receiver accepts MIDI from the host. First detect ANY incoming MIDI
+    // event so the UI can prove whether REAPER/another host is routing MIDI to
+    // the plugin. Then collect matching note-ons for the selected Home link.
     juce::Array<int, juce::CriticalSection> triggerPositions;
+    int incomingMidiEvents = 0;
+    int mostRecentNote = -1;
+    int mostRecentChannel = 0;
+
     for (const auto metadata : midi)
     {
         const auto message = metadata.getMessage();
-        if (message.isNoteOn() && message.getNoteNumber() == targetNote)
-            triggerPositions.add (juce::jlimit (0, samples - 1, metadata.samplePosition));
+        ++incomingMidiEvents;
+        if (message.getChannel() > 0)
+            mostRecentChannel = message.getChannel();
+
+        if (message.isNoteOn())
+        {
+            mostRecentNote = message.getNoteNumber();
+            if (message.getNoteNumber() == targetNote)
+                triggerPositions.add (juce::jlimit (0, samples - 1, metadata.samplePosition));
+        }
     }
 
+    midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.94f,
+                        std::memory_order_relaxed);
     triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.94f,
                            std::memory_order_relaxed);
+
+    if (incomingMidiEvents > 0)
+    {
+        midiActivity.store (1.0f, std::memory_order_relaxed);
+        midiEventCount.fetch_add (incomingMidiEvents, std::memory_order_relaxed);
+        if (mostRecentNote >= 0)
+            lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
+        if (mostRecentChannel > 0)
+            lastMidiChannel.store (mostRecentChannel, std::memory_order_relaxed);
+    }
 
     if (! bypassed)
     {

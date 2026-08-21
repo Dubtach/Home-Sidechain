@@ -177,22 +177,28 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("MODE", 104, 60, 60, 12, juce::Justification::left);
     g.drawText ("TIMING", 243, 60, 60, 12, juce::Justification::left);
 
-    const float activity = processor.triggerActivity.load (std::memory_order_relaxed);
-    const bool active = activity > 0.10f;
-    const float led = juce::jlimit (0.0f, 1.0f, activity);
+    const float midiLed = juce::jlimit (0.0f, 1.0f, processor.midiActivity.load (std::memory_order_relaxed));
+    const float triggerLed = juce::jlimit (0.0f, 1.0f, processor.triggerActivity.load (std::memory_order_relaxed));
+    const bool hasMidi = midiLed > 0.10f;
+    const bool hasTrigger = triggerLed > 0.10f;
+    const int lastNote = processor.lastMidiNote.load (std::memory_order_relaxed);
+    const int lastChannel = processor.lastMidiChannel.load (std::memory_order_relaxed);
 
     g.setColour (panel2);
-    g.fillRoundedRectangle (445.0f, 58.0f, 176.0f, 34.0f, 8.0f);
+    g.fillRoundedRectangle (445.0f, 58.0f, 240.0f, 34.0f, 8.0f);
     g.setColour (outline);
-    g.drawRoundedRectangle (445.0f, 58.0f, 176.0f, 34.0f, 8.0f, 1.0f);
-    g.setColour (active ? accent : outline);
+    g.drawRoundedRectangle (445.0f, 58.0f, 240.0f, 34.0f, 8.0f, 1.0f);
+    g.setColour (hasMidi ? accent : outline);
     g.fillEllipse (456.0f, 68.0f, 13.0f, 13.0f);
     g.setColour (text);
     g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
-    g.drawText (active ? "MIDI IN" : "WAITING", 477, 63, 70, 18, juce::Justification::left);
+    g.drawText (hasMidi ? (hasTrigger ? "TRIGGER IN" : "MIDI IN") : "WAITING", 477, 63, 86, 18, juce::Justification::left);
     g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f));
-    g.drawText (juce::String (processor.triggerCount.load()) + " triggers", 536, 63, 74, 18, juce::Justification::right);
+    g.setFont (juce::FontOptions (8.5f));
+    const auto diagnostic = lastNote >= 0
+        ? ("NOTE " + juce::String (lastNote) + "  CH " + juce::String (juce::jmax (1, lastChannel)))
+        : "NO MIDI EVENTS";
+    g.drawText (diagnostic, 565, 63, 110, 14, juce::Justification::right);
 
     g.setColour (accent.withAlpha (0.16f + 0.30f * led));
     g.fillRoundedRectangle (28, 96, 664, 238, 12.0f);

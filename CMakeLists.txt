@@ -16,7 +16,10 @@ juce_add_plugin(HomeSidechainTrigger
     BUNDLE_ID "com.dubtach.homesidechain.trigger"
     PLUGIN_MANUFACTURER_CODE Dubt
     PLUGIN_CODE Hstg
-    VST3_CATEGORIES MIDI
+    VST3_CATEGORIES Generator
+    NEEDS_MIDI_OUTPUT TRUE
+    NEEDS_MIDI_INPUT FALSE
+    IS_MIDI_EFFECT FALSE
     FORMATS ${FORMATS}
     PRODUCT_NAME "Home-Sidechain Trigger"
     COPY_PLUGIN_AFTER_BUILD TRUE
@@ -51,6 +54,9 @@ juce_add_plugin(HomeSidechainReceiver
     PLUGIN_MANUFACTURER_CODE Dubt
     PLUGIN_CODE Hscr
     VST3_CATEGORIES Dynamics
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT FALSE
+    IS_MIDI_EFFECT FALSE
     FORMATS ${FORMATS}
     PRODUCT_NAME "Home-Sidechain Receiver"
     COPY_PLUGIN_AFTER_BUILD TRUE

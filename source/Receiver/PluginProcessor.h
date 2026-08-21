@@ -37,7 +37,11 @@ public:
     // Smoothed visual activity for the editor. This is intentionally independent
     // of the audio envelope so the user can clearly see that MIDI arrived.
     std::atomic<float> triggerActivity { 0.0f };
+    std::atomic<float> midiActivity { 0.0f };
     std::atomic<int> triggerCount { 0 };
+    std::atomic<int> midiEventCount { 0 };
+    std::atomic<int> lastMidiNote { -1 };
+    std::atomic<int> lastMidiChannel { 0 };
 
     juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     void setShapePoint (int index, float value);

@@ -33,3 +33,8 @@ Whether an audio/MIDI effect can send MIDI to another effect depends on DAW rout
 - Trigger MIDI-thru option
 - MIDI-note/velocity visualizer
 - Optional audio sidechain input on Receiver for hosts that support it
+
+
+## MIDI routing note
+
+Home-Sidechain Trigger explicitly exposes a VST3 MIDI output and Home-Sidechain Receiver explicitly exposes a VST3 MIDI input. This is required by JUCE's CMake plugin configuration; overriding `producesMidi()`/`acceptsMidi()` in C++ alone does not create the host-facing MIDI bus.
