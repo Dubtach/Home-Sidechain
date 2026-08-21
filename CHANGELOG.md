@@ -1,34 +1,15 @@
-# 1.3.1
+# Home-Sidechain Changelog
 
-- Fixed JUCE build error caused by marking `getLatencySamples()` as `override` even though it is not virtual in the JUCE base class used by this project.
-- Kept the plugin latency contract at zero samples through the base/default JUCE implementation.
-- Bumped project version to 1.3.1.
+## 1.3.3
+- Fixed Trigger sender sequence data race between audio and worker threads.
+- Receiver now assigns its own per-link sequence numbers so multiple Trigger instances can share one Link without sequence collisions.
+- Reduced single-port Receiver polling interval to 1 ms.
+- Prevented Home-Link + MIDI duplicate hits from double-triggering when Source = Both.
 
-# Home-Sidechain 1.3.0
-
-## Home-Link
-- Replaced localhost UDP transport with process-local shared event bus.
-- No socket I/O, worker thread, or wait operation in the audio callback.
-- Each Receiver has its own read cursor, allowing multiple receivers on the same link.
-- Absolute host sample timestamps are carried with trigger events when the host provides them.
-
-## Trigger
-- Smart / Audio / MIDI / Both modes.
-- External MIDI note input and generated MIDI output.
-- MIDI note selector 0-127.
-- Manual TEST trigger.
-- Audio threshold + sensitivity + retrigger controls.
-- Zero reported plugin latency.
-
-## Receiver
-- Home-Link / MIDI / Both source modes.
-- Duck / Pump / Gate / Shape.
-- Draggable 5-point envelope shaper.
-- Reset / Flip / Smooth / Snap.
-- Factory creative presets.
-- Free / Sync timing and bar lengths 1/4 to 4 bars.
-- Attack / Hold / Release / Curve / Depth / Mix / Offset.
-- Zero reported plugin latency and no lookahead buffer.
-
-## Important timing note
-Home-Sidechain intentionally reports 0 plugin latency and does not add lookahead or buffering. When the host processes Trigger before Receiver, Home-Link timestamps allow the Receiver to place the event at the exact sample in the current block. If a host processes the Receiver before the Trigger, the host's own scheduling order can still push the event to the next audio block; a plugin cannot force the DAW to execute tracks in a different order.
+## 1.3.2
+- Fixed Receiver `juce::jlimit` float/double template mismatch.
+- Restored a real cross-plugin Home-Link transport using localhost UDP, which works across the separate Trigger and Receiver plugin binaries.
+- Reduced Receiver socket polling from eight ports to one process-local port to reduce routing overhead and jitter.
+- Kept all socket I/O off the real-time audio thread.
+- Sorted and de-duplicated Receiver trigger points so Home-Link + MIDI cannot double-trigger the same hit.
+- Preserved automatic Home-Link operation with no DAW MIDI routing required.

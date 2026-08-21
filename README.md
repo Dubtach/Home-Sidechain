@@ -1,34 +1,56 @@
 # Home-Sidechain
 
-Dubtach Home-series creative sidechain trigger + receiver pair, built with Pamplejuce/JUCE.
+Home-Sidechain is a two-plugin creative sidechain system for the Dubtach Home series.
 
 ## Plugins
 
 ### Home-Sidechain Trigger
-- Smart / Audio / MIDI / Both trigger modes
-- Audio-to-MIDI transient/threshold trigger
-- External MIDI-note trigger input
-- MIDI note output
-- Home-Link automatic event publishing (no DAW routing required)
-- Manual TEST trigger
-- Link A-H
-- Zero reported plugin latency
+
+The Trigger can create trigger events from:
+
+- Audio level/transient detection
+- Incoming MIDI notes
+- Both sources
+- Smart mode, which prefers a matching MIDI note over audio detection within the same block to avoid duplicate hits
+
+It sends its trigger to the paired Receiver through **Home-Link** automatically and can also expose MIDI output for advanced DAW routing.
 
 ### Home-Sidechain Receiver
-- Home-Link automatic Trigger -> Receiver communication
-- MIDI / Both fallback modes
-- Duck / Pump / Gate / Shape modes
-- 5-point draggable shaper
-- Reset / Flip / Smooth / Snap tools
-- Factory creative presets
-- Free or tempo-synced timing
-- Bar lengths 1/4, 1/2, 1, 2, 4
-- Attack / Hold / Release / Curve / Depth / Mix / Offset
-- Signal + connection diagnostics
-- Zero reported plugin latency; no lookahead buffering
 
-## User workflow
+The Receiver listens for the selected Home-Link and applies a zero-lookahead creative ducking envelope. It also supports incoming MIDI as an optional advanced fallback.
 
-Insert Trigger on the source track and Receiver on the target track. Choose the same Home-Link (A-H). In the default Home-Link mode there is no MIDI send/receive routing to configure in the DAW.
+Modes:
 
-MIDI and BOTH modes remain available for advanced setups.
+- Duck
+- Pump
+- Gate
+- Shape
+
+Timing:
+
+- Free timing
+- Tempo sync
+- 1/4, 1/2, 1, 2, and 4 bar cycles
+- Offset
+
+The shaper supports draggable points plus Reset, Flip, Smooth, and Snap operations.
+
+## Normal workflow
+
+No DAW MIDI send is required:
+
+```text
+Kick track
+  -> Home-Sidechain Trigger (Link A)
+
+Bass track
+  -> Home-Sidechain Receiver (Link A, Source = Home-Link)
+```
+
+## Home-Link transport
+
+Trigger and Receiver are separate plugin binaries, so they cannot share a C++ static object directly. Home-Link therefore uses a localhost UDP transport keyed to the current DAW process ID. Socket I/O is kept off the audio thread.
+
+The Receiver maintains a small lock-free event ring per Link. Receiver-local sequence numbers avoid collisions when multiple Trigger instances share the same Link.
+
+Home-Link does not add an intentional audio delay or report plugin latency. Actual cross-track trigger timing is still subject to host processing order and thread scheduling.

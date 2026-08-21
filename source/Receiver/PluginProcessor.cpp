@@ -364,6 +364,35 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
         }
     }
 
+    // Home-Link and MIDI can both represent the same trigger when Source = Both.
+    // Sort by sample position and remove near-identical duplicates before applying
+    // the envelope so one physical hit cannot double-trigger the Receiver.
+    if (pointCount > 1)
+    {
+        std::sort (points.begin(), points.begin() + pointCount, [] (const TriggerPoint& a, const TriggerPoint& b)
+        {
+            return a.sample < b.sample;
+        });
+
+        int write = 0;
+        for (int read = 0; read < pointCount; ++read)
+        {
+            if (write == 0)
+            {
+                points[write++] = points[read];
+                continue;
+            }
+
+            const bool nearSameSample = std::abs (points[read].sample - points[write - 1].sample) <= 2;
+            const bool duplicateTransport = nearSameSample
+                                             && points[read].source != points[write - 1].source;
+
+            if (! duplicateTransport)
+                points[write++] = points[read];
+        }
+        pointCount = write;
+    }
+
     if (! bypassed)
     {
         size_t triggerIndex = 0;
@@ -375,7 +404,7 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             while (triggerIndex < static_cast<size_t> (pointCount)
                    && points[triggerIndex].sample <= i)
             {
-                const auto phase = juce::jlimit (0.0, 0.999999, offsetPhase);
+                const auto phase = juce::jlimit (0.0f, 0.999999f, offsetPhase);
                 triggerEnvelope (phase);
                 ++triggerIndex;
             }

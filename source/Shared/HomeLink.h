@@ -4,7 +4,13 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
-#include <algorithm>
+#include <cstring>
+
+#if JUCE_WINDOWS
+ #include <windows.h>
+#elif JUCE_MAC || JUCE_LINUX
+ #include <unistd.h>
+#endif
 
 namespace homeSidechain
 {
@@ -33,118 +39,92 @@ namespace homeSidechain
     }
 
     // -------------------------------------------------------------------------
-    // Home-Link v2: process-local, lock-free-ish broadcast event bus.
+    // Home-Link transport
     //
-    // There is intentionally NO socket, thread, wait, or heap allocation in the
-    // audio callback. Trigger writes a fixed-size event directly into a shared
-    // per-link ring. Each Receiver owns its own read cursor, so all receivers on
-    // the same Link see the same event stream.
+    // Trigger and Receiver are separate plugin binaries, so a normal C++
+    // static singleton is NOT shared between them. Home-Link therefore uses a
+    // localhost UDP transport. It is automatic (no DAW MIDI routing), local to
+    // the current DAW process, and the real-time audio thread never performs
+    // socket I/O. Trigger -> queue -> sender thread -> localhost -> Receiver
+    // listener thread -> fixed event ring -> audio thread.
     //
-    // Timing is carried as an absolute host sample position when the host
-    // provides it. This lets the Receiver place a trigger at the exact sample
-    // within its current block when the Trigger track is processed first.
+    // The transport adds no declared audio latency and does not intentionally
+    // delay the audio signal. Actual trigger arrival is still subject to the
+    // DAW's plugin scheduling order and normal thread scheduling.
     // -------------------------------------------------------------------------
+
+    inline uint32_t currentProcessId() noexcept
+    {
+       #if JUCE_WINDOWS
+        return static_cast<uint32_t> (::GetCurrentProcessId());
+       #elif JUCE_MAC || JUCE_LINUX
+        return static_cast<uint32_t> (::getpid());
+       #else
+        return 1u;
+       #endif
+    }
+
+    inline int homeLinkPort() noexcept
+    {
+        // A deterministic localhost port derived from the DAW process. This
+        // keeps independent DAW processes isolated without user configuration.
+        return 40000 + static_cast<int> (currentProcessId() % 20000u);
+    }
+
+    inline constexpr uint32_t homeLinkMagic = 0x484C4E4Bu; // "HLNK"
+    inline constexpr uint8_t homeLinkVersion = 2;
+    inline constexpr uint8_t packetHeartbeat = 1;
+    inline constexpr uint8_t packetTrigger = 2;
+
+    #pragma pack(push, 1)
+    struct HomeLinkPacket
+    {
+        uint32_t magic = homeLinkMagic;
+        uint8_t version = homeLinkVersion;
+        uint8_t type = packetHeartbeat;
+        uint8_t link = 0;
+        uint8_t source = 0;
+        uint16_t velocity = 127;
+        int64_t absoluteSample = -1;
+        uint64_t senderSequence = 0;
+    };
+    #pragma pack(pop)
+
+    static_assert (sizeof (HomeLinkPacket) == 26, "Unexpected Home-Link packet packing");
 
     struct HomeLinkEvent
     {
-        uint64_t sequence = 0;
+        uint64_t sequence = 0; // Receiver-local sequence.
         int64_t absoluteSample = -1;
         uint16_t velocity = 127;
-        uint8_t source = 0; // 1 = audio, 2 = midi, 3 = manual
-        uint8_t reserved = 0;
+        uint8_t source = 0;
     };
 
-    class HomeLinkBus
+    class HomeLinkSender : private juce::Thread
     {
     public:
-        static HomeLinkBus& instance() noexcept
+        HomeLinkSender()
+            : juce::Thread ("HomeSidechain-Link-Sender")
         {
-            static HomeLinkBus bus;
-            return bus;
         }
 
-        uint64_t publishTrigger (int link, const HomeLinkEvent& input) noexcept
+        ~HomeLinkSender() override
         {
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            const auto sequence = writeSequence[l].fetch_add (1, std::memory_order_acq_rel) + 1;
-            auto& slot = rings[l][static_cast<size_t> (sequence % ringSize)];
-
-            auto event = input;
-            event.sequence = sequence;
-            slot.event = event;
-            slot.publishedSequence.store (sequence, std::memory_order_release);
-            triggerCount[l].fetch_add (1, std::memory_order_relaxed);
-            return sequence;
+            stop();
         }
 
-        void markHeartbeat (int link) noexcept
+        void start()
         {
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            heartbeatMs[l].store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
+            if (! isThreadRunning())
+                startThread (juce::Thread::Priority::high);
         }
 
-        uint64_t latestSequence (int link) const noexcept
+        void stop()
         {
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            return writeSequence[l].load (std::memory_order_acquire);
+            signalThreadShouldExit();
+            queueReady.signal();
+            stopThread (500);
         }
-
-        bool readEvent (int link, uint64_t sequence, HomeLinkEvent& result) const noexcept
-        {
-            if (sequence == 0)
-                return false;
-
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            const auto& slot = rings[l][static_cast<size_t> (sequence % ringSize)];
-            const auto published = slot.publishedSequence.load (std::memory_order_acquire);
-
-            if (published != sequence)
-                return false;
-
-            result = slot.event;
-            return true;
-        }
-
-        uint32_t lastHeartbeatMs (int link) const noexcept
-        {
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            return heartbeatMs[l].load (std::memory_order_relaxed);
-        }
-
-        int totalTriggerCount (int link) const noexcept
-        {
-            const auto l = static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link));
-            return triggerCount[l].load (std::memory_order_relaxed);
-        }
-
-        bool isEventAvailable (int link, uint64_t sequence) const noexcept
-        {
-            HomeLinkEvent ignored;
-            return readEvent (link, sequence, ignored);
-        }
-
-        static constexpr uint64_t ringCapacity() noexcept { return ringSize; }
-
-    private:
-        static constexpr size_t ringSize = 1024;
-
-        struct Slot
-        {
-            HomeLinkEvent event {};
-            std::atomic<uint64_t> publishedSequence { 0 };
-        };
-
-        std::array<std::array<Slot, ringSize>, numberOfLinks> rings {};
-        std::array<std::atomic<uint64_t>, numberOfLinks> writeSequence {};
-        std::array<std::atomic<uint32_t>, numberOfLinks> heartbeatMs {};
-        std::array<std::atomic<int>, numberOfLinks> triggerCount {};
-    };
-
-    class HomeLinkSender
-    {
-    public:
-        void start() noexcept {}
-        void stop() noexcept {}
 
         void setLink (int link) noexcept
         {
@@ -153,35 +133,132 @@ namespace homeSidechain
 
         void heartbeat (int link) noexcept
         {
-            HomeLinkBus::instance().markHeartbeat (link);
+            setLink (link);
         }
 
-        uint64_t publishTrigger (int link, int velocity, int64_t absoluteSample, uint8_t source) noexcept
+        void publishTrigger (int link, int velocity, int64_t absoluteSample, uint8_t source) noexcept
         {
-            HomeLinkEvent event;
-            event.absoluteSample = absoluteSample;
-            event.velocity = static_cast<uint16_t> (juce::jlimit (1, 127, velocity));
-            event.source = source;
-            return HomeLinkBus::instance().publishTrigger (link, event);
+            const auto safeLink = juce::jlimit (0, numberOfLinks - 1, link);
+            const auto w = writeIndex.load (std::memory_order_relaxed);
+            const auto r = readIndex.load (std::memory_order_acquire);
+
+            if (w - r >= queueSize)
+            {
+                droppedCount.fetch_add (1, std::memory_order_relaxed);
+                return;
+            }
+
+            auto& slot = queue[static_cast<size_t> (w % queueSize)];
+            slot.magic = homeLinkMagic;
+            slot.version = homeLinkVersion;
+            slot.type = packetTrigger;
+            slot.link = static_cast<uint8_t> (safeLink);
+            slot.source = source;
+            slot.velocity = static_cast<uint16_t> (juce::jlimit (1, 127, velocity));
+            slot.absoluteSample = absoluteSample;
+            slot.senderSequence = sequence.fetch_add (1, std::memory_order_relaxed) + 1;
+
+            writeIndex.store (w + 1, std::memory_order_release);
+            queueReady.signal();
         }
 
-        // Compatibility helper for code that still calls enqueueTrigger.
+        // Compatibility helper for older code.
         void enqueueTrigger (int link, int velocity, int sampleOffset, uint64_t hostTicks) noexcept
         {
             juce::ignoreUnused (hostTicks);
             publishTrigger (link, velocity, static_cast<int64_t> (sampleOffset), 1);
         }
 
-        int getDroppedCount() const noexcept { return 0; }
+        int getDroppedCount() const noexcept
+        {
+            return droppedCount.load (std::memory_order_relaxed);
+        }
 
     private:
+        static constexpr uint64_t queueSize = 256;
+
+        std::array<HomeLinkPacket, queueSize> queue {};
+        std::atomic<uint64_t> writeIndex { 0 };
+        std::atomic<uint64_t> readIndex { 0 };
+        std::atomic<int> droppedCount { 0 };
+        std::atomic<uint64_t> sequence { 0 };
         std::atomic<int> currentLink { 0 };
+        juce::WaitableEvent queueReady;
+        juce::DatagramSocket socket;
+
+        void sendPacket (const HomeLinkPacket& packet) noexcept
+        {
+            const auto bytesSent = socket.write ("127.0.0.1", homeLinkPort(), &packet, sizeof (packet));
+            if (bytesSent != static_cast<int> (sizeof (packet)))
+                droppedCount.fetch_add (1, std::memory_order_relaxed);
+        }
+
+        void run() override
+        {
+            // Bind an ephemeral local port for the sender. We never receive on it.
+            socket.setEnablePortReuse (true);
+
+            uint32_t lastHeartbeatMs = 0;
+
+            while (! threadShouldExit())
+            {
+                bool sentAnything = false;
+
+                auto r = readIndex.load (std::memory_order_relaxed);
+                const auto w = writeIndex.load (std::memory_order_acquire);
+
+                while (r < w)
+                {
+                    sendPacket (queue[static_cast<size_t> (r % queueSize)]);
+                    ++r;
+                    sentAnything = true;
+                }
+
+                readIndex.store (r, std::memory_order_release);
+
+                const auto now = juce::Time::getMillisecondCounter();
+                if (now - lastHeartbeatMs >= 100)
+                {
+                    HomeLinkPacket heartbeat;
+                    heartbeat.type = packetHeartbeat;
+                    heartbeat.link = static_cast<uint8_t> (currentLink.load (std::memory_order_relaxed));
+                    heartbeat.senderSequence = sequence.fetch_add (1, std::memory_order_relaxed) + 1;
+                    sendPacket (heartbeat);
+                    lastHeartbeatMs = now;
+                    sentAnything = true;
+                }
+
+                if (! sentAnything)
+                    queueReady.wait (20);
+            }
+
+            socket.shutdown();
+        }
     };
 
-    class HomeLinkReceiverService
+    class HomeLinkReceiverService : private juce::Thread
     {
     public:
-        static HomeLinkReceiverService& instance() noexcept
+        HomeLinkReceiverService()
+            : juce::Thread ("HomeSidechain-Link-Receiver")
+        {
+            socket.setEnablePortReuse (true);
+            const auto result = socket.bindToPort (homeLinkPort(), "127.0.0.1");
+            socketBound.store (result, std::memory_order_release);
+            startThread (juce::Thread::Priority::high);
+        }
+
+        ~HomeLinkReceiverService() override
+        {
+            signalThreadShouldExit();
+            socket.shutdown();
+            stopThread (500);
+        }
+
+        HomeLinkReceiverService (const HomeLinkReceiverService&) = delete;
+        HomeLinkReceiverService& operator= (const HomeLinkReceiverService&) = delete;
+
+        static HomeLinkReceiverService& instance()
         {
             static HomeLinkReceiverService service;
             return service;
@@ -189,25 +266,123 @@ namespace homeSidechain
 
         uint64_t latestSequence (int link) const noexcept
         {
-            return HomeLinkBus::instance().latestSequence (link);
+            return latestSeq[static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link))]
+                .load (std::memory_order_acquire);
         }
 
-        bool readEvent (int link, uint64_t sequence, HomeLinkEvent& result) const noexcept
+        bool readEvent (int link, uint64_t sequenceNumber, HomeLinkEvent& result) const noexcept
         {
-            return HomeLinkBus::instance().readEvent (link, sequence, result);
+            if (sequenceNumber == 0)
+                return false;
+
+            const auto safeLink = juce::jlimit (0, numberOfLinks - 1, link);
+            const auto& slot = rings[static_cast<size_t> (safeLink)][static_cast<size_t> (sequenceNumber % ringSize)];
+            const auto published = slot.sequence.load (std::memory_order_acquire);
+
+            if (published != sequenceNumber)
+                return false;
+
+            result = slot.event;
+            return true;
         }
 
         uint32_t lastHeartbeatMs (int link) const noexcept
         {
-            return HomeLinkBus::instance().lastHeartbeatMs (link);
+            return heartbeatMs[static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link))]
+                .load (std::memory_order_relaxed);
+        }
+
+        bool isListening (int) const noexcept
+        {
+            return socketBound.load (std::memory_order_acquire);
         }
 
         int totalTriggerCount (int link) const noexcept
         {
-            return HomeLinkBus::instance().totalTriggerCount (link);
+            return triggerCounts[static_cast<size_t> (juce::jlimit (0, numberOfLinks - 1, link))]
+                .load (std::memory_order_relaxed);
         }
 
-        bool isListening (int) const noexcept { return true; }
-        uint64_t ringCapacity() const noexcept { return HomeLinkBus::ringCapacity(); }
+        uint64_t ringCapacity() const noexcept
+        {
+            return ringSize;
+        }
+
+    private:
+        static constexpr size_t ringSize = 256;
+
+        struct Slot
+        {
+            HomeLinkEvent event {};
+            std::atomic<uint64_t> sequence { 0 };
+        };
+
+        std::array<std::array<Slot, ringSize>, numberOfLinks> rings {};
+        std::array<std::atomic<uint64_t>, numberOfLinks> latestSeq {};
+        std::array<std::atomic<uint32_t>, numberOfLinks> heartbeatMs {};
+        std::array<std::atomic<int>, numberOfLinks> triggerCounts {};
+        std::atomic<bool> socketBound { false };
+        juce::DatagramSocket socket;
+
+        void publish (const HomeLinkPacket& packet)
+        {
+            if (packet.link >= numberOfLinks)
+                return;
+
+            const auto link = static_cast<int> (packet.link);
+            const auto index = static_cast<size_t> (link);
+
+            if (packet.type == packetHeartbeat)
+            {
+                heartbeatMs[index].store (juce::Time::getMillisecondCounter(), std::memory_order_relaxed);
+                return;
+            }
+
+            if (packet.type != packetTrigger)
+                return;
+
+            // Receiver-local sequencing avoids collisions when multiple Trigger
+            // instances use the same Home-Link.
+            const auto sequenceNumber = latestSeq[index].fetch_add (1, std::memory_order_relaxed) + 1;
+            auto& slot = rings[index][static_cast<size_t> (sequenceNumber % ringSize)];
+
+            slot.event.sequence = sequenceNumber;
+            slot.event.absoluteSample = packet.absoluteSample;
+            slot.event.velocity = static_cast<uint16_t> (juce::jlimit (1, 127, static_cast<int> (packet.velocity)));
+            slot.event.source = packet.source;
+            slot.sequence.store (sequenceNumber, std::memory_order_release);
+            triggerCounts[index].fetch_add (1, std::memory_order_relaxed);
+        }
+
+        void run() override
+        {
+            std::array<uint8_t, 512> receiveBuffer {};
+
+            while (! threadShouldExit())
+            {
+                if (socket.waitUntilReady (true, 1) > 0)
+                {
+                    const auto bytes = socket.read (receiveBuffer.data(), static_cast<int> (receiveBuffer.size()), false);
+
+                    if (bytes == static_cast<int> (sizeof (HomeLinkPacket)))
+                    {
+                        HomeLinkPacket packet;
+                        std::memcpy (&packet, receiveBuffer.data(), sizeof (packet));
+
+                        if (packet.magic == homeLinkMagic && packet.version == homeLinkVersion)
+                            publish (packet);
+                    }
+                }
+                else
+                {
+                    wait (1);
+                }
+            }
+        }
     };
+
+    inline HomeLinkReceiverService& getHomeLinkReceiverService() noexcept
+    {
+        return HomeLinkReceiverService::instance();
+    }
 }
