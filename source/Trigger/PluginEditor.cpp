@@ -44,11 +44,12 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("COOL DOWN", labelX, labelY, 90.0f, 14.0f, juce::Justification::left);
 
-    // Use the slider's actual NormalisableRange so the painted thumb exactly
-    // matches JUCE's parameter mapping, including the skew used by the APVTS.
+    // Slider::getRange() returns a plain Range in current JUCE versions.
+    // Map the current value safely into that range for the custom-drawn thumb.
     const auto range = getRange();
-    const double normalised = range.getLength() > 0.0
-        ? range.convertTo0to1 (getValue())
+    const double rangeLength = range.getLength();
+    const double normalised = rangeLength > 0.0
+        ? (getValue() - range.getStart()) / rangeLength
         : 0.0;
     const float proportion = static_cast<float> (juce::jlimit (0.0, 1.0, normalised));
     const float thumbX = trackX + thumbRadius + (trackW - thumbRadius * 2.0f) * proportion;
@@ -321,7 +322,6 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     }
 
     // Threshold is directly mapped to the same dB scale as the waveform.
-    const float thresholdDb = processor.getThresholdDb();
     const float thresholdY = yForDb (thresholdDb);
 
     g.setColour (accent.withAlpha (0.07f));
