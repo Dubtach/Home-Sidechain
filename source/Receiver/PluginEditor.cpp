@@ -38,21 +38,17 @@ int ShaperGraph::nearestPoint (juce::Point<float> p) const
 void ShaperGraph::paint (juce::Graphics& g)
 {
     const auto area = getLocalBounds().toFloat().reduced (8.0f);
-
     g.setColour (panel2);
-    g.fillRoundedRectangle (area, 9.0f);
+    g.fillRoundedRectangle (area, 10.0f);
     g.setColour (outline);
-    g.drawRoundedRectangle (area, 9.0f, 1.0f);
+    g.drawRoundedRectangle (area, 10.0f, 1.0f);
 
-    g.setColour (outline.withAlpha (0.65f));
+    g.setColour (outline.withAlpha (0.7f));
     for (int i = 1; i < 4; ++i)
     {
         const float x = area.getX() + area.getWidth() * (static_cast<float> (i) / 4.0f);
-        g.drawVerticalLine (juce::roundToInt (x), area.getY(), area.getBottom());
-    }
-    for (int i = 1; i < 4; ++i)
-    {
         const float y = area.getY() + area.getHeight() * (static_cast<float> (i) / 4.0f);
+        g.drawVerticalLine (juce::roundToInt (x), area.getY(), area.getBottom());
         g.drawHorizontalLine (juce::roundToInt (y), area.getX(), area.getRight());
     }
 
@@ -70,13 +66,12 @@ void ShaperGraph::paint (juce::Graphics& g)
     fill.lineTo (area.getRight(), area.getBottom());
     fill.lineTo (area.getX(), area.getBottom());
     fill.closeSubPath();
-
     g.setColour (accent.withAlpha (0.10f));
     g.fillPath (fill);
-    g.setColour (accent.withAlpha (0.25f));
+    g.setColour (accent.withAlpha (0.24f));
     g.strokePath (curve, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     g.setColour (accent);
-    g.strokePath (curve, juce::PathStrokeType (2.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.strokePath (curve, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     for (int i = 0; i < 5; ++i)
     {
@@ -107,23 +102,20 @@ void ShaperGraph::mouseDrag (const juce::MouseEvent& event)
 HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p), graph (p)
 {
-    setSize (640, 450);
+    setSize (700, 500);
     setResizable (false, false);
 
-    mode.addItemList ({ "Duck", "Pump", "Gate", "Shape" }, 1);
+    mode.addItemList ({ "DUCK", "PUMP", "GATE", "SHAPE" }, 1);
     link.addItemList (homeSidechain::linkNames(), 1);
-    bars.addItemList ({ "1/4 Bar", "1/2 Bar", "1 Bar", "2 Bars", "4 Bars" }, 1);
     source.addItemList ({ "HOME-LINK", "MIDI", "BOTH" }, 1);
+    bars.addItemList ({ "1/4", "1/2", "1", "2", "4" }, 1);
+    preset.addItemList ({ "Classic Duck", "Deep Duck", "EDM Pump", "Fast Pump", "Slow Pump",
+                          "Kick Pocket", "Bass Duck", "Reverse", "Hard Gate", "Ghost Pump" }, 1);
 
-    addAndMakeVisible (graph);
-    addAndMakeVisible (mode);
-    addAndMakeVisible (link);
-    addAndMakeVisible (bars);
-    addAndMakeVisible (source);
-    addAndMakeVisible (sync);
-    addAndMakeVisible (bypass);
+    for (auto* c : { &mode, &link, &source, &bars, &preset, &sync, &bypass, &resetShape, &flipShape, &smoothShape, &snapShape, &graph })
+        addAndMakeVisible (*c);
 
-    for (auto* s : { &depth, &attack, &hold, &release, &curve, &mix })
+    for (auto* s : { &depth, &attack, &hold, &release, &curve, &mix, &offset })
     {
         addAndMakeVisible (*s);
         styleSlider (*s);
@@ -142,12 +134,20 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     releaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "RELEASE", release);
     curveAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "CURVE", curve);
     mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "MIX", mix);
+    offsetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "OFFSET", offset);
 
     depth.setTextValueSuffix (" dB");
     attack.setTextValueSuffix (" ms");
     hold.setTextValueSuffix (" ms");
     release.setTextValueSuffix (" ms");
     mix.setTextValueSuffix (" %");
+    offset.setTextValueSuffix (" %");
+
+    resetShape.onClick = [this] { processor.resetShape(); };
+    flipShape.onClick = [this] { processor.flipShape(); };
+    smoothShape.onClick = [this] { processor.smoothShape(); };
+    snapShape.onClick = [this] { processor.snapShape(); };
+    preset.onChange = [this] { if (preset.getSelectedId() > 0) processor.applyPreset (preset.getSelectedId() - 1); };
 
     startTimerHz (30);
 }
@@ -155,7 +155,7 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
 void HomeSidechainReceiverAudioProcessorEditor::styleSlider (juce::Slider& slider)
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 64, 19);
+    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 62, 19);
     slider.setColour (juce::Slider::rotarySliderFillColourId, accent);
     slider.setColour (juce::Slider::rotarySliderOutlineColourId, outline);
     slider.setColour (juce::Slider::textBoxTextColourId, text);
@@ -166,112 +166,106 @@ void HomeSidechainReceiverAudioProcessorEditor::styleSlider (juce::Slider& slide
 void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bg);
-
-    const auto bounds = getLocalBounds().toFloat().reduced (12.0f);
+    const auto bounds = getLocalBounds().toFloat().reduced (10.0f);
     g.setColour (panel);
     g.fillRoundedRectangle (bounds, 14.0f);
     g.setColour (outline);
     g.drawRoundedRectangle (bounds, 14.0f, 1.0f);
 
     g.setColour (text);
-    g.setFont (juce::FontOptions (19.0f).withStyle ("Bold"));
-    g.drawText ("HOME-SIDECHAIN", 24, 16, 250, 24, juce::Justification::left);
-
+    g.setFont (juce::FontOptions (18.0f).withStyle ("Bold"));
+    g.drawText ("HOME-SIDECHAIN", 20, 14, 230, 24, juce::Justification::left);
     g.setColour (muted);
-    g.setFont (juce::FontOptions (10.0f));
-    g.drawText ("RECEIVER / SHAPER", 25, 39, 150, 14, juce::Justification::left);
-
-    g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
-    g.drawText ("LINK", 20, 55, 60, 12, juce::Justification::left);
-    g.drawText ("MODE", 88, 55, 60, 12, juce::Justification::left);
-    g.drawText ("SOURCE", 198, 55, 60, 12, juce::Justification::left);
-    g.drawText ("TIMING", 378, 55, 60, 12, juce::Justification::left);
-
-    const float midiLed = juce::jlimit (0.0f, 1.0f, processor.midiActivity.load (std::memory_order_relaxed));
-    const float triggerLed = juce::jlimit (0.0f, 1.0f, processor.triggerActivity.load (std::memory_order_relaxed));
-    const float linkLed = juce::jlimit (0.0f, 1.0f, processor.homeLinkActivity.load (std::memory_order_relaxed));
-    const bool hasMidi = midiLed > 0.10f;
-    const bool connected = processor.homeLinkConnected.load (std::memory_order_relaxed);
-    const int sourceMode = static_cast<int> (processor.apvts.getRawParameterValue ("SOURCE")->load());
-    const int lastNote = processor.lastMidiNote.load (std::memory_order_relaxed);
-    const int lastChannel = processor.lastMidiChannel.load (std::memory_order_relaxed);
+    g.setFont (juce::FontOptions (9.0f));
+    g.drawText ("RECEIVER • ZERO LATENCY • CREATIVE SHAPER", 21, 37, 280, 14, juce::Justification::left);
 
     g.setColour (panel2);
-    g.fillRoundedRectangle (300.0f, 48.0f, 322.0f, 34.0f, 8.0f);
+    g.fillRoundedRectangle (300.0f, 14.0f, 378.0f, 48.0f, 9.0f);
     g.setColour (outline);
-    g.drawRoundedRectangle (300.0f, 48.0f, 322.0f, 34.0f, 8.0f, 1.0f);
+    g.drawRoundedRectangle (300.0f, 14.0f, 378.0f, 48.0f, 9.0f, 1.0f);
 
-    const bool signal = (sourceMode == 0 || sourceMode == 2) ? linkLed > 0.10f : hasMidi;
+    const float homeLed = juce::jlimit (0.0f, 1.0f, processor.homeLinkActivity.load());
+    const bool connected = processor.homeLinkConnected.load();
+    const int src = static_cast<int> (processor.apvts.getRawParameterValue ("SOURCE")->load());
+    const bool midi = processor.midiActivity.load() > 0.10f;
+    const bool signal = src == 0 ? homeLed > 0.10f : src == 1 ? midi : (homeLed > 0.10f || midi);
+
     g.setColour (signal ? accent : (connected ? accent.withAlpha (0.55f) : outline));
-    g.fillEllipse (310.0f, 59.0f, 12.0f, 12.0f);
-
+    g.fillEllipse (311, 27, 13, 13);
     g.setColour (text);
     g.setFont (juce::FontOptions (10.0f).withStyle ("Bold"));
-
-    juce::String status;
-    if (sourceMode == 0)
-        status = linkLed > 0.10f ? "HOME-LINK SIGNAL" : (connected ? "LINKED" : "WAITING");
-    else if (sourceMode == 1)
-        status = hasMidi ? "MIDI SIGNAL" : "MIDI WAITING";
-    else
-        status = linkLed > 0.10f || hasMidi ? "SIGNAL" : (connected ? "LINKED" : "WAITING");
-
-    g.drawText (status, 329, 53, 136, 18, juce::Justification::left);
-
+    g.drawText (signal ? "SIGNAL" : (connected ? "LINKED" : "WAITING"), 332, 20, 85, 20, juce::Justification::left);
     g.setColour (muted);
     g.setFont (juce::FontOptions (8.5f));
-    juce::String diagnostic;
-    if (sourceMode != 0 && lastNote >= 0)
-        diagnostic = "NOTE " + juce::String (lastNote) + " CH " + juce::String (juce::jmax (1, lastChannel));
-    else
-        diagnostic = "TRIGGERS " + juce::String (processor.homeLinkTriggerCount.load (std::memory_order_relaxed));
-    g.drawText (diagnostic, 470, 53, 142, 14, juce::Justification::right);
+    g.drawText ("LINK " + homeSidechain::linkName (processor.getLink())
+                + " • " + juce::String (processor.homeLinkTriggerCount.load()) + " TRIGGERS",
+                418, 20, 148, 18, juce::Justification::right);
+    g.drawText ("ZERO LATENCY", 573, 20, 94, 18, juce::Justification::right);
 
-    const float led = juce::jmax (juce::jmax (midiLed, triggerLed), linkLed);
-    g.setColour (accent.withAlpha (0.08f + 0.22f * led));
-    g.fillRoundedRectangle (22, 92, 596, 202, 12.0f);
-    g.setColour (outline);
-    g.drawRoundedRectangle (22, 92, 596, 202, 12.0f, 1.0f);
-
-    g.setColour (muted);
-    g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
-    g.drawText ("SHAPER — drag the nodes", 34, 102, 180, 14, juce::Justification::left);
-    g.drawText ("0 dB", 566, 107, 40, 14, juce::Justification::right);
-    g.drawText ("-DEPTH", 560, 279, 46, 14, juce::Justification::right);
-
-    const juce::String labels[] = { "DEPTH", "ATTACK", "HOLD", "RELEASE", "CURVE", "MIX" };
-    const int xs[] = { 12, 110, 208, 306, 404, 502 };
+    const juce::String labels[] = { "MODE", "SOURCE", "LINK", "PRESET", "TIMING", "BARS" };
+    const int xs[] = { 20, 106, 208, 274, 420, 518 };
+    const int widths[] = { 80, 96, 58, 140, 88, 72 };
     for (int i = 0; i < 6; ++i)
     {
         g.setColour (muted);
-        g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
-        g.drawText (labels[i], xs[i], 303, 96, 14, juce::Justification::centred);
+        g.setFont (juce::FontOptions (8.5f).withStyle ("Bold"));
+        g.drawText (labels[i], xs[i], 69, widths[i], 12, juce::Justification::left);
+    }
+
+    g.setColour (muted);
+    g.setFont (juce::FontOptions (9.0f).withStyle ("Bold"));
+    g.drawText ("SHAPER • DRAG POINTS", 24, 110, 170, 14, juce::Justification::left);
+    g.drawText ("RESET / FLIP / SMOOTH / SNAP", 484, 110, 188, 14, juce::Justification::right);
+
+    const auto led = juce::jmax (homeLed, processor.triggerActivity.load());
+    g.setColour (accent.withAlpha (0.06f + 0.20f * led));
+    g.fillRoundedRectangle (18, 126, 664, 208, 12.0f);
+    g.setColour (outline);
+    g.drawRoundedRectangle (18, 126, 664, 208, 12.0f, 1.0f);
+
+    g.setColour (muted);
+    g.setFont (juce::FontOptions (8.5f));
+    g.drawText ("0", 35, 145, 20, 12, juce::Justification::left);
+    g.drawText ("100%", 38, 308, 30, 12, juce::Justification::left);
+
+    const juce::String knobLabels[] = { "DEPTH", "ATTACK", "HOLD", "RELEASE", "CURVE", "MIX", "OFFSET" };
+    const int xs2[] = { 18, 116, 214, 312, 410, 508, 606 };
+    for (int i = 0; i < 7; ++i)
+    {
+        g.setColour (muted);
+        g.setFont (juce::FontOptions (8.5f).withStyle ("Bold"));
+        g.drawText (knobLabels[i], xs2[i], 350, 88, 14, juce::Justification::centred);
     }
 
     g.setColour (muted);
     g.setFont (juce::FontOptions (8.0f));
-    g.drawText ("HOME-LINK removes DAW MIDI routing. MIDI/BOTH remain available for advanced setups.",
-                18, 430, 604, 12, juce::Justification::centred);
+    g.drawText ("Home-Link = no DAW routing. MIDI/BOTH = advanced fallback. Plugin reports 0 samples latency.",
+                16, 478, 668, 12, juce::Justification::centred);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::resized()
 {
-    link.setBounds (20, 66, 60, 23);
-    mode.setBounds (88, 66, 104, 23);
-    source.setBounds (198, 66, 104, 23);
-    sync.setBounds (311, 65, 62, 24);
-    bars.setBounds (378, 66, 104, 23);
-    bypass.setBounds (565, 18, 58, 23);
+    mode.setBounds (20, 82, 80, 23);
+    source.setBounds (106, 82, 94, 23);
+    link.setBounds (208, 82, 58, 23);
+    preset.setBounds (274, 82, 140, 23);
+    sync.setBounds (420, 81, 60, 25);
+    bars.setBounds (518, 82, 72, 23);
+    bypass.setBounds (610, 82, 70, 23);
 
-    graph.setBounds (28, 112, 584, 170);
+    graph.setBounds (28, 128, 644, 194);
+    resetShape.setBounds (20, 108, 58, 20);
+    flipShape.setBounds (80, 108, 52, 20);
+    smoothShape.setBounds (134, 108, 70, 20);
+    snapShape.setBounds (206, 108, 56, 20);
 
-    depth.setBounds (16, 314, 96, 104);
-    attack.setBounds (114, 314, 96, 104);
-    hold.setBounds (212, 314, 96, 104);
-    release.setBounds (310, 314, 96, 104);
-    curve.setBounds (408, 314, 96, 104);
-    mix.setBounds (506, 314, 96, 104);
+    depth.setBounds (12, 358, 92, 108);
+    attack.setBounds (110, 358, 92, 108);
+    hold.setBounds (208, 358, 92, 108);
+    release.setBounds (306, 358, 92, 108);
+    curve.setBounds (404, 358, 92, 108);
+    mix.setBounds (502, 358, 92, 108);
+    offset.setBounds (600, 358, 92, 108);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::timerCallback()
