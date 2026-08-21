@@ -112,7 +112,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             midiTriggerPositions[static_cast<size_t> (midiTriggerCount)] =
                 juce::jlimit (0, numSamples - 1, metadata.samplePosition);
             midiTriggerVelocities[static_cast<size_t> (midiTriggerCount)] =
-                juce::jlimit (1, 127, message.getVelocity());
+                juce::jlimit (1, 127, static_cast<int> (message.getVelocity()));
             ++midiTriggerCount;
         }
     }
