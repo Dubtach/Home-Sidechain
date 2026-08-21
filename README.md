@@ -99,3 +99,8 @@ The Trigger editor is built around one large live transient graph. Drag the thre
 - Only six recent trigger markers are shown; the newest trigger is highlighted separately.
 - Header communicates READY/TRIGGERING, Audio+MIDI smart input, Link, and trigger count without clutter.
 - Trigger output behavior remains compatible with the v12 processing checkpoint.
+
+
+## v17.2.0
+
+Build-stability cleanup for the custom Trigger Cool Down slider: uses Slider minimum/maximum directly with explicit typed clamping, avoiding Range API/template deduction edge cases on MSVC.

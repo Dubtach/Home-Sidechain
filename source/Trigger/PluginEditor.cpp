@@ -40,14 +40,17 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (lineColour);
     g.fillRoundedRectangle (trackX, trackY - trackH * 0.5f, trackW, trackH, trackH * 0.5f);
 
-    const auto range = getRange();
-    const double rangeStart = range.getStart();
-    const double rangeEnd = range.getEnd();
+    const double rangeStart = getMinimum();
+    const double rangeEnd = getMaximum();
     const double rangeSpan = rangeEnd - rangeStart;
-    const double normalised = rangeSpan > 0.0
-        ? (static_cast<double> (getValue()) - rangeStart) / rangeSpan
-        : 0.0;
-    const float proportion = static_cast<float> (juce::jlimit (0.0, 1.0, normalised));
+    const double value = getValue();
+    double normalised = 0.0;
+
+    if (rangeSpan > 0.0)
+        normalised = (value - rangeStart) / rangeSpan;
+
+    normalised = juce::jlimit<double> (0.0, 1.0, normalised);
+    const float proportion = static_cast<float> (normalised);
     const float thumbX = trackX + trackW * proportion;
 
     g.setColour (accent.withAlpha (0.26f));
