@@ -41,9 +41,58 @@ public:
                            bool shouldDrawButtonAsHighlighted, bool) override
     {
         auto bounds = button.getLocalBounds().toFloat();
-        auto box = juce::Rectangle<float> (0.0f, bounds.getCentreY() - 7.0f, 14.0f, 14.0f);
         const bool on = button.getToggleState();
 
+        // The Home-series bypass control is a compact ON/OFF switch rather
+        // than a generic checkbox. OFF = plugin active, ON = bypassed.
+        if (button.getName() == "BYPASS_SWITCH")
+        {
+            const float labelW = 48.0f;
+            const float switchW = 42.0f;
+            const float switchH = 18.0f;
+            const float switchX = bounds.getRight() - switchW - 1.0f;
+            const float switchY = bounds.getCentreY() - switchH * 0.5f;
+            const auto sw = juce::Rectangle<float> (switchX, switchY, switchW, switchH);
+
+            g.setColour (juce::Colours::black.withAlpha (0.24f));
+            g.fillRoundedRectangle (sw.translated (0.0f, 1.5f), switchH * 0.5f);
+            g.setColour (on ? juce::Colour (0xff00ff87).withAlpha (0.22f)
+                            : juce::Colour (0xff161618));
+            g.fillRoundedRectangle (sw, switchH * 0.5f);
+            g.setColour (on ? juce::Colour (0xff00ff87).withAlpha (0.92f)
+                            : juce::Colour (0xff2a2a30));
+            g.drawRoundedRectangle (sw, switchH * 0.5f, 1.0f);
+
+            const float knobSize = 13.0f;
+            const float leftX = sw.getX() + 3.0f;
+            const float rightX = sw.getRight() - knobSize - 3.0f;
+            const float knobX = on ? rightX : leftX;
+            const auto knob = juce::Rectangle<float> (knobX, sw.getCentreY() - knobSize * 0.5f,
+                                                       knobSize, knobSize);
+            g.setColour (on ? juce::Colour (0xff09090b) : juce::Colours::white);
+            g.fillEllipse (knob);
+            g.setColour (on ? juce::Colour (0xff00ff87) : juce::Colours::white.withAlpha (0.10f));
+            g.drawEllipse (knob, 1.0f);
+
+            g.setFont (juce::FontOptions (8.5f).withName ("Helvetica").withStyle ("Bold"));
+            g.setColour (juce::Colours::white.withAlpha (0.62f));
+            g.drawText ("BYPASS", bounds.getX(), bounds.getY() + 1.0f,
+                        labelW, bounds.getHeight() - 2.0f, juce::Justification::left);
+
+            g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
+            g.setColour (on ? juce::Colour (0xff00ff87) : juce::Colours::white.withAlpha (0.38f));
+            g.drawText (on ? "ON" : "OFF", sw.reduced (2.0f).toNearestInt(), juce::Justification::centred);
+
+            if (shouldDrawButtonAsHighlighted)
+            {
+                g.setColour (juce::Colours::white.withAlpha (0.08f));
+                g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+            }
+            return;
+        }
+
+        // Generic Home-series toggle fallback.
+        auto box = juce::Rectangle<float> (0.0f, bounds.getCentreY() - 7.0f, 14.0f, 14.0f);
         g.setColour (juce::Colour (0xff09090b));
         g.fillRoundedRectangle (box, 3.0f);
         g.setColour (on ? juce::Colour (0xff00ff87) : juce::Colours::white.withAlpha (0.28f));

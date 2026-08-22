@@ -133,6 +133,8 @@ void HomeSidechainTriggerAudioProcessorEditor::styleComboBox()
 void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 {
     bypass.setClickingTogglesState (true);
+    bypass.setName ("BYPASS_SWITCH");
+    bypass.setTooltip ("Bypass the Trigger engine");
     bypass.setColour (juce::ToggleButton::textColourId, text.withAlpha (0.66f));
     bypass.setColour (juce::ToggleButton::tickColourId, activeAccent);
     bypass.setColour (juce::ToggleButton::tickDisabledColourId, text.withAlpha (0.25f));
@@ -215,11 +217,11 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
 
     g.setFont (subFont);
     g.setColour (text.withAlpha (0.42f));
-    g.drawText ("TRIGGER ENGINE", area.getX(), area.getY() + 27.0f, 110.0f, 11.0f, juce::Justification::left);
+    g.drawText ("TRIGGER ENGINE", area.getX(), area.getY() + 28.0f, 110.0f, 11.0f, juce::Justification::left);
 
-    // Center utility resembles the reference preset strip, but keeps Trigger
-    // focused on its actual purpose rather than inventing a preset browser.
-    const juce::Rectangle<float> smartBox (area.getX() + 250.0f, area.getY() + 5.0f, 160.0f, 27.0f);
+    // Reference-style center status strip + compact trigger state. The
+    // bypass switch itself is a child control at the far right.
+    const juce::Rectangle<float> smartBox (area.getX() + 244.0f, area.getY() + 5.0f, 150.0f, 27.0f);
     g.setColour (juce::Colour (0xff161618));
     g.fillRoundedRectangle (smartBox, 6.0f);
     g.setColour (juce::Colour (0xff2a2a30));
@@ -231,10 +233,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
     g.fillEllipse (smartBox.getX() + 11.0f, smartBox.getCentreY() - 4.0f, 8.0f, 8.0f);
     g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
     g.setColour (text.withAlpha (0.86f));
-    g.drawText ("SMART AUDIO + MIDI", smartBox.getX() + 26.0f, smartBox.getY() + 6.0f,
-                124.0f, 15.0f, juce::Justification::left);
+    g.drawText ("SMART AUDIO + MIDI", smartBox.getX() + 25.0f, smartBox.getY() + 6.0f,
+                118.0f, 15.0f, juce::Justification::left);
 
-    drawPill (g, { area.getRight() - 82.0f, area.getY() + 7.0f, 76.0f, 22.0f },
+    drawPill (g, { area.getRight() - 144.0f, area.getY() + 7.0f, 76.0f, 22.0f },
               firing ? triggerHot : activeAccent, firing ? "TRIGGER" : "READY", firing);
 }
 
@@ -449,7 +451,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     graphBounds = { 40.0f, 116.0f, 386.0f, 160.0f };
     link.setBounds (469, 128, 140, 27);
-    bypass.setBounds (548, 38, 64, 20);
+    bypass.setBounds (536, 34, 78, 24);
     retrigger.setBounds (116, 297, 484, 26);
 }
 
