@@ -319,7 +319,6 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     }
 
     // Threshold is directly mapped to the same dB scale as the waveform.
-    const float thresholdDb = processor.getThresholdDb();
     const float thresholdY = yForDb (thresholdDb);
 
     g.setColour (accent.withAlpha (0.07f));
