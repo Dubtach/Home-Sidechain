@@ -11,6 +11,11 @@ public:
     void drawComboBox (juce::Graphics&, int width, int height, bool isButtonDown,
                        int buttonX, int buttonY, int buttonW, int buttonH,
                        juce::ComboBox&) override;
+    void drawPopupMenuBackground (juce::Graphics&, int width, int height) override;
+    void drawPopupMenuItem (juce::Graphics&, const juce::Rectangle<int>& area, bool isSeparator,
+                            bool isActive, bool isHighlighted, bool isTicked, bool hasSubMenu,
+                            const juce::String& text, const juce::String& shortcutKeyText,
+                            const juce::Drawable* icon, const juce::Colour* textColour) override;
 
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
 };
@@ -20,6 +25,14 @@ class HomeSidechainTriggerGapSlider : public juce::Slider
 public:
     HomeSidechainTriggerGapSlider();
     void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+private:
+    void setValueFromMouseX (float x);
+    float trackStartX() const noexcept;
+    float trackEndX() const noexcept;
+    bool manualMouseTracking = false;
 };
 
 class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEditor,

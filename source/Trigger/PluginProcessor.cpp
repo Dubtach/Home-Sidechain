@@ -53,25 +53,36 @@ float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noe
     return waveformBuffer[slot].load (std::memory_order_relaxed);
 }
 
+int HomeSidechainTriggerAudioProcessor::getTriggerMarkerPoint (int visibleIndex) const noexcept
+{
+    const int count = triggerMarkerCount.load (std::memory_order_acquire);
+    if (visibleIndex < 0 || visibleIndex >= count)
+        return -1;
+
+    const int writeIndex = triggerMarkerWriteIndex.load (std::memory_order_acquire);
+    const int slotIndex = (writeIndex - count + visibleIndex + maxTriggerMarkers) % maxTriggerMarkers;
+    const auto markerSerial = triggerMarkerSerials[static_cast<size_t> (slotIndex)].load (std::memory_order_acquire);
+    const auto writeSerial = waveformWriteSerial.load (std::memory_order_acquire);
+    const auto historyCount = static_cast<std::uint64_t> (waveformPointCount);
+    const auto oldestSerial = writeSerial > historyCount ? writeSerial - historyCount : 0;
+
+    if (markerSerial < oldestSerial || markerSerial >= writeSerial)
+        return -1;
+
+    return static_cast<int> (markerSerial - oldestSerial);
+}
+
 int HomeSidechainTriggerAudioProcessor::getLatestTriggerPointIndex() const noexcept
 {
-    const int triggerSlot = latestTriggerSlot.load (std::memory_order_acquire);
-    if (triggerSlot < 0)
+    const auto writeSerial = waveformWriteSerial.load (std::memory_order_acquire);
+    const auto historyCount = static_cast<std::uint64_t> (waveformPointCount);
+    const auto oldestSerial = writeSerial > historyCount ? writeSerial - historyCount : 0;
+    const auto latestSerial = latestTriggerSerial.load (std::memory_order_acquire);
+
+    if (writeSerial == 0 || latestSerial < oldestSerial || latestSerial >= writeSerial)
         return -1;
 
-    const int write = static_cast<int> (waveformWriteIndex.load (std::memory_order_acquire));
-    const int count = static_cast<int> (waveformPointCount);
-
-    // The graph displays slots in oldest -> newest order, beginning at the
-    // next slot that will be overwritten. Convert the ring-buffer slot into
-    // that visible point index directly.
-    const int pointIndex = (triggerSlot - write + count) % count;
-
-    // If the trigger slot is now the write slot, it is about to be overwritten.
-    if (triggerSlot == write)
-        return -1;
-
-    return pointIndex;
+    return static_cast<int> (latestSerial - oldestSerial);
 }
 
 
@@ -86,12 +97,16 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     inputLevel.store (0.0f, std::memory_order_relaxed);
     for (auto& value : waveformBuffer) value.store (0.0f, std::memory_order_relaxed);
     waveformWriteIndex.store (0, std::memory_order_release);
+    waveformWriteSerial.store (0, std::memory_order_release);
     waveformAccumPeak = 0.0f;
     waveformAccumSamples = 0;
     waveformSampleStride = juce::jmax (16, static_cast<int> (std::round ((waveformHistorySeconds * sampleRate)
                                                                       / static_cast<double> (waveformPointCount))));
     waveformAccumTriggered = false;
-    latestTriggerSlot.store (-1, std::memory_order_release);
+    latestTriggerSerial.store (0, std::memory_order_release);
+    for (auto& marker : triggerMarkerSerials) marker.store (0, std::memory_order_relaxed);
+    triggerMarkerWriteIndex.store (0, std::memory_order_release);
+    triggerMarkerCount.store (0, std::memory_order_release);
     homeLinkSender.start();
 }
 
@@ -226,12 +241,22 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         ++waveformAccumSamples;
         if (waveformAccumSamples >= waveformSampleStride)
         {
-            const size_t writeSlot = waveformWriteIndex.load (std::memory_order_relaxed)
-                % waveformPointCount;
+            const auto writeSerial = waveformWriteSerial.load (std::memory_order_relaxed);
+            const size_t writeSlot = static_cast<size_t> (writeSerial % waveformPointCount);
             waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
             if (waveformAccumTriggered)
-                latestTriggerSlot.store (static_cast<int> (writeSlot), std::memory_order_release);
+            {
+                latestTriggerSerial.store (writeSerial, std::memory_order_release);
+
+                const int markerWrite = triggerMarkerWriteIndex.load (std::memory_order_relaxed);
+                triggerMarkerSerials[static_cast<size_t> (markerWrite)].store (writeSerial, std::memory_order_release);
+                triggerMarkerWriteIndex.store ((markerWrite + 1) % maxTriggerMarkers, std::memory_order_release);
+                triggerMarkerCount.store (juce::jmin (maxTriggerMarkers,
+                                                       triggerMarkerCount.load (std::memory_order_relaxed) + 1),
+                                           std::memory_order_release);
+            }
             waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
+            waveformWriteSerial.store (writeSerial + 1, std::memory_order_release);
             waveformAccumPeak = 0.0f;
             waveformAccumSamples = 0;
             waveformAccumTriggered = false;
