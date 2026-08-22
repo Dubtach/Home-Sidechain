@@ -97,7 +97,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (720, 410);
+    setSize (640, 340);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -194,30 +194,48 @@ void HomeSidechainTriggerAudioProcessorEditor::drawPill (juce::Graphics& g,
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
                                                             juce::Rectangle<float> area) const
 {
-    const juce::Font titleFont (juce::FontOptions (26.0f).withName ("Helvetica").withStyle ("Bold"));
-    const auto homeText = juce::String ("Home-");
-    const auto triggerText = juce::String ("Trigger");
+    // Header follows the Home-series reference: strong left brand block,
+    // compact center utility readout, and small right-side action control.
+    const auto titleFont = juce::Font (juce::FontOptions (23.0f).withName ("Helvetica").withStyle ("Bold"));
+    const auto subFont   = juce::Font (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
+
+    const auto homeText = juce::String ("HOME ");
+    const auto triggerText = juce::String ("TRIGGER");
     const int homeWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, homeText);
     const int triggerWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, triggerText);
 
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawText (homeText, area.getX() + 1.0f, area.getY() + 1.0f, homeWidth, 32.0f, juce::Justification::left);
-    g.drawText (triggerText, area.getX() + homeWidth + 1.0f, area.getY() + 1.0f, triggerWidth, 32.0f, juce::Justification::left);
+    g.setFont (titleFont);
+    g.setColour (juce::Colours::black.withAlpha (0.28f));
+    g.drawText (homeText, area.getX() + 1.0f, area.getY() + 1.0f, homeWidth, 27.0f, juce::Justification::left);
+    g.drawText (triggerText, area.getX() + homeWidth + 1.0f, area.getY() + 1.0f, triggerWidth, 27.0f, juce::Justification::left);
     g.setColour (text);
-    g.drawText (homeText, area.getX(), area.getY(), homeWidth, 32.0f, juce::Justification::left);
+    g.drawText (homeText, area.getX(), area.getY(), homeWidth, 27.0f, juce::Justification::left);
     g.setColour (activeAccent);
-    g.drawText (triggerText, area.getX() + homeWidth, area.getY(), triggerWidth, 32.0f, juce::Justification::left);
+    g.drawText (triggerText, area.getX() + homeWidth, area.getY(), triggerWidth, 27.0f, juce::Justification::left);
 
-    g.setColour (text.withAlpha (0.40f));
-    g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 32.0f, 150.0f, 14.0f, juce::Justification::left);
+    g.setFont (subFont);
+    g.setColour (text.withAlpha (0.42f));
+    g.drawText ("TRIGGER ENGINE", area.getX(), area.getY() + 27.0f, 110.0f, 11.0f, juce::Justification::left);
+
+    // Center utility resembles the reference preset strip, but keeps Trigger
+    // focused on its actual purpose rather than inventing a preset browser.
+    const juce::Rectangle<float> smartBox (area.getX() + 250.0f, area.getY() + 5.0f, 160.0f, 27.0f);
+    g.setColour (juce::Colour (0xff161618));
+    g.fillRoundedRectangle (smartBox, 6.0f);
+    g.setColour (juce::Colour (0xff2a2a30));
+    g.drawRoundedRectangle (smartBox, 6.0f, 1.0f);
 
     const auto meter = processor.getTriggerMeter();
     const bool firing = meter > 0.10f;
-    drawPill (g, { area.getRight() - 270.0f, area.getY() + 2.0f, 82.0f, 24.0f },
+    g.setColour (firing ? triggerHot : activeAccent);
+    g.fillEllipse (smartBox.getX() + 11.0f, smartBox.getCentreY() - 4.0f, 8.0f, 8.0f);
+    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (text.withAlpha (0.86f));
+    g.drawText ("SMART AUDIO + MIDI", smartBox.getX() + 26.0f, smartBox.getY() + 6.0f,
+                124.0f, 15.0f, juce::Justification::left);
+
+    drawPill (g, { area.getRight() - 82.0f, area.getY() + 7.0f, 76.0f, 22.0f },
               firing ? triggerHot : activeAccent, firing ? "TRIGGER" : "READY", firing);
-    drawPill (g, { area.getRight() - 178.0f, area.getY() + 2.0f, 104.0f, 24.0f },
-              accent, "AUDIO + MIDI", false);
 }
 
 
@@ -325,105 +343,114 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff09090b));
 
+    const juce::Rectangle<float> frame (8.0f, 8.0f, 624.0f, 324.0f);
     g.setColour (juce::Colour (0xff111114));
-    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 390.0f, 8.0f);
-    g.setColour (juce::Colour (0xff222228));
-    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 390.0f, 8.0f, 1.5f);
+    g.fillRoundedRectangle (frame, 8.0f);
+    g.setColour (juce::Colour (0xff24242a));
+    g.drawRoundedRectangle (frame, 8.0f, 1.4f);
 
-    drawHeader (g, { 25.0f, 14.0f, 670.0f, 48.0f });
-    g.setColour (juce::Colour (0xff1e1e24));
-    g.drawLine (25.0f, 65.0f, 695.0f, 65.0f, 2.0f);
+    juce::ColourGradient frameSheen (juce::Colours::white.withAlpha (0.035f), frame.getX(), frame.getY(),
+                                     juce::Colours::white.withAlpha (0.0f), frame.getX(), frame.getY() + 68.0f, false);
+    g.setGradientFill (frameSheen);
+    g.fillRoundedRectangle (frame.reduced (1.0f), 7.0f);
 
-    auto drawShadedCard = [&g](juce::Rectangle<float> bounds, juce::Colour baseColour)
+    drawHeader (g, { 22.0f, 16.0f, 596.0f, 42.0f });
+    g.setColour (juce::Colour (0xff24242a));
+    g.drawLine (22.0f, 62.0f, 618.0f, 62.0f, 1.0f);
+
+    auto drawHomeCard = [&g] (juce::Rectangle<float> bounds, juce::Colour baseColour)
     {
-        for (int i = 1; i <= 7; ++i)
-        {
-            g.setColour (juce::Colours::black.withAlpha (0.12f * (8 - i)));
-            g.fillRoundedRectangle (bounds.expanded ((float)i * 0.4f).translated (0.0f, 2.0f + i * 0.5f), 8.0f);
-        }
-        juce::ColourGradient grad (baseColour, bounds.getX(), bounds.getY(),
-                                   baseColour.darker (0.20f), bounds.getX(), bounds.getBottom(), false);
+        g.setColour (juce::Colours::black.withAlpha (0.26f));
+        g.fillRoundedRectangle (bounds.translated (0.0f, 2.0f), 6.0f);
+
+        juce::ColourGradient grad (baseColour.brighter (0.06f), bounds.getX(), bounds.getY(),
+                                   baseColour.darker (0.18f), bounds.getX(), bounds.getBottom(), false);
         g.setGradientFill (grad);
         g.fillRoundedRectangle (bounds, 6.0f);
-        juce::Rectangle<float> sheenArea = bounds.withHeight (bounds.getHeight() * 0.42f);
-        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.10f), sheenArea.getX(), sheenArea.getY(),
-                                    juce::Colours::white.withAlpha (0.0f), sheenArea.getX(), sheenArea.getBottom(), false);
-        juce::Path sheenPath; sheenPath.addRoundedRectangle (bounds, 6.0f);
-        g.saveState(); g.reduceClipRegion (sheenPath); g.setGradientFill (sheen); g.fillRect (sheenArea); g.restoreState();
-        g.setColour (juce::Colours::black.withAlpha (0.12f));
-        for (float y = bounds.getY() + 4.0f; y < bounds.getBottom() - 2.0f; y += 4.0f) g.drawLine (bounds.getX() + 2.0f, y, bounds.getRight() - 2.0f, y, 1.2f);
-        for (float x = bounds.getX() + 4.0f; x < bounds.getRight() - 2.0f; x += 4.0f) g.drawLine (x, bounds.getY() + 2.0f, x, bounds.getBottom() - 2.0f, 1.2f);
-        g.setColour (juce::Colours::black.withAlpha (0.50f));
-        g.drawRoundedRectangle (bounds, 6.0f, 2.0f);
+
+        const auto sheenBounds = bounds.withHeight (bounds.getHeight() * 0.26f);
+        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.09f), sheenBounds.getX(), sheenBounds.getY(),
+                                    juce::Colours::white.withAlpha (0.0f), sheenBounds.getX(), sheenBounds.getBottom(), false);
+        juce::Path clip; clip.addRoundedRectangle (bounds, 6.0f);
+        g.saveState();
+        g.reduceClipRegion (clip);
+        g.setGradientFill (sheen);
+        g.fillRect (sheenBounds);
+        g.restoreState();
+
+        g.setColour (juce::Colours::black.withAlpha (0.065f));
+        for (float y = bounds.getY() + 4.0f; y < bounds.getBottom() - 2.0f; y += 4.0f)
+            g.drawLine (bounds.getX() + 2.0f, y, bounds.getRight() - 2.0f, y, 1.0f);
+        for (float x = bounds.getX() + 4.0f; x < bounds.getRight() - 2.0f; x += 4.0f)
+            g.drawLine (x, bounds.getY() + 2.0f, x, bounds.getBottom() - 2.0f, 1.0f);
+
+        g.setColour (juce::Colours::black.withAlpha (0.42f));
+        g.drawRoundedRectangle (bounds, 6.0f, 1.6f);
     };
 
-    // Exact Home-series card language: cyan graph, green timing control,
-    // purple link/status column, pink output/bypass area.
-    const juce::Rectangle<float> graphCard (20.0f, 80.0f, 490.0f, 255.0f);
-    const juce::Rectangle<float> controlCard (20.0f, 340.0f, 490.0f, 50.0f);
-    const juce::Rectangle<float> statusCard (520.0f, 80.0f, 90.0f, 310.0f);
-    const juce::Rectangle<float> bypassCard (620.0f, 80.0f, 80.0f, 310.0f);
+    const juce::Rectangle<float> graphCard   (18.0f, 74.0f, 430.0f, 216.0f);
+    const juce::Rectangle<float> utilityCard (456.0f, 74.0f, 166.0f, 216.0f);
+    const juce::Rectangle<float> timingCard  (18.0f, 296.0f, 604.0f, 28.0f);
 
-    drawShadedCard (graphCard, juce::Colour (0xff00e5ff));
-    drawShadedCard (controlCard, juce::Colour (0xff00ff87));
-    drawShadedCard (statusCard, juce::Colour (0xffb900ff));
-    drawShadedCard (bypassCard, juce::Colour (0xffff007f));
+    drawHomeCard (graphCard, juce::Colour (0xff00e5ff));
+    drawHomeCard (utilityCard, juce::Colour (0xffff007f));
+    drawHomeCard (timingCard, juce::Colour (0xff00ff87));
 
-    // Graph card title.
-    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawText ("TRIGGER GRAPH", 20, 88, 490, 20, juce::Justification::centred);
+    g.setFont (juce::FontOptions (12.5f).withName ("Helvetica").withStyle ("Bold"));
     g.setColour (juce::Colour (0xff09090b));
-    g.drawText ("TRIGGER GRAPH", 20, 86, 490, 20, juce::Justification::centred);
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.drawLine (225.0f, 108.0f, 305.0f, 108.0f, 1.2f);
+    g.drawText ("TRIGGER GRAPH", graphCard.getX(), graphCard.getY() + 7.0f, graphCard.getWidth(), 17.0f,
+                juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.22f));
+    g.drawLine (graphCard.getCentreX() - 32.0f, graphCard.getY() + 28.0f,
+                graphCard.getCentreX() + 32.0f, graphCard.getY() + 28.0f, 1.0f);
+    drawGraph (g, graphCard.reduced (10.0f, 28.0f));
 
-    auto graphInner = graphCard.reduced (12.0f, 34.0f);
-    drawGraph (g, graphInner);
-
-    // Green timing card.
-    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
+    // Combined LINK + OUTPUT section: one Home-series module instead of two.
+    g.setFont (juce::FontOptions (12.0f).withName ("Helvetica").withStyle ("Bold"));
     g.setColour (juce::Colour (0xff09090b));
-    g.drawText ("TIMING", 20, 346, 120, 18, juce::Justification::centred);
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.drawLine (62.0f, 365.0f, 98.0f, 365.0f, 1.2f);
+    g.drawText ("LINK + OUTPUT", utilityCard.getX(), utilityCard.getY() + 7.0f, utilityCard.getWidth(), 17.0f,
+                juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.22f));
+    g.drawLine (utilityCard.getCentreX() - 34.0f, utilityCard.getY() + 28.0f,
+                utilityCard.getCentreX() + 34.0f, utilityCard.getY() + 28.0f, 1.0f);
 
-    // Purple status/link card.
-    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.setColour (juce::Colour (0xff09090b));
-    g.drawText ("LINK", 520, 90, 90, 20, juce::Justification::centred);
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.drawLine (548.0f, 111.0f, 582.0f, 111.0f, 1.2f);
+    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colour (0xff09090b).withAlpha (0.70f));
+    g.drawText ("LINK", utilityCard.getX() + 12.0f, utilityCard.getY() + 47.0f, 42.0f, 12.0f, juce::Justification::left);
 
     const bool firing = processor.getTriggerMeter() > 0.10f;
-    g.setColour (firing ? juce::Colour (0xffff4f70) : juce::Colour (0xff00ff87));
-    g.fillEllipse (545.0f, 132.0f, 40.0f, 40.0f);
-    g.setColour (juce::Colour (0xff09090b));
-    g.fillEllipse (551.0f, 138.0f, 28.0f, 28.0f);
-    g.setFont (juce::FontOptions (10.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.setColour (juce::Colour (0xff09090b));
-    g.drawText (firing ? "TRIGGER" : "READY", 522, 178, 86, 18, juce::Justification::centred);
+    g.setColour (firing ? triggerHot : activeAccent);
+    g.fillEllipse (utilityCard.getRight() - 25.0f, utilityCard.getY() + 49.0f, 8.0f, 8.0f);
 
-    // Pink bypass card.
+    g.setColour (juce::Colour (0xff09090b).withAlpha (0.68f));
+    g.drawText ("OUTPUT", utilityCard.getX() + 12.0f, utilityCard.getY() + 92.0f, 58.0f, 12.0f, juce::Justification::left);
     g.setColour (juce::Colour (0xff09090b));
-    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("OUTPUT", 620, 90, 80, 20, juce::Justification::centred);
-    g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.drawLine (642.0f, 111.0f, 678.0f, 111.0f, 1.2f);
-    g.setColour (juce::Colour (0xff09090b));
-    g.drawText ("AUDIO", 622, 144, 76, 18, juce::Justification::centred);
-    g.drawText ("+ MIDI", 622, 160, 76, 18, juce::Justification::centred);
+    g.drawText ("AUDIO + MIDI", utilityCard.getX() + 12.0f, utilityCard.getY() + 108.0f, 125.0f, 16.0f,
+                juce::Justification::left);
 
-    drawControlStrip (g, controlCard.reduced (14.0f, 6.0f));
+    g.setColour (juce::Colours::black.withAlpha (0.20f));
+    g.drawLine (utilityCard.getX() + 12.0f, utilityCard.getY() + 137.0f,
+                utilityCard.getRight() - 12.0f, utilityCard.getY() + 137.0f, 1.0f);
+    g.setColour (juce::Colour (0xff09090b).withAlpha (0.68f));
+    g.drawText ("SMART DETECTION", utilityCard.getX() + 12.0f, utilityCard.getY() + 147.0f,
+                utilityCard.getWidth() - 24.0f, 14.0f, juce::Justification::left);
+    g.setFont (juce::FontOptions (7.5f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("NO MODE SWITCH", utilityCard.getX() + 12.0f, utilityCard.getY() + 165.0f,
+                utilityCard.getWidth() - 24.0f, 12.0f, juce::Justification::left);
+
+    g.setFont (juce::FontOptions (10.5f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText ("COOL DOWN", timingCard.getX() + 12.0f, timingCard.getY() + 7.0f, 84.0f, 14.0f,
+                juce::Justification::left);
 }
 
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    graphBounds = { 32.0f, 126.0f, 466.0f, 194.0f };
-    link.setBounds (533, 206, 64, 26);
-    bypass.setBounds (628, 204, 64, 26);
-    retrigger.setBounds (156, 349, 340, 38);
+    graphBounds = { 40.0f, 116.0f, 386.0f, 160.0f };
+    link.setBounds (469, 128, 140, 27);
+    bypass.setBounds (548, 38, 64, 20);
+    retrigger.setBounds (116, 297, 484, 26);
 }
 
 
