@@ -348,7 +348,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
         juce::Rectangle<float> sheenArea = bounds.withHeight (bounds.getHeight() * 0.42f);
         juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.10f), sheenArea.getX(), sheenArea.getY(),
                                     juce::Colours::white.withAlpha (0.0f), sheenArea.getX(), sheenArea.getBottom(), false);
-        juce::Path sheenPath; sheenPath.addRoundedRectangle (bounds);
+        juce::Path sheenPath; sheenPath.addRoundedRectangle (bounds, 6.0f);
         g.saveState(); g.reduceClipRegion (sheenPath); g.setGradientFill (sheen); g.fillRect (sheenArea); g.restoreState();
         g.setColour (juce::Colours::black.withAlpha (0.12f));
         for (float y = bounds.getY() + 4.0f; y < bounds.getBottom() - 2.0f; y += 4.0f) g.drawLine (bounds.getX() + 2.0f, y, bounds.getRight() - 2.0f, y, 1.2f);
