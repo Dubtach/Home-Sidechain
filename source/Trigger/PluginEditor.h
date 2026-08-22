@@ -84,7 +84,7 @@ class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEdit
 {
 public:
     explicit HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor&);
-    ~HomeSidechainTriggerAudioProcessorEditor() override = default;
+    ~HomeSidechainTriggerAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;

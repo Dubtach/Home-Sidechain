@@ -44,14 +44,11 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
     g.drawText ("COOL DOWN", labelX, labelY, 90.0f, 14.0f, juce::Justification::left);
 
-    // Slider::getRange() returns a plain Range in current JUCE versions.
-    // Map the current value safely into that range for the custom-drawn thumb.
-    const auto range = getRange();
-    const double rangeLength = range.getLength();
-    const double normalised = rangeLength > 0.0
-        ? (getValue() - range.getStart()) / rangeLength
-        : 0.0;
-    const float proportion = static_cast<float> (juce::jlimit (0.0, 1.0, normalised));
+    // Use the slider's actual NormalisableRange so the painted thumb exactly
+    // matches JUCE's parameter mapping, including the skew used by the APVTS.
+    // Use JUCE's own slider mapping so the visual thumb follows the exact
+    // same skew/range as the attached parameter.
+    const float proportion = static_cast<float> (valueToProportionOfLength (getValue()));
     const float thumbX = trackX + thumbRadius + (trackW - thumbRadius * 2.0f) * proportion;
 
     const auto track = juce::Rectangle<float> (trackX + thumbRadius,
@@ -322,6 +319,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     }
 
     // Threshold is directly mapped to the same dB scale as the waveform.
+    const float thresholdDb = processor.getThresholdDb();
     const float thresholdY = yForDb (thresholdDb);
 
     g.setColour (accent.withAlpha (0.07f));
@@ -385,14 +383,109 @@ void HomeSidechainTriggerAudioProcessorEditor::drawControlStrip (juce::Graphics&
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 {
+    // Home-series background language: deep charcoal base with saturated
+    // cyan/green/purple/pink colour washes, soft shaded surfaces and a very
+    // subtle technical texture.  The colourful layer stays behind the
+    // existing graph and controls, so the functional layout remains exactly
+    // the same while the plugin feels like the rest of the Home family.
     g.fillAll (background);
 
     const auto outer = getLocalBounds().toFloat().reduced (10.0f);
-    g.setColour (panel);
-    g.fillRoundedRectangle (outer, 12.0f);
-    g.setColour (lineColour);
-    g.drawRoundedRectangle (outer, 12.0f, 1.0f);
 
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.fillRoundedRectangle (outer.expanded (3.0f).translated (0.0f, 3.0f), 14.0f);
+
+    g.setColour (juce::Colour (0xff111114));
+    g.fillRoundedRectangle (outer, 12.0f);
+
+    // Large, soft colour fields inspired by the four saturated Home-Disto
+    // cards. They are intentionally low-alpha so white text and the cyan
+    // waveform remain the visual focus.
+    juce::Path colourMask;
+    colourMask.addRoundedRectangle (outer, 12.0f);
+    g.saveState();
+    g.reduceClipRegion (colourMask);
+
+    {
+        juce::ColourGradient cyanGlow (juce::Colour (0xff00e5ff).withAlpha (0.16f),
+                                       outer.getX() + 55.0f, outer.getY() + 15.0f,
+                                       juce::Colours::transparentBlack,
+                                       outer.getX() + 260.0f, outer.getBottom() - 30.0f, true);
+        cyanGlow.addColour (0.45, juce::Colour (0xff00e5ff).withAlpha (0.05f));
+        g.setGradientFill (cyanGlow);
+        g.fillRect (outer);
+    }
+
+    {
+        juce::ColourGradient purpleGlow (juce::Colour (0xffb900ff).withAlpha (0.14f),
+                                         outer.getRight() - 5.0f, outer.getY() + 10.0f,
+                                         juce::Colours::transparentBlack,
+                                         outer.getCentreX(), outer.getCentreY() + 95.0f, true);
+        purpleGlow.addColour (0.42, juce::Colour (0xffb900ff).withAlpha (0.045f));
+        g.setGradientFill (purpleGlow);
+        g.fillRect (outer);
+    }
+
+    {
+        juce::ColourGradient pinkGlow (juce::Colour (0xffff007f).withAlpha (0.10f),
+                                      outer.getRight() - 35.0f, outer.getBottom() - 12.0f,
+                                      juce::Colours::transparentBlack,
+                                      outer.getCentreX() - 40.0f, outer.getCentreY(), true);
+        g.setGradientFill (pinkGlow);
+        g.fillRect (outer);
+    }
+
+    {
+        juce::ColourGradient greenGlow (juce::Colour (0xff00ff87).withAlpha (0.09f),
+                                        outer.getX() + 30.0f, outer.getBottom() - 5.0f,
+                                        juce::Colours::transparentBlack,
+                                        outer.getCentreX() + 110.0f, outer.getCentreY() - 30.0f, true);
+        g.setGradientFill (greenGlow);
+        g.fillRect (outer);
+    }
+
+    // Fine Home-series grid/scan texture. Very low contrast by design so it
+    // reads as material rather than as another UI element.
+    g.setColour (juce::Colours::black.withAlpha (0.14f));
+    for (float y = outer.getY() + 5.0f; y < outer.getBottom(); y += 5.0f)
+        g.drawLine (outer.getX() + 2.0f, y, outer.getRight() - 2.0f, y, 0.8f);
+    for (float x = outer.getX() + 5.0f; x < outer.getRight(); x += 5.0f)
+        g.drawLine (x, outer.getY() + 2.0f, x, outer.getBottom() - 2.0f, 0.8f);
+
+    // A few soft diagonal streaks add the same playful energy as the
+    // reference without covering any labels or controls.
+    g.setColour (juce::Colour (0xff00e5ff).withAlpha (0.045f));
+    for (int i = -2; i < 8; ++i)
+    {
+        const float x = outer.getX() - 140.0f + i * 118.0f;
+        juce::Path streak;
+        streak.startNewSubPath (x, outer.getBottom() + 10.0f);
+        streak.lineTo (x + 160.0f, outer.getY() - 10.0f);
+        g.strokePath (streak, juce::PathStrokeType (1.2f));
+    }
+
+    g.restoreState();
+
+    // Soft glass/shading layer matching the reference card treatment.
+    {
+        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.055f),
+                                    outer.getX(), outer.getY(),
+                                    juce::Colours::transparentBlack,
+                                    outer.getX(), outer.getY() + outer.getHeight() * 0.38f, false);
+        juce::Path sheenPath;
+        sheenPath.addRoundedRectangle (outer, 12.0f);
+        g.saveState();
+        g.reduceClipRegion (sheenPath);
+        g.setGradientFill (sheen);
+        g.fillRect (outer);
+        g.restoreState();
+    }
+
+    g.setColour (juce::Colour (0xff24242b));
+    g.drawRoundedRectangle (outer, 12.0f, 1.2f);
+
+    // Keep the graph/control surfaces visually grounded against the richer
+    // background. Existing geometry and interaction are unchanged.
     drawHeader (g, { 22.0f, 14.0f, getWidth() - 44.0f, 46.0f });
     g.setColour (juce::Colour (0xff1e1e24));
     g.drawLine (22.0f, 60.0f, 618.0f, 60.0f, 1.0f);

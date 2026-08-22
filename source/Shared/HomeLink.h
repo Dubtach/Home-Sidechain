@@ -3,10 +3,8 @@
 #include <JuceHeader.h>
 #include <array>
 #include <atomic>
-#include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <memory>
 
 #if JUCE_WINDOWS
  #include <windows.h>

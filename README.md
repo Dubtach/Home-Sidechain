@@ -115,12 +115,3 @@ Build-stability cleanup for the custom Trigger Cool Down slider: uses Slider min
 
 ## v18 UI Style Update
 The Trigger keeps the v17.4 layout and behavior while adopting the Home-series visual language: Helvetica typography, near-black surfaces, crisp white text, cyan utility accents, and neon-green active controls. No Trigger/Receiver behavior was intentionally changed.
-
-
-## v18.0.0 build-stability fix
-
-- `HomeLink.h` now includes every C++ standard header it directly uses (`<array>`,
-  `<atomic>`, `<memory>`, `<cstdint>`, `<cstring>`, and `<cmath>`) instead of
-  relying on transitive JUCE includes.
-- The root CMake project explicitly requires C++17, matching the current JUCE
-  parameter/processor APIs used by this project.
