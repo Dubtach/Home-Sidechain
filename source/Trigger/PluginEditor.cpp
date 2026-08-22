@@ -97,7 +97,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (640, 360);
+    setSize (720, 410);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -194,54 +194,40 @@ void HomeSidechainTriggerAudioProcessorEditor::drawPill (juce::Graphics& g,
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g,
                                                             juce::Rectangle<float> area) const
 {
-    const juce::Font titleFont (juce::FontOptions (18.0f).withName ("Helvetica").withStyle ("Bold"));
+    const juce::Font titleFont (juce::FontOptions (26.0f).withName ("Helvetica").withStyle ("Bold"));
     const auto homeText = juce::String ("Home-");
     const auto triggerText = juce::String ("Trigger");
     const int homeWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, homeText);
     const int triggerWidth = juce::GlyphArrangement::getStringWidthInt (titleFont, triggerText);
 
     g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawText (homeText, area.getX() + 1.0f, area.getY() + 1.0f, homeWidth, 24.0f, juce::Justification::left);
-    g.drawText (triggerText, area.getX() + homeWidth + 1.0f, area.getY() + 1.0f, triggerWidth, 24.0f, juce::Justification::left);
-
+    g.drawText (homeText, area.getX() + 1.0f, area.getY() + 1.0f, homeWidth, 32.0f, juce::Justification::left);
+    g.drawText (triggerText, area.getX() + homeWidth + 1.0f, area.getY() + 1.0f, triggerWidth, 32.0f, juce::Justification::left);
     g.setColour (text);
-    g.drawText (homeText, area.getX(), area.getY(), homeWidth, 24.0f, juce::Justification::left);
+    g.drawText (homeText, area.getX(), area.getY(), homeWidth, 32.0f, juce::Justification::left);
     g.setColour (activeAccent);
-    g.drawText (triggerText, area.getX() + homeWidth, area.getY(), triggerWidth, 24.0f, juce::Justification::left);
+    g.drawText (triggerText, area.getX() + homeWidth, area.getY(), triggerWidth, 32.0f, juce::Justification::left);
 
-    g.setColour (text.withAlpha (0.42f));
-    g.setFont (juce::FontOptions (8.5f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 22.0f, 120.0f, 14.0f,
-                juce::Justification::left);
+    g.setColour (text.withAlpha (0.40f));
+    g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 32.0f, 150.0f, 14.0f, juce::Justification::left);
 
     const auto meter = processor.getTriggerMeter();
     const bool firing = meter > 0.10f;
-    const auto linkIndex = processor.getLink();
-
-    drawPill (g, { area.getRight() - 318.0f, area.getY() + 1.0f, 76.0f, 24.0f },
-              firing ? triggerHot : activeAccent,
-              firing ? "TRIGGER" : "READY", firing);
-    drawPill (g, { area.getRight() - 234.0f, area.getY() + 1.0f, 96.0f, 24.0f },
+    drawPill (g, { area.getRight() - 270.0f, area.getY() + 2.0f, 82.0f, 24.0f },
+              firing ? triggerHot : activeAccent, firing ? "TRIGGER" : "READY", firing);
+    drawPill (g, { area.getRight() - 178.0f, area.getY() + 2.0f, 104.0f, 24.0f },
               accent, "AUDIO + MIDI", false);
-
-    g.setColour (text.withAlpha (0.42f));
-    g.setFont (juce::FontOptions (8.5f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("LINK " + homeSidechain::linkName (linkIndex)
-                    + "  •  " + juce::String (processor.getTriggerCount()) + " triggers",
-                area.getRight() - 326.0f, area.getY() + 26.0f, 206.0f, 14.0f,
-                juce::Justification::left);
 }
+
 
 void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
                                                            juce::Rectangle<float> area) const
 {
-    g.setColour (surface);
-    g.fillRoundedRectangle (area, 10.0f);
-    g.setColour (lineColour);
-    g.drawRoundedRectangle (area, 10.0f, 1.0f);
-
-    auto plot = area.reduced (42.0f, 24.0f);
-    plot.removeFromLeft (18.0f);
+    // Card itself is supplied by paint(). The graph keeps its own dark inset scope,
+    // matching the Home-series EQ graph treatment.
+    auto plot = area.reduced (36.0f, 30.0f);
+    plot.removeFromLeft (10.0f);
 
     const float thresholdDb = processor.getThresholdDb();
     const float minDb = juce::jlimit (-60.0f, -24.0f, thresholdDb - 30.0f);
@@ -251,262 +237,195 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g,
     for (float db = maxDb; db >= minDb - 0.1f; db -= gridStep)
     {
         const float y = yForDb (db);
-        g.setColour (gridColour.withAlpha (db == 0.0f ? 0.85f : 0.48f));
+        g.setColour (juce::Colours::black.withAlpha (db == 0.0f ? 0.26f : 0.14f));
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
-
-        g.setColour (muted.withAlpha (0.82f));
-        g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Plain"));
-        g.drawText (juce::String (juce::roundToInt (db)), area.getX() + 8.0f, y - 6.0f, 30.0f, 12.0f,
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
+        g.drawText (juce::String (juce::roundToInt (db)), area.getX() + 7.0f, y - 6.0f, 25.0f, 12.0f,
                     juce::Justification::left);
     }
 
-    const int pointCount = processor.getWaveformPointCount();
-    const int latestTriggerPoint = processor.getLatestTriggerPointIndex();
-
-    if (pointCount > 1)
+    if (processor.getWaveformPointCount() > 1)
     {
-        juce::Path line;
-        juce::Path fill;
+        const int pointCount = processor.getWaveformPointCount();
+        const int latestTriggerPoint = processor.getLatestTriggerPointIndex();
+        juce::Path line, fill;
         const float baseline = plot.getBottom();
         fill.startNewSubPath (plot.getX(), baseline);
-
         for (int i = 0; i < pointCount; ++i)
         {
             const float peak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (i));
-            const float peakDb = homeSidechain::linearToDb (peak);
-            const float y = yForDb (peakDb);
-            const float x = plot.getX() + plot.getWidth()
-                * (static_cast<float> (i) / static_cast<float> (pointCount - 1));
-
-            if (i == 0)
-                line.startNewSubPath (x, y);
-            else
-                line.lineTo (x, y);
+            const float y = yForDb (homeSidechain::linearToDb (peak));
+            const float x = plot.getX() + plot.getWidth() * (float)i / (float)(pointCount - 1);
+            if (i == 0) line.startNewSubPath (x, y); else line.lineTo (x, y);
             fill.lineTo (x, y);
         }
+        fill.lineTo (plot.getRight(), baseline); fill.closeSubPath();
+        g.setColour (juce::Colour (0xff000000).withAlpha (0.08f)); g.fillPath (fill);
+        g.setColour (accent.withAlpha (0.16f)); g.strokePath (line, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved));
+        g.setColour (juce::Colour (0xff09090b)); g.strokePath (line, juce::PathStrokeType (2.3f, juce::PathStrokeType::curved));
+        g.setColour (juce::Colours::white.withAlpha (0.92f)); g.strokePath (line, juce::PathStrokeType (1.0f, juce::PathStrokeType::curved));
 
-        fill.lineTo (plot.getRight(), baseline);
-        fill.closeSubPath();
-
-        g.setColour (accent.withAlpha (0.035f));
-        g.fillPath (fill);
-        g.setColour (accent.withAlpha (0.12f));
-        g.strokePath (line, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved));
-        g.setColour (accent.withAlpha (0.92f));
-        g.strokePath (line, juce::PathStrokeType (1.35f, juce::PathStrokeType::curved));
-
-        // The latest audio-triggering section is highlighted in red instead of
-        // leaving a trail of marker lines. Only one event is highlighted.
         if (latestTriggerPoint >= 0 && latestTriggerPoint < pointCount)
         {
-            const int startIndex = juce::jmax (0, latestTriggerPoint - 3);
-            const int endIndex = juce::jmin (pointCount - 1, latestTriggerPoint + 4);
-
+            const int startIndex = juce::jmax (0, latestTriggerPoint - 5);
+            const int endIndex = juce::jmin (pointCount - 1, latestTriggerPoint + 6);
             juce::Path highlight;
             for (int i = startIndex; i <= endIndex; ++i)
             {
                 const float peak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (i));
-                const float peakDb = homeSidechain::linearToDb (peak);
-                const float y = yForDb (peakDb);
-                const float x = plot.getX() + plot.getWidth()
-                    * (static_cast<float> (i) / static_cast<float> (pointCount - 1));
-                if (i == startIndex)
-                    highlight.startNewSubPath (x, y);
-                else
-                    highlight.lineTo (x, y);
+                const float y = yForDb (homeSidechain::linearToDb (peak));
+                const float x = plot.getX() + plot.getWidth() * (float)i / (float)(pointCount - 1);
+                if (i == startIndex) highlight.startNewSubPath (x, y); else highlight.lineTo (x, y);
             }
-
-            g.setColour (triggerHot.withAlpha (0.12f));
-            g.strokePath (highlight, juce::PathStrokeType (9.0f, juce::PathStrokeType::curved));
-            g.setColour (triggerHot.withAlpha (0.92f));
-            g.strokePath (highlight, juce::PathStrokeType (2.6f, juce::PathStrokeType::curved));
+            g.setColour (triggerHot.withAlpha (0.34f)); g.strokePath (highlight, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved));
+            g.setColour (triggerHot); g.strokePath (highlight, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved));
         }
-
     }
 
-    // Threshold is directly mapped to the same dB scale as the waveform.
     const float thresholdY = yForDb (thresholdDb);
-
-    g.setColour (accent.withAlpha (0.07f));
+    g.setColour (juce::Colours::black.withAlpha (0.18f));
     g.fillRoundedRectangle (plot.getX(), thresholdY - 3.0f, plot.getWidth(), 6.0f, 3.0f);
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawLine (plot.getX(), thresholdY + 0.8f, plot.getRight(), thresholdY + 0.8f, 3.0f);
     g.setColour (accent);
-    g.drawLine (plot.getX(), thresholdY, plot.getRight(), thresholdY, 1.7f);
+    g.drawLine (plot.getX(), thresholdY, plot.getRight(), thresholdY, 1.4f);
 
-    const float handleX = plot.getX() + 10.0f;
-    juce::Path handle;
-    handle.startNewSubPath (handleX, thresholdY);
-    handle.lineTo (handleX + 10.0f, thresholdY - 7.0f);
-    handle.lineTo (handleX + 10.0f, thresholdY + 7.0f);
-    handle.closeSubPath();
-    g.setColour (accent);
-    g.fillPath (handle);
-
-    const float labelY = juce::jlimit (plot.getY(), plot.getBottom() - 24.0f, thresholdY - 10.0f);
-    g.setColour (surfaceRaised.withAlpha (0.96f));
-    g.fillRoundedRectangle (plot.getRight() - 112.0f, labelY - 2.0f, 106.0f, 24.0f, 8.0f);
+    const float labelY = juce::jlimit (plot.getY(), plot.getBottom() - 22.0f, thresholdY - 9.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.fillRoundedRectangle (plot.getRight() - 108.0f, labelY, 102.0f, 22.0f, 4.0f);
+    g.setColour (juce::Colour (0xff09090b));
+    g.fillRoundedRectangle (plot.getRight() - 110.0f, labelY - 1.0f, 102.0f, 22.0f, 4.0f);
+    g.setFont (juce::FontOptions (9.0f).withName ("Helvetica").withStyle ("Bold"));
     g.setColour (text);
-    g.setFont (juce::FontOptions (9.5f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("THRESHOLD  " + juce::String (thresholdDb, 1) + " dB",
-                plot.getRight() - 106.0f, labelY + 4.0f, 94.0f, 14.0f,
-                juce::Justification::centredRight);
+    g.drawText ("THRESHOLD  " + juce::String (thresholdDb, 1) + " dB", plot.getRight() - 104.0f, labelY + 4.0f, 90.0f, 14.0f, juce::Justification::centredRight);
 
-    g.setColour (muted.withAlpha (0.72f));
-    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Plain"));
-    g.drawText ("PAST", plot.getX(), area.getBottom() - 15.0f, 34.0f, 12.0f,
-                juce::Justification::left);
-    g.drawText ("NOW", plot.getRight() - 34.0f, area.getBottom() - 15.0f, 34.0f, 12.0f,
-                juce::Justification::right);
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("INPUT", plot.getX(), area.getBottom() - 17.0f, 40.0f, 12.0f, juce::Justification::left);
+    g.drawText ("NOW", plot.getRight() - 32.0f, area.getBottom() - 17.0f, 32.0f, 12.0f, juce::Justification::right);
 }
+
 
 void HomeSidechainTriggerAudioProcessorEditor::drawControlStrip (juce::Graphics& g,
                                                                   juce::Rectangle<float> area) const
 {
-    g.setColour (panel);
-    g.fillRoundedRectangle (area, 10.0f);
-    g.setColour (lineColour);
-    g.drawRoundedRectangle (area, 10.0f, 1.0f);
-
-    const auto meter = processor.getTriggerMeter();
-    const bool firing = meter > 0.10f;
-
-    auto statusArea = area.removeFromLeft (148.0f).reduced (12.0f, 8.0f);
-    g.setColour (firing ? triggerHot : activeAccent);
-    g.fillEllipse (statusArea.getX(), statusArea.getCentreY() - 5.0f, 10.0f, 10.0f);
-    g.setColour (text);
+    g.setColour (juce::Colours::black.withAlpha (0.14f));
+    g.drawLine (area.getX() + 6.0f, area.getY() + 2.0f, area.getRight() - 6.0f, area.getY() + 2.0f, 1.0f);
     g.setFont (juce::FontOptions (10.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText (firing ? "TRIGGERING" : "READY", statusArea.getX() + 17.0f,
-                statusArea.getY(), 100.0f, 16.0f, juce::Justification::left);
-
-    g.setColour (lineColour);
-    g.drawVerticalLine (juce::roundToInt (area.getX()), area.getY() + 8.0f, area.getBottom() - 8.0f);
-
-    g.setColour (text.withAlpha (0.34f));
+    g.setColour (juce::Colours::black.withAlpha (0.72f));
+    g.drawText ("COOL DOWN", area.getX(), area.getY(), 100.0f, 18.0f, juce::Justification::left);
     g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("minimum time between events", area.getX() + 148.0f, area.getY() + 9.0f,
-                138.0f, 12.0f, juce::Justification::right);
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawText ("MINIMUM TIME BETWEEN TRIGGERS", area.getX(), area.getY() + 17.0f, 180.0f, 12.0f, juce::Justification::left);
 }
+
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    // Home-series background language: deep charcoal base with saturated
-    // cyan/green/purple/pink colour washes, soft shaded surfaces and a very
-    // subtle technical texture.  The colourful layer stays behind the
-    // existing graph and controls, so the functional layout remains exactly
-    // the same while the plugin feels like the rest of the Home family.
-    g.fillAll (background);
-
-    const auto outer = getLocalBounds().toFloat().reduced (10.0f);
-
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.fillRoundedRectangle (outer.expanded (3.0f).translated (0.0f, 3.0f), 14.0f);
+    g.fillAll (juce::Colour (0xff09090b));
 
     g.setColour (juce::Colour (0xff111114));
-    g.fillRoundedRectangle (outer, 12.0f);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 390.0f, 8.0f);
+    g.setColour (juce::Colour (0xff222228));
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 390.0f, 8.0f, 1.5f);
 
-    // Large, soft colour fields inspired by the four saturated Home-Disto
-    // cards. They are intentionally low-alpha so white text and the cyan
-    // waveform remain the visual focus.
-    juce::Path colourMask;
-    colourMask.addRoundedRectangle (outer, 12.0f);
-    g.saveState();
-    g.reduceClipRegion (colourMask);
-
-    {
-        juce::ColourGradient cyanGlow (juce::Colour (0xff00e5ff).withAlpha (0.16f),
-                                       outer.getX() + 55.0f, outer.getY() + 15.0f,
-                                       juce::Colours::transparentBlack,
-                                       outer.getX() + 260.0f, outer.getBottom() - 30.0f, true);
-        cyanGlow.addColour (0.45, juce::Colour (0xff00e5ff).withAlpha (0.05f));
-        g.setGradientFill (cyanGlow);
-        g.fillRect (outer);
-    }
-
-    {
-        juce::ColourGradient purpleGlow (juce::Colour (0xffb900ff).withAlpha (0.14f),
-                                         outer.getRight() - 5.0f, outer.getY() + 10.0f,
-                                         juce::Colours::transparentBlack,
-                                         outer.getCentreX(), outer.getCentreY() + 95.0f, true);
-        purpleGlow.addColour (0.42, juce::Colour (0xffb900ff).withAlpha (0.045f));
-        g.setGradientFill (purpleGlow);
-        g.fillRect (outer);
-    }
-
-    {
-        juce::ColourGradient pinkGlow (juce::Colour (0xffff007f).withAlpha (0.10f),
-                                      outer.getRight() - 35.0f, outer.getBottom() - 12.0f,
-                                      juce::Colours::transparentBlack,
-                                      outer.getCentreX() - 40.0f, outer.getCentreY(), true);
-        g.setGradientFill (pinkGlow);
-        g.fillRect (outer);
-    }
-
-    {
-        juce::ColourGradient greenGlow (juce::Colour (0xff00ff87).withAlpha (0.09f),
-                                        outer.getX() + 30.0f, outer.getBottom() - 5.0f,
-                                        juce::Colours::transparentBlack,
-                                        outer.getCentreX() + 110.0f, outer.getCentreY() - 30.0f, true);
-        g.setGradientFill (greenGlow);
-        g.fillRect (outer);
-    }
-
-    // Fine Home-series grid/scan texture. Very low contrast by design so it
-    // reads as material rather than as another UI element.
-    g.setColour (juce::Colours::black.withAlpha (0.14f));
-    for (float y = outer.getY() + 5.0f; y < outer.getBottom(); y += 5.0f)
-        g.drawLine (outer.getX() + 2.0f, y, outer.getRight() - 2.0f, y, 0.8f);
-    for (float x = outer.getX() + 5.0f; x < outer.getRight(); x += 5.0f)
-        g.drawLine (x, outer.getY() + 2.0f, x, outer.getBottom() - 2.0f, 0.8f);
-
-    // A few soft diagonal streaks add the same playful energy as the
-    // reference without covering any labels or controls.
-    g.setColour (juce::Colour (0xff00e5ff).withAlpha (0.045f));
-    for (int i = -2; i < 8; ++i)
-    {
-        const float x = outer.getX() - 140.0f + i * 118.0f;
-        juce::Path streak;
-        streak.startNewSubPath (x, outer.getBottom() + 10.0f);
-        streak.lineTo (x + 160.0f, outer.getY() - 10.0f);
-        g.strokePath (streak, juce::PathStrokeType (1.2f));
-    }
-
-    g.restoreState();
-
-    // Soft glass/shading layer matching the reference card treatment.
-    {
-        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.055f),
-                                    outer.getX(), outer.getY(),
-                                    juce::Colours::transparentBlack,
-                                    outer.getX(), outer.getY() + outer.getHeight() * 0.38f, false);
-        juce::Path sheenPath;
-        sheenPath.addRoundedRectangle (outer, 12.0f);
-        g.saveState();
-        g.reduceClipRegion (sheenPath);
-        g.setGradientFill (sheen);
-        g.fillRect (outer);
-        g.restoreState();
-    }
-
-    g.setColour (juce::Colour (0xff24242b));
-    g.drawRoundedRectangle (outer, 12.0f, 1.2f);
-
-    // Keep the graph/control surfaces visually grounded against the richer
-    // background. Existing geometry and interaction are unchanged.
-    drawHeader (g, { 22.0f, 14.0f, getWidth() - 44.0f, 46.0f });
+    drawHeader (g, { 25.0f, 14.0f, 670.0f, 48.0f });
     g.setColour (juce::Colour (0xff1e1e24));
-    g.drawLine (22.0f, 60.0f, 618.0f, 60.0f, 1.0f);
-    drawGraph (g, graphBounds);
-    drawControlStrip (g, { 20.0f, 292.0f, 600.0f, 52.0f });
+    g.drawLine (25.0f, 65.0f, 695.0f, 65.0f, 2.0f);
+
+    auto drawShadedCard = [&g](juce::Rectangle<float> bounds, juce::Colour baseColour)
+    {
+        for (int i = 1; i <= 7; ++i)
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.12f * (8 - i)));
+            g.fillRoundedRectangle (bounds.expanded ((float)i * 0.4f).translated (0.0f, 2.0f + i * 0.5f), 8.0f);
+        }
+        juce::ColourGradient grad (baseColour, bounds.getX(), bounds.getY(),
+                                   baseColour.darker (0.20f), bounds.getX(), bounds.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillRoundedRectangle (bounds, 6.0f);
+        juce::Rectangle<float> sheenArea = bounds.withHeight (bounds.getHeight() * 0.42f);
+        juce::ColourGradient sheen (juce::Colours::white.withAlpha (0.10f), sheenArea.getX(), sheenArea.getY(),
+                                    juce::Colours::white.withAlpha (0.0f), sheenArea.getX(), sheenArea.getBottom(), false);
+        juce::Path sheenPath; sheenPath.addRoundedRectangle (bounds);
+        g.saveState(); g.reduceClipRegion (sheenPath); g.setGradientFill (sheen); g.fillRect (sheenArea); g.restoreState();
+        g.setColour (juce::Colours::black.withAlpha (0.12f));
+        for (float y = bounds.getY() + 4.0f; y < bounds.getBottom() - 2.0f; y += 4.0f) g.drawLine (bounds.getX() + 2.0f, y, bounds.getRight() - 2.0f, y, 1.2f);
+        for (float x = bounds.getX() + 4.0f; x < bounds.getRight() - 2.0f; x += 4.0f) g.drawLine (x, bounds.getY() + 2.0f, x, bounds.getBottom() - 2.0f, 1.2f);
+        g.setColour (juce::Colours::black.withAlpha (0.50f));
+        g.drawRoundedRectangle (bounds, 6.0f, 2.0f);
+    };
+
+    // Exact Home-series card language: cyan graph, green timing control,
+    // purple link/status column, pink output/bypass area.
+    const juce::Rectangle<float> graphCard (20.0f, 80.0f, 490.0f, 255.0f);
+    const juce::Rectangle<float> controlCard (20.0f, 340.0f, 490.0f, 50.0f);
+    const juce::Rectangle<float> statusCard (520.0f, 80.0f, 90.0f, 310.0f);
+    const juce::Rectangle<float> bypassCard (620.0f, 80.0f, 80.0f, 310.0f);
+
+    drawShadedCard (graphCard, juce::Colour (0xff00e5ff));
+    drawShadedCard (controlCard, juce::Colour (0xff00ff87));
+    drawShadedCard (statusCard, juce::Colour (0xffb900ff));
+    drawShadedCard (bypassCard, juce::Colour (0xffff007f));
+
+    // Graph card title.
+    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawText ("TRIGGER GRAPH", 20, 88, 490, 20, juce::Justification::centred);
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText ("TRIGGER GRAPH", 20, 86, 490, 20, juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.drawLine (225.0f, 108.0f, 305.0f, 108.0f, 1.2f);
+
+    auto graphInner = graphCard.reduced (12.0f, 34.0f);
+    drawGraph (g, graphInner);
+
+    // Green timing card.
+    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText ("TIMING", 20, 346, 120, 18, juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.drawLine (62.0f, 365.0f, 98.0f, 365.0f, 1.2f);
+
+    // Purple status/link card.
+    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText ("LINK", 520, 90, 90, 20, juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.drawLine (548.0f, 111.0f, 582.0f, 111.0f, 1.2f);
+
+    const bool firing = processor.getTriggerMeter() > 0.10f;
+    g.setColour (firing ? juce::Colour (0xffff4f70) : juce::Colour (0xff00ff87));
+    g.fillEllipse (545.0f, 132.0f, 40.0f, 40.0f);
+    g.setColour (juce::Colour (0xff09090b));
+    g.fillEllipse (551.0f, 138.0f, 28.0f, 28.0f);
+    g.setFont (juce::FontOptions (10.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText (firing ? "TRIGGER" : "READY", 522, 178, 86, 18, juce::Justification::centred);
+
+    // Pink bypass card.
+    g.setColour (juce::Colour (0xff09090b));
+    g.setFont (juce::FontOptions (14.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("OUTPUT", 620, 90, 80, 20, juce::Justification::centred);
+    g.setColour (juce::Colours::black.withAlpha (0.25f));
+    g.drawLine (642.0f, 111.0f, 678.0f, 111.0f, 1.2f);
+    g.setColour (juce::Colour (0xff09090b));
+    g.drawText ("AUDIO", 622, 144, 76, 18, juce::Justification::centred);
+    g.drawText ("+ MIDI", 622, 160, 76, 18, juce::Justification::centred);
+
+    drawControlStrip (g, controlCard.reduced (14.0f, 6.0f));
 }
+
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    graphBounds = { 20.0f, 64.0f, 600.0f, 216.0f };
-
-    link.setBounds (478, 18, 54, 24);
-    bypass.setBounds (538, 18, 82, 24);
-
-    retrigger.setBounds (292, 295, 312, 44);
+    graphBounds = { 32.0f, 126.0f, 466.0f, 194.0f };
+    link.setBounds (533, 206, 64, 26);
+    bypass.setBounds (628, 204, 64, 26);
+    retrigger.setBounds (156, 349, 340, 38);
 }
+
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 {
