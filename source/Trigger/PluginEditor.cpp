@@ -110,40 +110,45 @@ void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::To
 
     if (button.getName() == "BYPASS_SWITCH")
     {
-        g.setFont (font (9.5f, true));
-        g.setColour (white.withAlpha (0.72f));
-        g.drawText ("BYPASS", bounds.removeFromLeft (48.0f).toNearestInt(), juce::Justification::centredLeft);
+        const float labelW = 48.0f;
+        g.setFont (font (9.0f, true));
+        g.setColour (white.withAlpha (0.78f));
+        g.drawText ("BYPASS", bounds.removeFromLeft (labelW).toNearestInt(), juce::Justification::centredLeft);
 
-        const float switchW = 44.0f;
-        const float switchH = 20.0f;
-        const auto sw = juce::Rectangle<float> (bounds.getRight() - switchW, bounds.getCentreY() - switchH * 0.5f,
+        const float switchW = 52.0f;
+        const float switchH = 22.0f;
+        const auto sw = juce::Rectangle<float> (bounds.getRight() - switchW,
+                                                bounds.getCentreY() - switchH * 0.5f,
                                                 switchW, switchH);
 
-        g.setColour (black.withAlpha (0.5f));
-        g.fillRoundedRectangle (sw.translated (0.0f, 1.5f), 10.0f);
-        g.setColour (bypassed ? red.withAlpha (0.18f) : panel2);
-        g.fillRoundedRectangle (sw, 10.0f);
-        g.setColour (bypassed ? red.withAlpha (0.85f) : edge.brighter (0.15f));
-        g.drawRoundedRectangle (sw, 10.0f, 1.0f);
+        const auto accent = bypassed ? red : green;
+        g.setColour (black.withAlpha (0.48f));
+        g.fillRoundedRectangle (sw.translated (0.0f, 2.0f), 11.0f);
+        g.setColour (panel2);
+        g.fillRoundedRectangle (sw, 11.0f);
+        g.setColour (accent.withAlpha (highlighted ? 0.95f : 0.72f));
+        g.drawRoundedRectangle (sw, 11.0f, 1.2f);
 
-        const float knob = 14.0f;
+        const float knob = 16.0f;
         const float leftX = sw.getX() + 3.0f;
         const float rightX = sw.getRight() - knob - 3.0f;
         const float x = bypassed ? rightX : leftX;
         const auto dot = juce::Rectangle<float> (x, sw.getCentreY() - knob * 0.5f, knob, knob);
-        g.setColour (bypassed ? red : white);
+        g.setColour (accent.withAlpha (0.20f));
+        g.fillEllipse (dot.expanded (2.0f));
+        g.setColour (white);
         g.fillEllipse (dot);
-        g.setColour (black.withAlpha (0.22f));
+        g.setColour (black.withAlpha (0.18f));
         g.drawEllipse (dot, 1.0f);
 
         g.setFont (font (7.0f, true));
-        g.setColour (bypassed ? red : muted);
+        g.setColour (accent.withAlpha (0.9f));
         g.drawText (bypassed ? "ON" : "OFF", sw.toNearestInt(), juce::Justification::centred);
 
         if (highlighted)
         {
-            g.setColour (white.withAlpha (0.07f));
-            g.drawRoundedRectangle (sw.expanded (2.0f), 12.0f, 1.0f);
+            g.setColour (white.withAlpha (0.08f));
+            g.drawRoundedRectangle (sw.expanded (2.0f), 13.0f, 1.0f);
         }
         return;
     }
@@ -471,11 +476,12 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
     {
         const int pointCount = processor.getWaveformPointCount();
         const int latestTriggerPoint = processor.getLatestTriggerPointIndex();
-        const int markerCount = processor.getTriggerMarkerCount();
         juce::Path line;
         juce::Path redLine;
         bool redStarted = false;
-        const int redRadius = 5;
+        const int redRadius = 7;
+        int hotStart = -1;
+        int hotEnd = -1;
 
         for (int i = 0; i < pointCount; ++i)
         {
@@ -487,6 +493,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
             const bool hot = latestTriggerPoint >= 0 && std::abs (i - latestTriggerPoint) <= redRadius;
             if (hot)
             {
+                if (hotStart < 0) hotStart = i;
+                hotEnd = i;
                 if (! redStarted) { redLine.startNewSubPath (x, y); redStarted = true; }
                 else redLine.lineTo (x, y);
             }
@@ -505,27 +513,22 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
 
         if (! redLine.isEmpty())
         {
-            g.setColour (red.withAlpha (0.18f));
-            g.strokePath (redLine, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved));
+            const float hotX0 = plot.getX() + plot.getWidth() * (float) hotStart / (float) (pointCount - 1);
+            const float hotX1 = plot.getX() + plot.getWidth() * (float) hotEnd   / (float) (pointCount - 1);
+            const auto hotArea = juce::Rectangle<float> (juce::jmax (plot.getX(), hotX0 - 6.0f),
+                                                         plot.getY() + 2.0f,
+                                                         juce::jmin (plot.getRight(), hotX1 + 6.0f) - juce::jmax (plot.getX(), hotX0 - 6.0f),
+                                                         plot.getHeight() - 4.0f);
+            g.setColour (red.withAlpha (0.045f));
+            g.fillRoundedRectangle (hotArea, 5.0f);
+
+            g.setColour (red.withAlpha (0.22f));
+            g.strokePath (redLine, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved));
             g.setColour (red);
-            g.strokePath (redLine, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved));
+            g.strokePath (redLine, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved));
         }
 
-        // Keep a concise trigger history: eight very slim markers let the user
-        // analyse timing without returning to the old visual "mass" problem.
-        for (int m = 0; m < markerCount; ++m)
-        {
-            const int point = processor.getTriggerMarkerPoint (m);
-            if (point < 0 || point >= pointCount)
-                continue;
 
-            const float x = plot.getX() + plot.getWidth() * (float) point / (float) (pointCount - 1);
-            const bool newest = (m == markerCount - 1);
-            g.setColour (red.withAlpha (newest ? 0.92f : 0.42f));
-            g.drawLine (x, plot.getY() + 4.0f, x, plot.getBottom() - 4.0f, newest ? 1.8f : 1.0f);
-            g.fillEllipse (x - (newest ? 2.5f : 1.75f), plot.getY() + 2.0f - (newest ? 1.0f : 0.0f),
-                           newest ? 5.0f : 3.5f, newest ? 5.0f : 3.5f);
-        }
     }
 
     const float thresholdY = yForDb (thresholdDb);
@@ -563,34 +566,42 @@ void HomeSidechainTriggerAudioProcessorEditor::drawUtilityPanel (juce::Graphics&
     g.setColour (muted.withAlpha (0.55f));
     g.drawText ("ONE TRIGGER ENGINE", area.getX() + 14.0f, area.getY() + 25.0f, area.getWidth() - 28.0f, 11.0f, juce::Justification::left);
 
+    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    const bool triggering = processor.getTriggerMeter() > 0.35f && ! bypassed;
+    const auto statusColour = triggering ? red : (bypassed ? muted : green);
+    const auto statusText = triggering ? "TRIGGERING" : (bypassed ? "BYPASSED" : "READY");
+
+    auto status = juce::Rectangle<float> (area.getX() + 12.0f, area.getY() + 41.0f, area.getWidth() - 24.0f, 28.0f);
+    g.setColour (black.withAlpha (0.20f));
+    g.fillRoundedRectangle (status, 8.0f);
+    g.setColour (statusColour.withAlpha (triggering ? 0.55f : 0.28f));
+    g.drawRoundedRectangle (status, 8.0f, 1.0f);
+    g.setColour (statusColour);
+    g.fillEllipse (status.getX() + 9.0f, status.getCentreY() - 3.0f, 6.0f, 6.0f);
+    g.setFont (font (8.5f, true));
+    g.drawText (statusText, status.getX() + 22.0f, status.getY(), status.getWidth() - 28.0f, status.getHeight(), juce::Justification::centredLeft);
+
     g.setColour (edge);
-    g.drawLine (area.getX() + 12.0f, area.getY() + 42.0f, area.getRight() - 12.0f, area.getY() + 42.0f);
+    g.drawLine (area.getX() + 12.0f, area.getY() + 77.0f, area.getRight() - 12.0f, area.getY() + 77.0f);
 
     g.setFont (font (7.5f, true));
     g.setColour (black.withAlpha (0.72f));
-    g.drawText ("LINK DESTINATION", area.getX() + 12.0f, area.getY() + 51.0f, area.getWidth() - 24.0f, 10.0f, juce::Justification::left);
+    g.drawText ("LINK DESTINATION", area.getX() + 12.0f, area.getY() + 86.0f, area.getWidth() - 24.0f, 10.0f, juce::Justification::left);
 
     g.setColour (black.withAlpha (0.25f));
-    g.fillRoundedRectangle (area.getX() + 11.0f, area.getY() + 67.0f, area.getWidth() - 22.0f, 36.0f, 9.0f);
+    g.fillRoundedRectangle (area.getX() + 11.0f, area.getY() + 103.0f, area.getWidth() - 22.0f, 36.0f, 9.0f);
     g.setColour (cyan.withAlpha (0.32f));
-    g.drawRoundedRectangle (area.getX() + 11.0f, area.getY() + 67.0f, area.getWidth() - 22.0f, 36.0f, 9.0f, 1.0f);
+    g.drawRoundedRectangle (area.getX() + 11.0f, area.getY() + 103.0f, area.getWidth() - 22.0f, 36.0f, 9.0f, 1.0f);
 
     g.setFont (font (7.5f, true));
     g.setColour (muted.withAlpha (0.62f));
-    g.drawText ("TRIGGER OUTPUT", area.getX() + 14.0f, area.getY() + 117.0f, area.getWidth() - 28.0f, 11.0f, juce::Justification::left);
+    g.drawText ("TRIGGER OUTPUT", area.getX() + 14.0f, area.getY() + 151.0f, area.getWidth() - 28.0f, 11.0f, juce::Justification::left);
     g.setFont (font (10.0f, true));
     g.setColour (white);
-    g.drawText ("MIDI + HOME LINK", area.getX() + 14.0f, area.getY() + 131.0f, area.getWidth() - 28.0f, 15.0f, juce::Justification::left);
+    g.drawText ("MIDI + HOME LINK", area.getX() + 14.0f, area.getY() + 165.0f, area.getWidth() - 28.0f, 15.0f, juce::Justification::left);
 
     g.setColour (edge.withAlpha (0.8f));
-    g.drawLine (area.getX() + 12.0f, area.getY() + 160.0f, area.getRight() - 12.0f, area.getY() + 160.0f);
-
-    g.setFont (font (7.5f, true));
-    g.setColour (muted.withAlpha (0.52f));
-    g.drawText ("TRIGGERS", area.getX() + 14.0f, area.getY() + 171.0f, 58.0f, 10.0f, juce::Justification::left);
-    g.setFont (font (12.0f, true));
-    g.setColour (white);
-    g.drawText (juce::String (processor.getTriggerCount()), area.getX() + 14.0f, area.getY() + 181.0f, 58.0f, 18.0f, juce::Justification::left);
+    g.drawLine (area.getX() + 12.0f, area.getY() + 194.0f, area.getRight() - 12.0f, area.getY() + 194.0f);
 
     g.setFont (font (7.0f, true));
     g.setColour (muted.withAlpha (0.52f));
@@ -653,8 +664,8 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // Matches the 432 x 188 graph card above, keeping threshold hit testing
     // exactly aligned with the drawn graph.
     graphBounds = { 64.0f, 126.0f, 358.0f, 92.0f };
-    link.setBounds (470, 137, 140, 34);
-    bypass.setBounds (536, 21, 78, 28);
+    link.setBounds (470, 175, 140, 34);
+    bypass.setBounds (516, 19, 104, 31);
     retrigger.setBounds (18, 266, 432, 52);
 }
 

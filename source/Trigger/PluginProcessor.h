@@ -36,7 +36,6 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float> triggerMeter { 0.0f };
     std::atomic<float> inputLevel { 0.0f };
-    std::atomic<int> triggerCount { 0 };
     std::atomic<int> homeLinkCount { 0 };
 
     static constexpr size_t waveformPointCount = 320;
@@ -56,10 +55,7 @@ public:
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
     float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }
     float getInputLevel() const noexcept { return inputLevel.load (std::memory_order_relaxed); }
-    int getTriggerCount() const noexcept { return triggerCount.load (std::memory_order_relaxed); }
     int getLatestTriggerPointIndex() const noexcept;
-    int getTriggerMarkerCount() const noexcept { return triggerMarkerCount.load (std::memory_order_acquire); }
-    int getTriggerMarkerPoint (int visibleIndex) const noexcept;
 
     // Automatic smart trigger input: audio peaks and incoming MIDI notes are
     // handled together; there is deliberately no mode switch in the UI.
@@ -75,10 +71,6 @@ private:
     int waveformAccumSamples = 0;
     bool waveformAccumTriggered = false;
     std::atomic<std::uint64_t> latestTriggerSerial { 0 };
-    static constexpr int maxTriggerMarkers = 8;
-    std::array<std::atomic<std::uint64_t>, maxTriggerMarkers> triggerMarkerSerials {};
-    std::atomic<int> triggerMarkerWriteIndex { 0 };
-    std::atomic<int> triggerMarkerCount { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
 };
