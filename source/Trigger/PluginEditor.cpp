@@ -87,6 +87,12 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
 }
 
 
+HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEditor()
+{
+    stopTimer();
+    setLookAndFeel (nullptr);
+}
+
 HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p)
 {
