@@ -71,6 +71,7 @@ private:
     int waveformAccumSamples = 0;
     bool waveformAccumTriggered = false;
     std::atomic<std::uint64_t> latestTriggerSerial { 0 };
+    int lastSelectedLink = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
 };

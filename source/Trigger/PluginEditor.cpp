@@ -232,6 +232,13 @@ void HomeSidechainTriggerGapSlider::mouseUp (const juce::MouseEvent& e)
 void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
 {
     const auto b = getLocalBounds().toFloat();
+    g.setFont (font (10.0f, true));
+    g.setColour (white);
+    g.drawText ("COOL DOWN", 12, juce::roundToInt (b.getCentreY() - 9.0f), 82, 18, juce::Justification::left);
+    g.setFont (font (6.5f, true));
+    g.setColour (muted.withAlpha (0.58f));
+    g.drawText ("MIN TIME", 12, juce::roundToInt (b.getCentreY() + 7.0f), 66, 10, juce::Justification::left);
+
     const float x0 = trackStartX();
     const float x1 = trackEndX();
     const float cy = b.getCentreY();
@@ -240,7 +247,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     const double proportion = juce::jlimit (0.0, 1.0, valueToProportionOfLength (getValue()));
     const float px = x0 + (x1 - x0) * (float) proportion;
 
-    // Track only: labels belong to the card, not to the interactive slider.
+    // The card labels and interactive control share one aligned row.
     const auto track = juce::Rectangle<float> (x0, cy - h * 0.5f, x1 - x0, h);
     g.setColour (black.withAlpha (0.56f));
     g.fillRoundedRectangle (track.expanded (1.0f, 2.0f), 4.0f);
@@ -298,7 +305,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     linkAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (processor.apvts, "LINK", link);
     bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "BYPASS", bypass);
 
-    startTimerHz (30);
+    startTimerHz (24);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::styleComboBox()
@@ -321,7 +328,7 @@ void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 
 float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 {
-    constexpr float minDb = -60.0f;
+    constexpr float minDb = -48.0f;
     constexpr float maxDb = 0.0f;
     const float n = juce::jlimit (0.0f, 1.0f, (db - minDb) / (maxDb - minDb));
     return graphBounds.getBottom() - n * graphBounds.getHeight();
@@ -329,7 +336,7 @@ float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 
 float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
 {
-    constexpr float minDb = -60.0f;
+    constexpr float minDb = -48.0f;
     constexpr float maxDb = 0.0f;
     const float n = juce::jlimit (0.0f, 1.0f, (graphBounds.getBottom() - y) / graphBounds.getHeight());
     return minDb + n * (maxDb - minDb);
@@ -415,7 +422,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, ju
 {
     const auto title = font (22.0f, true);
     const auto subtitle = font (7.2f, true);
-    const juce::String home = "HOME ";
+    const juce::String home = "HOME-SIDECHAIN ";
     const juce::String trig = "TRIGGER";
     const int homeW = juce::GlyphArrangement::getStringWidthInt (title, home);
 
@@ -423,30 +430,19 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, ju
     g.setColour (white);
     g.drawText (home, area.getX(), area.getY(), homeW + 4, 27, juce::Justification::left);
     g.setColour (green);
-    g.drawText (trig, area.getX() + homeW - 1, area.getY(), 122, 27, juce::Justification::left);
+    g.drawText (trig, area.getX() + homeW - 1, area.getY(), 112, 27, juce::Justification::left);
 
     g.setFont (subtitle);
     g.setColour (muted.withAlpha (0.55f));
-    g.drawText ("TRANSIENT TRIGGER", area.getX(), area.getY() + 27.0f, 132, 11, juce::Justification::left);
+    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 27.0f, 132, 11, juce::Justification::left);
 
-    // Keep the header quiet: the bypass control is the only utility action here.
-    // A small status line gives the engine a visual anchor without competing with the title.
-    const float dividerX = area.getRight() - 118.0f;
-    g.setColour (edgeSoft.withAlpha (0.75f));
-    g.drawLine (dividerX, area.getY() + 5.0f, dividerX, area.getY() + 30.0f, 1.0f);
-
-    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    g.setFont (font (6.7f, true));
-    g.setColour ((bypassed ? red : green).withAlpha (0.72f));
-    g.drawText (bypassed ? "ENGINE OFF" : "ENGINE ACTIVE", dividerX + 10.0f, area.getY() + 5.0f,
-                74.0f, 10.0f, juce::Justification::left);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juce::Rectangle<float> area) const
 {
     const auto inner = area.reduced (10.0f, 9.0f);
-    const auto plot = juce::Rectangle<float> (inner.getX() + 25.0f, inner.getY() + 14.0f,
-                                               inner.getWidth() - 31.0f, inner.getHeight() - 30.0f);
+    const auto plot = juce::Rectangle<float> (inner.getX() + 25.0f, inner.getY() + 7.0f,
+                                               inner.getWidth() - 31.0f, inner.getHeight() - 19.0f);
     const float thresholdDb = processor.getThresholdDb();
 
     // Inner scope surface.
@@ -456,7 +452,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
     g.drawRoundedRectangle (plot.expanded (2.0f), 7.0f, 1.0f);
 
     // Horizontal dB grid.
-    for (int db = 0; db >= -60; db -= 12)
+    for (int db = 0; db >= -48; db -= 12)
     {
         const float y = yForDb ((float) db);
         g.setColour (white.withAlpha (db == 0 ? 0.10f : 0.045f));
@@ -532,7 +528,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
         {
             fill.lineTo (plot.getRight(), plot.getBottom());
             fill.closeSubPath();
-            g.setColour (cyan.withAlpha (0.035f));
+            g.setColour (cyan.withAlpha (0.050f));
             g.fillPath (fill);
         }
 
@@ -540,8 +536,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
         g.strokePath (line, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved));
         g.setColour (cyan.withAlpha (0.24f));
         g.strokePath (line, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved));
-        g.setColour (white.withAlpha (0.95f));
-        g.strokePath (line, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved));
+        g.setColour (cyan.withAlpha (0.58f));
+        g.strokePath (line, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved));
+        g.setColour (white.withAlpha (0.96f));
+        g.strokePath (line, juce::PathStrokeType (0.9f, juce::PathStrokeType::curved));
 
         if (! redLine.isEmpty())
         {
@@ -558,7 +556,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
         }
     }
 
-    // Threshold control remains on the exact same -60..0 dB scale as the waveform.
+    // Threshold control remains on the exact same -48..0 dB scale as the waveform.
     const float thresholdY = yForDb (thresholdDb);
     g.setColour (cyan.withAlpha (0.08f));
     g.fillRoundedRectangle (plot.getX(), thresholdY - 4.0f, plot.getWidth(), 8.0f, 4.0f);
@@ -650,12 +648,6 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownPanel (juce::Graphics
     g.setColour (green.withAlpha (0.40f));
     g.drawRoundedRectangle (r, 9.0f, 1.0f);
 
-    g.setFont (font (10.0f, true));
-    g.setColour (white);
-    g.drawText ("COOL DOWN", r.getX() + 12.0f, r.getCentreY() - 9.0f, 86.0f, 18.0f, juce::Justification::left);
-    g.setFont (font (6.5f, true));
-    g.setColour (muted.withAlpha (0.58f));
-    g.drawText ("MIN TIME", r.getX() + 12.0f, r.getCentreY() + 7.0f, 66.0f, 10.0f, juce::Justification::left);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -684,13 +676,13 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (white);
     g.drawText ("TRIGGER GRAPH", graphCard.getX() + 13.0f, graphCard.getY() + 6.0f, 170.0f, 17.0f, juce::Justification::left);
 
-    g.setFont (font (6.6f, true));
-    g.setColour (cyan.withAlpha (0.68f));
-    g.drawText ("LIVE INPUT", graphCard.getX() + 13.0f, graphCard.getY() + 21.0f, 62.0f, 9.0f, juce::Justification::left);
+    g.setFont (font (6.2f, true));
+    g.setColour (muted.withAlpha (0.48f));
+    g.drawText ("LIVE INPUT", graphCard.getRight() - 86.0f, graphCard.getY() + 12.0f, 60.0f, 9.0f, juce::Justification::right);
 
     g.setColour (muted.withAlpha (0.52f));
     g.setFont (font (6.5f, true));
-    g.drawText ("DRAG TO SET", graphCard.getRight() - 86.0f, graphCard.getY() + 11.0f, 72.0f, 10.0f, juce::Justification::right);
+    g.drawText ("DRAG THRESHOLD", graphCard.getRight() - 104.0f, graphCard.getY() + 11.0f, 90.0f, 10.0f, juce::Justification::right);
 
     g.setColour (edgeSoft.withAlpha (0.70f));
     g.drawLine (graphCard.getX() + 12.0f, graphCard.getY() + 31.0f,
@@ -705,7 +697,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     // Matches the 432 x 188 graph card above, keeping threshold hit testing
     // exactly aligned with the drawn graph.
-    graphBounds = { 61.0f, 129.0f, 365.0f, 106.0f };
+    graphBounds = { 61.0f, 122.0f, 365.0f, 117.0f };
     link.setBounds (470, 175, 140, 34);
     bypass.setBounds (516, 19, 104, 31);
     retrigger.setBounds (18, 266, 432, 52);

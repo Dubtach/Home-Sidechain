@@ -21,7 +21,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainTriggerAudioPro
         "BYPASS", "Bypass", false, BoolAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "THRESHOLD", "Threshold",
-        juce::NormalisableRange<float> (-60.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
+        juce::NormalisableRange<float> (-48.0f, 0.0f, 0.01f), -18.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "RETRIGGER", "Cool Down",
         juce::NormalisableRange<float> (5.0f, 1000.0f, 1.0f, 0.4f), 80.0f,
@@ -113,22 +113,26 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
     juce::ScopedNoDenormals noDenormals;
 
     const int numSamples = buffer.getNumSamples();
-    samplesSinceLastTrigger = juce::jmin (100000000, static_cast<int> (samplesSinceLastTrigger + numSamples));
-    triggerMeter.store (triggerMeter.load (std::memory_order_relaxed) * 0.88f, std::memory_order_relaxed);
-    inputLevel.store (inputLevel.load (std::memory_order_relaxed) * 0.80f, std::memory_order_relaxed);
+    if (numSamples <= 0)
+        return;
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const float threshold = getThresholdDb();
+    const float thresholdDb = getThresholdDb();
+    const float thresholdLinear = juce::Decibels::decibelsToGain (thresholdDb);
     const int selectedLink = getLink();
-    homeLinkSender.setLink (selectedLink);
     const int note = homeSidechain::midiNoteForLink (selectedLink);
     const int retriggerSamples = static_cast<int> (
         apvts.getRawParameterValue ("RETRIGGER")->load() * 0.001 * sampleRate);
 
+    // The selected link is block-stable, so don't write the sender atomic every block.
+    if (selectedLink != lastSelectedLink)
+    {
+        homeLinkSender.setLink (selectedLink);
+        lastSelectedLink = selectedLink;
+    }
+
     // MIDI is an automatic second trigger source. A note-on from a piano-roll
-    // or external controller is treated exactly like an audio transient. Any
-    // incoming MIDI note can act as the trigger; the selected Home-Link still
-    // determines the generated output note.
+    // or external controller is treated exactly like an audio transient.
     std::array<int, 128> midiTriggerPositions {};
     std::array<int, 128> midiTriggerVelocities {};
     int midiTriggerCount = 0;
@@ -145,8 +149,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         }
     }
 
-    int midiTriggerIndex = 0;
-
     // Finish a note from the previous block before generating new triggers.
     if (pendingNoteOff && pendingNote >= 0)
     {
@@ -156,7 +158,15 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
     }
 
     if (bypassed)
+    {
+        triggerMeter.store (0.0f, std::memory_order_relaxed);
         return;
+    }
+
+    // Keep atomics out of the per-sample loop. This materially reduces audio-thread
+    // contention on high buffer/sample-rate sessions while preserving sample accuracy.
+    float blockPeak = 0.0f;
+    int midiTriggerIndex = 0;
 
     for (int sample = 0; sample < numSamples; ++sample)
     {
@@ -164,11 +174,12 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
             peak = juce::jmax (peak, std::abs (buffer.getSample (channel, sample)));
 
+        blockPeak = juce::jmax (blockPeak, peak);
         waveformAccumPeak = juce::jmax (waveformAccumPeak, peak);
-        inputLevel.store (juce::jmax (inputLevel.load (std::memory_order_relaxed), peak), std::memory_order_relaxed);
-        const float peakDb = homeSidechain::linearToDb (peak);
-        const bool above = peakDb >= threshold;
 
+        // Compare in linear amplitude rather than converting every sample through log10.
+        // This is equivalent to the displayed dB threshold and much cheaper on the audio thread.
+        const bool above = peak >= thresholdLinear;
         const bool audioTrigger = above && ! wasAboveThreshold;
         bool midiTrigger = false;
         int midiVelocity = 127;
@@ -192,9 +203,6 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             midi.addEvent (juce::MidiMessage::noteOn (1, note, static_cast<juce::uint8> (triggerVelocity)),
                            sample);
 
-            // Home-Link is the zero-routing path. It runs alongside normal MIDI
-            // output so advanced users can still use conventional host routing.
-            // The transport work is offloaded from the audio thread.
             homeLinkSender.enqueueTrigger (selectedLink, triggerVelocity, sample,
                                            homeSidechain::currentHostTicks());
             homeLinkCount.fetch_add (1, std::memory_order_relaxed);
@@ -214,6 +222,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         }
 
         wasAboveThreshold = above;
+        ++samplesSinceLastTrigger;
 
         ++waveformAccumSamples;
         if (waveformAccumSamples >= waveformSampleStride)
@@ -222,10 +231,8 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             const size_t writeSlot = static_cast<size_t> (writeSerial % waveformPointCount);
             waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
             if (waveformAccumTriggered)
-            {
                 latestTriggerSerial.store (writeSerial, std::memory_order_release);
 
-            }
             waveformWriteIndex.store ((writeSlot + 1) % waveformPointCount, std::memory_order_release);
             waveformWriteSerial.store (writeSerial + 1, std::memory_order_release);
             waveformAccumPeak = 0.0f;
@@ -234,6 +241,11 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         }
     }
 
+    samplesSinceLastTrigger = juce::jmin (100000000, samplesSinceLastTrigger);
+    inputLevel.store (juce::jmax (inputLevel.load (std::memory_order_relaxed) * 0.80f, blockPeak),
+                      std::memory_order_relaxed);
+    triggerMeter.store (triggerMeter.load (std::memory_order_relaxed) * 0.88f,
+                        std::memory_order_relaxed);
 }
 
 void HomeSidechainTriggerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

@@ -1,11 +1,23 @@
-# Home-Sidechain — v25.0.0
+# Home-Sidechain Trigger
 
-Trigger UI polish checkpoint built from v23.1.
+Version 26.2.0
 
-- Refined Home-series visual hierarchy with darker, subtler cards and controlled accent lighting.
-- Cleaner Trigger Graph with a darker analysis scope, tighter grid, waveform fill, and clearer threshold control.
-- LINK + OUTPUT panel retains READY/TRIGGERING/BYPASSED status and compact MIDI/Home-Link output chips.
-- COOL DOWN control keeps direct click/drag mapping and uses a cleaner custom slider.
-- No processing or Home-Link transport behavior intentionally changed.
+Home-series compact Trigger UI checkpoint.
 
-UI v26.1: fixed output-route presentation, stabilized threshold dragging on a fixed dB scale, improved waveform visual styling and extended the visible history to 3 seconds, and aligned the Cool Down control row.
+## v26.2 changes
+- Header label updated to Home-Sidechain Trigger with DUBTACH DSP subtitle.
+- Removed ENGINE ACTIVE/OFF text.
+- Graph display uses a tighter -48 dB to 0 dB range.
+- Expanded waveform plot inside the same graph card.
+- Threshold badge retained and threshold mapping remains sample-accurate.
+- Cool Down labels are aligned inside the slider control.
+- GUI refresh reduced to 24 Hz to lower idle editor overhead.
+- Audio-thread trigger processing avoids per-sample atomic stores and per-sample dB conversion.
+- Home-Link sender link selection only updates when the selected link changes.
+
+## Behavior retained
+- Automatic audio + MIDI trigger detection.
+- No MIDI velocity control.
+- Red waveform highlight for the latest audio-triggered event.
+- Home-Link + MIDI output.
+- Receiver TEST and existing low-latency transport.
