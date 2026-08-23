@@ -39,7 +39,7 @@ public:
     std::atomic<int> homeLinkCount { 0 };
 
     static constexpr size_t waveformPointCount = 320;
-    static constexpr double waveformHistorySeconds = 2.40;
+    static constexpr double waveformHistorySeconds = 3.00;
     int waveformSampleStride = 64;
     std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
     std::atomic<size_t> waveformWriteIndex { 0 };
