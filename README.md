@@ -1,4 +1,4 @@
-# Home-Sidechain — v24.0.0
+# Home-Sidechain — v25.0.0
 
 Trigger UI polish checkpoint built from v23.1.
 
