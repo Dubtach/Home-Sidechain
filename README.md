@@ -33,3 +33,7 @@ Home-series compact Trigger UI checkpoint.
 
 ## v27.0 visual redesign
 The Trigger editor now follows the approved Home-Sidechain mockup direction: large compact analysis scope, header Link selector + bypass, READY/TRIGGERING state, threshold badge, cyan analysis accents, red trigger highlight, and full-width Cool Down control. Processing behavior is unchanged.
+
+
+## UI checkpoint 27.1
+Rebuilt Trigger editor to closely match the approved Home-Sidechain Trigger mockup: wide dark chassis, Home-style header, segmented A/B/C link selector, compact bypass switch, large analysis scope with threshold badge and red trigger highlight, and full-width Cool Down panel. Audio processing and Home-Link behavior are unchanged.
