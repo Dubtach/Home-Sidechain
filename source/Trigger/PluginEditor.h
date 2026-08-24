@@ -7,7 +7,6 @@ class HomeSeriesTriggerLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
     HomeSeriesTriggerLookAndFeel();
-
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
 };
 
@@ -15,10 +14,8 @@ class HomeSidechainTriggerLinkSelector : public juce::Component
 {
 public:
     explicit HomeSidechainTriggerLinkSelector (HomeSidechainTriggerAudioProcessor&);
-
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
-
 private:
     HomeSidechainTriggerAudioProcessor& processor;
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerLinkSelector)
@@ -32,7 +29,6 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
-
 private:
     void setValueFromMouseX (float x);
     float trackStartX() const noexcept;
@@ -49,6 +45,8 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
@@ -66,6 +64,7 @@ private:
 
     juce::Rectangle<float> graphPlotBounds;
     bool draggingThreshold = false;
+    bool hoveringThreshold = false;
 
     void timerCallback() override;
     void styleBypass();
@@ -80,6 +79,8 @@ private:
     void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
     void drawCooldownCard (juce::Graphics&, juce::Rectangle<float>) const;
     void drawStatusPill (juce::Graphics&, juce::Rectangle<float>, const juce::String&, juce::Colour) const;
+    void drawTimeScale (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawDragHint (juce::Graphics&, float x, float y) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };
