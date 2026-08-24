@@ -492,8 +492,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     {
         const float x = plot.getX() + plot.getWidth() * static_cast<float> (d) / static_cast<float> (divisions);
         g.setColour (grid.withAlpha (d == 0 || d == divisions ? 0.28f : 0.24f));
+
+        // Keep this compatible with the JUCE version used by the project.
+        // Passing a null dash array with zero entries can assert in some JUCE
+        // builds and was causing pluginval to fail during the Editor test.
+        const float dashes[] = { 5.0f, 5.0f };
         g.drawDashedLine (juce::Line<float> (x, plot.getY(), x, plot.getBottom()),
-                          nullptr, 0, 0, 1.0f);
+                          dashes, 2, 1.0f);
     }
 
     // The subtle horizontal mid lines from the mockup give the graph a depth without clutter.
