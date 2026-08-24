@@ -90,7 +90,6 @@ HomeSidechainTriggerLinkSelector::HomeSidechainTriggerLinkSelector (HomeSidechai
     : processor (p)
 {
     setMouseCursor (juce::MouseCursor::PointingHandCursor);
-    setTooltip ("Select Home-Link destination");
 }
 
 void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
@@ -361,9 +360,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawLogo (juce::Graphics& g, floa
     juce::Path glow;
     glow.startNewSubPath (x + 2.0f, y + 2.0f);
     glow.lineTo (x + 2.0f, y + 31.0f);
-    glow.moveTo (x + 26.0f, y + 2.0f);
+    glow.startNewSubPath (x + 26.0f, y + 2.0f);
     glow.lineTo (x + 26.0f, y + 31.0f);
-    glow.moveTo (x + 2.0f, y + 16.5f);
+    glow.startNewSubPath (x + 2.0f, y + 16.5f);
     glow.lineTo (x + 26.0f, y + 16.5f);
     g.strokePath (glow, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
@@ -371,9 +370,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawLogo (juce::Graphics& g, floa
     juce::Path h;
     h.startNewSubPath (x + 2.0f, y + 2.0f);
     h.lineTo (x + 2.0f, y + 31.0f);
-    h.moveTo (x + 26.0f, y + 2.0f);
+    h.startNewSubPath (x + 26.0f, y + 2.0f);
     h.lineTo (x + 26.0f, y + 31.0f);
-    h.moveTo (x + 2.0f, y + 16.5f);
+    h.startNewSubPath (x + 2.0f, y + 16.5f);
     h.lineTo (x + 26.0f, y + 16.5f);
     g.strokePath (h, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
