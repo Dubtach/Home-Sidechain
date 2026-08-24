@@ -402,9 +402,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, ju
     g.setColour (muted.withAlpha (0.9f));
     g.drawText ("D U B T A C H   D S P", baseX + 1.0f, area.getY() + 31.0f, 160.0f, 10.0f, juce::Justification::left);
 
-    const float controlY = area.getY() + 7.0f;
-    const float bypassW = 94.0f;
-    bypass.setBounds (juce::roundToInt (area.getRight() - bypassW), juce::roundToInt (controlY - 2.0f), (int) bypassW, 30);
+    // Child component bounds are managed in resized(); drawHeader() is const
+    // and must remain a pure painting operation.
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g, juce::Rectangle<float> r,
