@@ -30,3 +30,6 @@ Home-series compact Trigger UI checkpoint.
 - Replaced the graph title with the live READY/TRIGGERING/BYPASSED indicator.
 - Reduced editor size to 580 x 310.
 - Graph and Cool Down now use the full plugin width.
+
+## v27.0 visual redesign
+The Trigger editor now follows the approved Home-Sidechain mockup direction: large compact analysis scope, header Link selector + bypass, READY/TRIGGERING state, threshold badge, cyan analysis accents, red trigger highlight, and full-width Cool Down control. Processing behavior is unchanged.
