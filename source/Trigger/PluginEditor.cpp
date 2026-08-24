@@ -641,7 +641,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawDragHint (juce::Graphics& g, 
     hand.cubicTo (x + 9.5f, y - 6.0f, x + 12.0f, y - 5.0f, x + 11.0f, y - 2.5f);
     hand.lineTo (x + 8.0f, y + 5.0f);
     hand.cubicTo (x + 7.0f, y + 7.5f, x + 3.0f, y + 7.5f, x + 2.0f, y + 4.0f);
-    g.strokePath (hand, juce::PathStrokeType (1.1f, juce::PathStrokeType::rounded));
+    g.strokePath (hand, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
     g.setFont (uiFont (10.0f, true));
     g.drawText ("DRAG THRESHOLD", x + 24.0f, y - 6.0f, 120.0f, 14.0f, juce::Justification::left);
