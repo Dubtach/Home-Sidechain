@@ -1,10 +1,10 @@
 # Home-Sidechain Trigger
 
-Version 26.2.0
+Version 26.3.0
 
 Home-series compact Trigger UI checkpoint.
 
-## v26.2 changes
+## v26.3 changes
 - Header label updated to Home-Sidechain Trigger with DUBTACH DSP subtitle.
 - Removed ENGINE ACTIVE/OFF text.
 - Graph display uses a tighter -48 dB to 0 dB range.
@@ -21,3 +21,12 @@ Home-series compact Trigger UI checkpoint.
 - Red waveform highlight for the latest audio-triggered event.
 - Home-Link + MIDI output.
 - Receiver TEST and existing low-latency transport.
+
+
+## v26.3 UI checkpoint
+- Removed the separate Link + Output utility panel.
+- Moved A/B/C link selector into the header beside Bypass.
+- Removed MIDI + Home Link output text and Smart Input text from the UI.
+- Replaced the graph title with the live READY/TRIGGERING/BYPASSED indicator.
+- Reduced editor size to 580 x 310.
+- Graph and Cool Down now use the full plugin width.

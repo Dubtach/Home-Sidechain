@@ -111,12 +111,12 @@ void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::To
 
     if (button.getName() == "BYPASS_SWITCH")
     {
-        const float labelW = 48.0f;
+        const float labelW = 38.0f;
         g.setFont (font (9.0f, true));
         g.setColour (white.withAlpha (0.78f));
         g.drawText ("BYPASS", bounds.removeFromLeft (labelW).toNearestInt(), juce::Justification::centredLeft);
 
-        const float switchW = 56.0f;
+        const float switchW = 42.0f;
         const float switchH = 22.0f;
         const auto sw = juce::Rectangle<float> (bounds.getRight() - switchW,
                                                 bounds.getCentreY() - switchH * 0.5f,
@@ -142,7 +142,7 @@ void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::To
         g.setColour (black.withAlpha (0.18f));
         g.drawEllipse (dot, 1.0f);
 
-        g.setFont (font (6.7f, true));
+        g.setFont (font (6.0f, true));
         g.setColour (accent.withAlpha (0.92f));
         g.drawText (bypassed ? "ON" : "OFF", sw.toNearestInt(), juce::Justification::centred);
 
@@ -289,7 +289,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (640, 340);
+    setSize (580, 310);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -420,29 +420,34 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCard (juce::Graphics& g, juce
 
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, juce::Rectangle<float> area) const
 {
-    const auto title = font (22.0f, true);
+    const auto title = font (21.0f, true);
     const auto subtitle = font (7.2f, true);
-    const juce::String home = "HOME-SIDECHAIN ";
-    const juce::String trig = "TRIGGER";
-    const int homeW = juce::GlyphArrangement::getStringWidthInt (title, home);
+    const juce::String brand = "HOME-SIDECHAIN ";
+    const juce::String product = "TRIGGER";
+    const int brandW = juce::GlyphArrangement::getStringWidthInt (title, brand);
 
     g.setFont (title);
     g.setColour (white);
-    g.drawText (home, area.getX(), area.getY(), homeW + 4, 27, juce::Justification::left);
+    g.drawText (brand, area.getX(), area.getY(), brandW + 4, 26, juce::Justification::left);
     g.setColour (green);
-    g.drawText (trig, area.getX() + homeW - 1, area.getY(), 112, 27, juce::Justification::left);
+    g.drawText (product, area.getX() + brandW - 1, area.getY(), 118, 26, juce::Justification::left);
 
     g.setFont (subtitle);
-    g.setColour (muted.withAlpha (0.55f));
-    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 27.0f, 132, 11, juce::Justification::left);
+    g.setColour (muted.withAlpha (0.52f));
+    g.drawText ("DUBTACH DSP", area.getX(), area.getY() + 26.0f, 120, 10, juce::Justification::left);
 
+    // Compact header destination control: the A/B/C selector belongs here
+    // because it identifies where this Trigger instance sends its event.
+    g.setFont (font (6.6f, true));
+    g.setColour (muted.withAlpha (0.60f));
+    g.drawText ("LINK", area.getX() + 350.0f, area.getY() + 11.0f, 30.0f, 10.0f, juce::Justification::right);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juce::Rectangle<float> area) const
 {
-    const auto inner = area.reduced (10.0f, 9.0f);
-    const auto plot = juce::Rectangle<float> (inner.getX() + 25.0f, inner.getY() + 7.0f,
-                                               inner.getWidth() - 31.0f, inner.getHeight() - 19.0f);
+    const auto inner = area.reduced (10.0f, 4.0f);
+    const auto plot = juce::Rectangle<float> (inner.getX() + 25.0f, inner.getY() + 2.0f,
+                                               inner.getWidth() - 31.0f, juce::jmax (40.0f, inner.getHeight() - 10.0f));
     const float thresholdDb = processor.getThresholdDb();
 
     // Inner scope surface.
@@ -586,56 +591,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraph (juce::Graphics& g, juc
     g.drawText (juce::String (thresholdDb, 1) + " dB", tag.getX() + 43.0f, tag.getY(), tag.getWidth() - 49.0f, tag.getHeight(), juce::Justification::centredRight);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::drawUtilityPanel (juce::Graphics& g, juce::Rectangle<float> area) const
+void HomeSidechainTriggerAudioProcessorEditor::drawUtilityPanel (juce::Graphics&, juce::Rectangle<float>) const
 {
-    g.setFont (font (12.0f, true));
-    g.setColour (magenta);
-    g.drawText ("LINK + OUTPUT", area.getX() + 14.0f, area.getY() + 9.0f, area.getWidth() - 28.0f, 17.0f, juce::Justification::left);
-    g.setFont (font (6.8f, true));
-    g.setColour (muted.withAlpha (0.52f));
-    g.drawText ("TRIGGER DESTINATION", area.getX() + 14.0f, area.getY() + 26.0f, area.getWidth() - 28.0f, 10.0f, juce::Justification::left);
-
-    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const bool triggering = processor.getTriggerMeter() > 0.35f && ! bypassed;
-    const auto statusColour = triggering ? red : (bypassed ? muted : green);
-    const auto statusText = triggering ? "TRIGGERING" : (bypassed ? "BYPASSED" : "READY");
-
-    auto status = juce::Rectangle<float> (area.getX() + 12.0f, area.getY() + 39.0f, area.getWidth() - 24.0f, 30.0f);
-    g.setColour (black.withAlpha (0.34f));
-    g.fillRoundedRectangle (status, 8.0f);
-    g.setColour (statusColour.withAlpha (triggering ? 0.65f : 0.30f));
-    g.drawRoundedRectangle (status, 8.0f, 1.0f);
-    g.setColour (statusColour);
-    g.fillEllipse (status.getX() + 9.0f, status.getCentreY() - 3.0f, 6.0f, 6.0f);
-    g.setFont (font (8.5f, true));
-    g.drawText (statusText, status.getX() + 22.0f, status.getY(), status.getWidth() - 28.0f, status.getHeight(), juce::Justification::centredLeft);
-
-    g.setColour (edgeSoft.withAlpha (0.72f));
-    g.drawLine (area.getX() + 12.0f, area.getY() + 76.0f, area.getRight() - 12.0f, area.getY() + 76.0f);
-
-    // The actual ComboBox occupies the dark rounded field above this painted label.
-    g.setFont (font (6.8f, true));
-    g.setColour (muted.withAlpha (0.54f));
-    g.drawText ("LINK", area.getX() + 14.0f, area.getY() + 86.0f, 38.0f, 10.0f, juce::Justification::left);
-
-    g.setFont (font (6.8f, true));
-    g.setColour (muted.withAlpha (0.54f));
-    g.drawText ("OUTPUT", area.getX() + 14.0f, area.getY() + 149.0f, 48.0f, 10.0f, juce::Justification::left);
-    g.setFont (font (8.0f, true));
-    g.setColour (white.withAlpha (0.88f));
-    g.drawText ("MIDI  +  HOME LINK", area.getX() + 14.0f, area.getY() + 164.0f, area.getWidth() - 28.0f, 16.0f, juce::Justification::left);
-
-    g.setColour (edgeSoft);
-    g.drawLine (area.getX() + 12.0f, area.getY() + 201.0f, area.getRight() - 12.0f, area.getY() + 201.0f);
-
-    g.setFont (font (6.8f, true));
-    g.setColour (muted.withAlpha (0.54f));
-    g.drawText ("SMART INPUT", area.getX() + 14.0f, area.getBottom() - 38.0f, area.getWidth() - 28.0f, 10.0f, juce::Justification::left);
-    g.setColour (green);
-    g.fillEllipse (area.getX() + 14.0f, area.getBottom() - 24.0f, 5.0f, 5.0f);
-    g.setFont (font (8.0f, true));
-    g.setColour (white.withAlpha (0.84f));
-    g.drawText ("AUDIO + MIDI", area.getX() + 25.0f, area.getBottom() - 27.0f, area.getWidth() - 38.0f, 11.0f, juce::Justification::left);
+    // Reserved for future utility content; the compact Trigger no longer
+    // displays a separate Link/Output panel.
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawCooldownPanel (juce::Graphics& g, juce::Rectangle<float> area) const
@@ -654,7 +613,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (bg0);
 
-    const auto frame = juce::Rectangle<float> (7.0f, 7.0f, 626.0f, 326.0f);
+    const auto frame = juce::Rectangle<float> (7.0f, 7.0f, 566.0f, 296.0f);
     g.setColour (bg1);
     g.fillRoundedRectangle (frame, 13.0f);
     drawBackgroundTexture (g, frame);
@@ -662,45 +621,50 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (edge.withAlpha (0.95f));
     g.drawRoundedRectangle (frame, 13.0f, 1.1f);
 
-    drawHeader (g, { 20.0f, 14.0f, 600.0f, 47.0f });
+    drawHeader (g, { 18.0f, 14.0f, 544.0f, 42.0f });
 
-    const auto graphCard = juce::Rectangle<float> (18.0f, 72.0f, 432.0f, 188.0f);
-    const auto cooldownCard = juce::Rectangle<float> (18.0f, 266.0f, 432.0f, 52.0f);
-    const auto utilityCard = juce::Rectangle<float> (458.0f, 72.0f, 164.0f, 246.0f);
+    const auto graphCard = juce::Rectangle<float> (14.0f, 64.0f, 552.0f, 198.0f);
+    const auto cooldownCard = juce::Rectangle<float> (14.0f, 267.0f, 552.0f, 28.0f);
 
     drawCard (g, graphCard, cyan, true);
-    drawCard (g, utilityCard, magenta, true);
     drawCard (g, cooldownCard, green, false);
 
-    g.setFont (font (11.0f, true));
-    g.setColour (white);
-    g.drawText ("TRIGGER GRAPH", graphCard.getX() + 13.0f, graphCard.getY() + 6.0f, 170.0f, 17.0f, juce::Justification::left);
+    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    const bool triggering = processor.getTriggerMeter() > 0.35f && ! bypassed;
+    const auto statusColour = triggering ? red : (bypassed ? muted : green);
+    const auto statusText = triggering ? "TRIGGERING" : (bypassed ? "BYPASSED" : "READY");
 
-    g.setFont (font (6.2f, true));
-    g.setColour (muted.withAlpha (0.48f));
-    g.drawText ("LIVE INPUT", graphCard.getRight() - 86.0f, graphCard.getY() + 12.0f, 60.0f, 9.0f, juce::Justification::right);
+    auto status = juce::Rectangle<float> (graphCard.getX() + 12.0f, graphCard.getY() + 7.0f, 108.0f, 20.0f);
+    g.setColour (black.withAlpha (0.42f));
+    g.fillRoundedRectangle (status, 8.0f);
+    g.setColour (statusColour.withAlpha (triggering ? 0.70f : 0.34f));
+    g.drawRoundedRectangle (status, 8.0f, 1.0f);
+    g.setColour (statusColour);
+    g.fillEllipse (status.getX() + 8.0f, status.getCentreY() - 3.0f, 6.0f, 6.0f);
+    g.setFont (font (7.4f, true));
+    g.drawText (statusText, status.getX() + 20.0f, status.getY(), status.getWidth() - 24.0f, status.getHeight(), juce::Justification::centredLeft);
 
-    g.setColour (muted.withAlpha (0.52f));
-    g.setFont (font (6.5f, true));
-    g.drawText ("DRAG THRESHOLD", graphCard.getRight() - 104.0f, graphCard.getY() + 11.0f, 90.0f, 10.0f, juce::Justification::right);
+    g.setFont (font (6.4f, true));
+    g.setColour (muted.withAlpha (0.50f));
+    g.drawText ("DRAG TO SET THRESHOLD", graphCard.getRight() - 126.0f, graphCard.getY() + 12.0f, 112.0f, 9.0f, juce::Justification::right);
 
     g.setColour (edgeSoft.withAlpha (0.70f));
     g.drawLine (graphCard.getX() + 12.0f, graphCard.getY() + 31.0f,
                 graphCard.getRight() - 12.0f, graphCard.getY() + 31.0f, 1.0f);
 
     drawGraph (g, graphCard.reduced (8.0f, 34.0f));
-    drawUtilityPanel (g, utilityCard);
     drawCooldownPanel (g, cooldownCard);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    // Matches the 432 x 188 graph card above, keeping threshold hit testing
-    // exactly aligned with the drawn graph.
-    graphBounds = { 61.0f, 122.0f, 365.0f, 117.0f };
-    link.setBounds (470, 175, 140, 34);
-    bypass.setBounds (516, 19, 104, 31);
-    retrigger.setBounds (18, 266, 432, 52);
+    // The graph and cooldown now span the full plugin width. The link
+    // destination lives in the header next to bypass, so no utility panel
+    // is needed.
+    graphBounds = { 57.0f, 102.0f, 485.0f, 112.0f };
+    link.setBounds (392, 21, 68, 25);
+    bypass.setBounds (474, 19, 84, 27);
+    retrigger.setBounds (14, 267, 552, 28);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
