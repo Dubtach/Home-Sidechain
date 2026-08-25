@@ -1,12 +1,16 @@
-# Home-Sidechain Trigger v27.3
+# Home-Sidechain — v27.7
 
-Trigger UI rebuilt to closely match the approved Home-Sidechain Trigger mockup.
+Compact Home-series Trigger UI refined from the approved reference comparison.
 
-Visuals: compact Home-series header, A/B/C link selector, bypass switch, READY/TRIGGERING graph header, 3-second analysis graph with threshold badge, red trigger region, and full-width Cool Down control.
+## UI focus
+- Home-Sidechain Trigger header with Link and Bypass controls.
+- Large analysis graph with READY/TRIGGERING state, threshold badge and waveform trigger highlight.
+- Full-width Cool Down section with custom reliable interaction.
 
-Core trigger/audio/MIDI/Home-Link processing remains unchanged from the v27.2 checkpoint.
+## Trigger behavior
+- Automatic audio + MIDI triggering is preserved internally.
+- Threshold and cool-down remain APVTS-controlled.
+- Existing low-latency Home-Link transport is unchanged.
 
-
-## v27.6 pluginval editor stability
-- Replaced the zero-length/null dash array passed to `Graphics::drawDashedLine()` with a valid two-element dash pattern. Some JUCE builds assert on a null dash array during editor painting, which can make pluginval fail at the Editor test.
-- Kept the mockup-matching UI and audio/trigger behavior unchanged.
+## Build
+This repository is designed for the existing Pamplejuce/JUCE CMake setup used by the project.
