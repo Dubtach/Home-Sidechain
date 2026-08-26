@@ -182,8 +182,9 @@ void HomeSidechainTriggerGapSlider::mouseDown (const juce::MouseEvent& e)
     if (!e.mods.isLeftButtonDown())
         return;
 
-    const auto hit = juce::Rectangle<float> (trackStartX() - 8.0f, getLocalBounds().getCentreY() - 12.0f,
-                                              trackEndX() - trackStartX() + 16.0f, 24.0f);
+    const float cy = getLocalBounds().getCentreY() - 1.0f;
+    const auto hit = juce::Rectangle<float> (trackStartX() - 2.0f, cy - 8.0f,
+                                              trackEndX() - trackStartX() + 4.0f, 16.0f);
     if (hit.contains (e.position))
     {
         manualMouseTracking = true;
@@ -624,12 +625,15 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics& g, juce::Rectangle<float> area) const
 {
     drawPanel (g, area, cyan, 12.0f);
-    g.setFont (uiFont (13.2f, true));
+    const float textX = area.getX() + 24.0f;
+    const float textW = 138.0f;
+    const float centerY = area.getCentreY() - 1.0f;
+    g.setFont (uiFont (12.0f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", juce::Rectangle<float> (area.getX() + 24.0f, area.getCentreY() - 17.0f, 150.0f, 18.0f), juce::Justification::left, true);
-    g.setFont (uiFont (7.6f));
-    g.setColour (muted.withAlpha (0.90f));
-    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (area.getX() + 24.0f, area.getCentreY() + 2.0f, 175.0f, 10.0f), juce::Justification::left, true);
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 14.0f, textW, 16.0f), juce::Justification::left, true);
+    g.setFont (uiFont (7.2f));
+    g.setColour (muted.withAlpha (0.88f));
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 3.0f, textW, 10.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -658,9 +662,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
                                                        frame.getWidth() - 36.0f, 62.0f);
 
-    linkSelector.setBounds (juce::roundToInt (frame.getRight() - 212.0f),
+    linkSelector.setBounds (juce::roundToInt (frame.getRight() - 232.0f),
                             juce::roundToInt (frame.getY() + 10.0f), 146, 42);
-    bypass.setBounds (juce::roundToInt (frame.getRight() - 60.0f),
+    bypass.setBounds (juce::roundToInt (frame.getRight() - 80.0f),
                       juce::roundToInt (frame.getY() + 10.0f), 34, 42);
 
     cooldown.setBounds (juce::roundToInt (cooldownCard.getX()), juce::roundToInt (cooldownCard.getY()),
