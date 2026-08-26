@@ -255,15 +255,15 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.fillRoundedRectangle (valueBox, 10.0f);
     g.setColour (edge);
     g.drawRoundedRectangle (valueBox, 10.0f, 1.0f);
-    g.setFont (uiFont (15.0f, true));
+    g.setFont (uiFont (14.0f, true));
     g.setColour (cyan);
-    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueBox.toNearestInt(), juce::Justification::centred);
+    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueBox.toNearestInt().reduced (2, 0), juce::Justification::centred, true);
 
-    g.setFont (uiFont (8.6f));
+    g.setFont (uiFont (7.8f));
     g.setColour (muted.withAlpha (0.72f));
-    g.drawText ("50 ms", static_cast<int> (x0 - 10), static_cast<int> (cy + 15), 35, 10, juce::Justification::left);
-    g.drawText ("500 ms", static_cast<int> (x0 + (x1 - x0) * 0.50f - 21), static_cast<int> (cy + 15), 50, 10, juce::Justification::centred);
-    g.drawText ("2000 ms", static_cast<int> (x1 - 42), static_cast<int> (cy + 15), 45, 10, juce::Justification::right);
+    g.drawText ("50 ms", static_cast<int> (x0 - 4), static_cast<int> (cy + 14), 36, 10, juce::Justification::left, true);
+    g.drawText ("500 ms", static_cast<int> (x0 + (x1 - x0) * 0.50f - 25), static_cast<int> (cy + 14), 50, 10, juce::Justification::centred, true);
+    g.drawText ("2000 ms", static_cast<int> (x1 - 48), static_cast<int> (cy + 14), 48, 10, juce::Justification::right, true);
 }
 
 HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEditor()
@@ -386,37 +386,54 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, ju
     drawLogo (g, area.getX(), area.getY() - 1.0f);
 
     const float baseX = area.getX() + 54.0f;
-    const auto titleFont = uiFont (25.0f, true);
+    juce::Font titleFont = uiFont (22.0f, true);
     const juce::String p1 = "HOME-";
     const juce::String p2 = "SIDECHAIN";
     const juce::String p3 = "TRIGGER";
+    const float dividerX = area.getRight() - 238.0f;
+    const float maxTitleWidth = juce::jmax (220.0f, dividerX - baseX - 18.0f);
+
+    // Fit the complete product name before the utilities rather than letting
+    // individual coloured fragments bleed under/into the Link area.
+    for (float size = 22.0f; size >= 18.0f; size -= 0.5f)
+    {
+        const auto candidate = uiFont (size, true);
+        const float total = (float) juce::GlyphArrangement::getStringWidthInt (candidate, p1)
+                          + (float) juce::GlyphArrangement::getStringWidthInt (candidate, p2)
+                          + (float) juce::GlyphArrangement::getStringWidthInt (candidate, p3) + 2.0f;
+        if (total <= maxTitleWidth)
+        {
+            titleFont = candidate;
+            break;
+        }
+    }
+
     float x = baseX;
+    const float titleH = 24.0f;
+    const float p1w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p1);
+    const float p2w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p2);
+    const float p3w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p3);
 
     g.setFont (titleFont);
     g.setColour (white);
-    const float p1w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p1);
-    const float p2w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p2);
-    g.drawText (p1, x, area.getY() + 0.0f, p1w + 2.0f, 29.0f, juce::Justification::left);
+    g.drawText (p1, juce::Rectangle<float> (x, area.getY(), p1w + 1.0f, titleH), juce::Justification::left, true);
     x += p1w;
     g.setColour (cyan);
-    g.drawText (p2, x, area.getY() + 0.0f, p2w + 2.0f, 29.0f, juce::Justification::left);
+    g.drawText (p2, juce::Rectangle<float> (x, area.getY(), p2w + 1.0f, titleH), juce::Justification::left, true);
     x += p2w;
     g.setColour (white);
-    const float p3w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p3);
-    g.drawText (p3, x + 3.0f, area.getY() + 0.0f, p3w + 4.0f, 29.0f, juce::Justification::left);
+    g.drawText (p3, juce::Rectangle<float> (x + 1.5f, area.getY(), p3w + 1.0f, titleH), juce::Justification::left, true);
 
-    g.setFont (uiFont (8.6f, true));
-    g.setColour (muted.withAlpha (0.95f));
-    g.setFont (uiFont (8.4f, true));
-    g.drawText ("DUBTACH DSP", baseX + 1.0f, area.getY() + 30.0f, 130.0f, 13.0f, juce::Justification::left);
+    g.setFont (uiFont (7.8f, true));
+    g.setColour (muted.withAlpha (0.90f));
+    g.drawText ("DUBTACH DSP", baseX + 1.0f, area.getY() + 27.0f, 120.0f, 11.0f, juce::Justification::left);
 
     // Divider and tiny LINK caption visually integrate the two header utilities.
-    const float dividerX = area.getRight() - 224.0f;
     g.setColour (edge.withAlpha (0.75f));
     g.drawLine (dividerX, area.getY() + 3.0f, dividerX, area.getBottom() - 3.0f, 1.0f);
-    g.setFont (uiFont (9.5f, true));
+    g.setFont (uiFont (8.8f, true));
     g.setColour (muted);
-    g.drawText ("LINK", dividerX - 54.0f, area.getY() + 12.0f, 42.0f, 18.0f, juce::Justification::right);
+    g.drawText ("LINK", dividerX - 48.0f, area.getY() + 12.0f, 40.0f, 16.0f, juce::Justification::right);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g, juce::Rectangle<float> r,
@@ -430,8 +447,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
     g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
     g.setColour (colour);
     g.fillEllipse (r.getX() + 14.0f, r.getCentreY() - 4.5f, 9.0f, 9.0f);
-    g.setFont (uiFont (11.7f, true));
-    g.drawText (text, r.getX() + 31.0f, r.getY() + 1.0f, r.getWidth() - 36.0f, r.getHeight() - 2.0f, juce::Justification::centredLeft);
+    g.setFont (uiFont (10.6f, true));
+    const auto textArea = juce::Rectangle<float> (r.getX() + 31.0f, r.getY() + 1.0f, r.getWidth() - 38.0f, r.getHeight() - 2.0f);
+    g.drawText (text, textArea, juce::Justification::centredLeft, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g, juce::Rectangle<float> area) const
@@ -443,13 +461,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     const auto colour = bypassed ? muted : (triggering ? red : cyan);
     const auto text = bypassed ? "BYPASSED" : (triggering ? "TRIGGERING" : "READY");
 
-    drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 15.0f, 164.0f, 36.0f }, text, colour);
+    drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 15.0f, 158.0f, 34.0f }, text, colour);
     g.setColour (edge.withAlpha (0.55f));
     g.drawLine (area.getX() + 196.0f, area.getY() + 15.0f, area.getX() + 196.0f, area.getY() + 51.0f, 1.0f);
 
     g.setFont (uiFont (11.0f, true));
     g.setColour (muted.withAlpha (0.92f));
-    g.drawText ("LIVE INPUT", area.getX() + 218.0f, area.getY() + 18.0f, 120.0f, 17.0f, juce::Justification::left);
+    g.drawText ("LIVE INPUT", area.getX() + 210.0f, area.getY() + 18.0f, 120.0f, 17.0f, juce::Justification::left);
 
     drawWaveform (g, { area.getX() + 18.0f, area.getY() + 57.0f, area.getWidth() - 36.0f, area.getHeight() - 75.0f });
 }
@@ -629,12 +647,12 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     g.fillRoundedRectangle (badge, 9.0f);
     g.setColour (edge.withAlpha (0.96f));
     g.drawRoundedRectangle (badge, 9.0f, 1.0f);
-    g.setFont (uiFont (8.4f, true));
+    g.setFont (uiFont (7.8f, true));
     g.setColour (muted);
-    g.drawText ("THRESHOLD", badge.getX() + 13.0f, badge.getY() + 10.0f, 100.0f, 10.0f, juce::Justification::left);
-    g.setFont (uiFont (13.8f, true));
+    g.drawText ("THRESHOLD", juce::Rectangle<float> (badge.getX() + 12.0f, badge.getY() + 8.0f, badge.getWidth() - 24.0f, 10.0f), juce::Justification::left, true);
+    g.setFont (uiFont (12.6f, true));
     g.setColour (cyan);
-    g.drawText (juce::String (thresholdDb, 1) + " dB", badge.getX() + 13.0f, badge.getY() + 26.0f, 104.0f, 20.0f, juce::Justification::left);
+    g.drawText (juce::String (thresholdDb, 1) + " dB", juce::Rectangle<float> (badge.getX() + 12.0f, badge.getY() + 24.0f, badge.getWidth() - 24.0f, 20.0f), juce::Justification::left, true);
 
     drawTimeScale (g, plot);
     drawDragHint (g, plot.getX() + 8.0f, plot.getBottom() + 24.0f);
@@ -656,19 +674,19 @@ void HomeSidechainTriggerAudioProcessorEditor::drawDragHint (juce::Graphics& g, 
     hand.cubicTo (x + 7.0f, y + 7.5f, x + 3.0f, y + 7.5f, x + 2.0f, y + 4.0f);
     g.strokePath (hand, juce::PathStrokeType (1.1f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-    g.setFont (uiFont (9.2f, true));
-    g.drawText ("DRAG THRESHOLD", x + 24.0f, y - 6.0f, 120.0f, 14.0f, juce::Justification::left);
+    g.setFont (uiFont (8.0f, true));
+    g.drawText ("DRAG THRESHOLD", juce::Rectangle<float> (x + 24.0f, y - 6.0f, 110.0f, 12.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics& g, juce::Rectangle<float> area) const
 {
     drawPanel (g, area, cyan, 12.0f);
-    g.setFont (uiFont (15.0f, true));
+    g.setFont (uiFont (13.2f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", area.getX() + 24.0f, area.getY() + 9.0f, 140.0f, 20.0f, juce::Justification::left);
-    g.setFont (uiFont (8.6f));
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (area.getX() + 24.0f, area.getY() + 8.0f, 150.0f, 18.0f), juce::Justification::left, true);
+    g.setFont (uiFont (7.6f));
     g.setColour (muted.withAlpha (0.90f));
-    g.drawText ("TIME BETWEEN TRIGGERS", area.getX() + 24.0f, area.getY() + 29.0f, 170.0f, 12.0f, juce::Justification::left);
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (area.getX() + 24.0f, area.getY() + 27.0f, 175.0f, 10.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -698,9 +716,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
                                                        frame.getWidth() - 36.0f, 62.0f);
 
     linkSelector.setBounds (juce::roundToInt (frame.getRight() - 222.0f),
-                            juce::roundToInt (frame.getY() + 15.0f), 126, 42);
-    bypass.setBounds (juce::roundToInt (frame.getRight() - 92.0f),
-                      juce::roundToInt (frame.getY() + 15.0f), 86, 42);
+                            juce::roundToInt (frame.getY() + 13.0f), 118, 38);
+    bypass.setBounds (juce::roundToInt (frame.getRight() - 96.0f),
+                      juce::roundToInt (frame.getY() + 13.0f), 88, 38);
 
     cooldown.setBounds (juce::roundToInt (cooldownCard.getX()), juce::roundToInt (cooldownCard.getY()),
                         juce::roundToInt (cooldownCard.getWidth()), juce::roundToInt (cooldownCard.getHeight()));
