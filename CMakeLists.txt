@@ -83,3 +83,5 @@ target_link_libraries(HomeSidechainReceiver PRIVATE
 target_compile_definitions(HomeSidechainReceiver PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
+
+
