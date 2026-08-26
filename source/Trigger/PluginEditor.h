@@ -57,7 +57,7 @@ private:
 
     HomeSidechainTriggerGapSlider cooldown;
     HomeSidechainTriggerLinkSelector linkSelector;
-    juce::ToggleButton bypass { "BYPASS" };
+    juce::ToggleButton bypass;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cooldownAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
@@ -73,14 +73,12 @@ private:
     void setThresholdFromY (float y);
 
     void drawBackground (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawLogo (juce::Graphics&, float x, float y) const;
     void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
     void drawGraphCard (juce::Graphics&, juce::Rectangle<float>) const;
     void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
     void drawCooldownCard (juce::Graphics&, juce::Rectangle<float>) const;
     void drawStatusPill (juce::Graphics&, juce::Rectangle<float>, const juce::String&, juce::Colour) const;
     void drawTimeScale (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawDragHint (juce::Graphics&, float x, float y) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };
