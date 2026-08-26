@@ -182,8 +182,8 @@ void HomeSidechainTriggerGapSlider::mouseDown (const juce::MouseEvent& e)
     if (!e.mods.isLeftButtonDown())
         return;
 
-    const auto hit = juce::Rectangle<float> (trackStartX() - 18.0f, getLocalBounds().getCentreY() - 28.0f,
-                                              trackEndX() - trackStartX() + 36.0f, 56.0f);
+    const auto hit = juce::Rectangle<float> (trackStartX() - 8.0f, getLocalBounds().getCentreY() - 12.0f,
+                                              trackEndX() - trackStartX() + 16.0f, 24.0f);
     if (hit.contains (e.position))
     {
         manualMouseTracking = true;
@@ -626,10 +626,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     drawPanel (g, area, cyan, 12.0f);
     g.setFont (uiFont (13.2f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", juce::Rectangle<float> (area.getX() + 24.0f, area.getY() + 8.0f, 150.0f, 18.0f), juce::Justification::left, true);
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (area.getX() + 24.0f, area.getCentreY() - 17.0f, 150.0f, 18.0f), juce::Justification::left, true);
     g.setFont (uiFont (7.6f));
     g.setColour (muted.withAlpha (0.90f));
-    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (area.getX() + 24.0f, area.getY() + 27.0f, 175.0f, 10.0f), juce::Justification::left, true);
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (area.getX() + 24.0f, area.getCentreY() + 2.0f, 175.0f, 10.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -658,9 +658,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
                                                        frame.getWidth() - 36.0f, 62.0f);
 
-    linkSelector.setBounds (juce::roundToInt (frame.getRight() - 190.0f),
+    linkSelector.setBounds (juce::roundToInt (frame.getRight() - 212.0f),
                             juce::roundToInt (frame.getY() + 10.0f), 146, 42);
-    bypass.setBounds (juce::roundToInt (frame.getRight() - 38.0f),
+    bypass.setBounds (juce::roundToInt (frame.getRight() - 60.0f),
                       juce::roundToInt (frame.getY() + 10.0f), 34, 42);
 
     cooldown.setBounds (juce::roundToInt (cooldownCard.getX()), juce::roundToInt (cooldownCard.getY()),
