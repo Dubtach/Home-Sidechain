@@ -160,12 +160,12 @@ HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
 
 float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 {
-    return 174.0f;
+    return 8.0f;
 }
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 140.0f);
+    return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 112.0f);
 }
 
 void HomeSidechainTriggerGapSlider::setValueFromMouseX (float x)
@@ -627,13 +627,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     drawPanel (g, area, cyan, 12.0f);
     const float textX = area.getX() + 24.0f;
     const float textW = 138.0f;
-    const float centerY = area.getCentreY() - 1.0f;
-    g.setFont (uiFont (12.0f, true));
+    const float centerY = area.getCentreY() + 2.0f;
+    g.setFont (uiFont (11.2f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 14.0f, textW, 16.0f), juce::Justification::left, true);
-    g.setFont (uiFont (7.2f));
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 15.0f, textW, 15.0f), juce::Justification::left, true);
+    g.setFont (uiFont (6.9f));
     g.setColour (muted.withAlpha (0.88f));
-    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 3.0f, textW, 10.0f), juce::Justification::left, true);
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 2.0f, textW, 10.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -662,13 +662,25 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
                                                        frame.getWidth() - 36.0f, 62.0f);
 
-    linkSelector.setBounds (juce::roundToInt (frame.getRight() - 232.0f),
-                            juce::roundToInt (frame.getY() + 10.0f), 146, 42);
-    bypass.setBounds (juce::roundToInt (frame.getRight() - 80.0f),
-                      juce::roundToInt (frame.getY() + 10.0f), 34, 42);
+    // Keep the header controls aligned to the same right edge as the graph
+    // and Cool Down cards below. The bypass icon sits just after the A/B/C
+    // selector with the overall group ending exactly at the card edge.
+    const int headerBypassWidth = 34;
+    const int headerGap = 10;
+    const int headerLinkWidth = 146;
+    const int rightEdge = juce::roundToInt (frame.getRight() - 18.0f);
+    bypass.setBounds (rightEdge - headerBypassWidth,
+                      juce::roundToInt (frame.getY() + 10.0f), headerBypassWidth, 42);
+    linkSelector.setBounds (rightEdge - headerBypassWidth - headerGap - headerLinkWidth,
+                            juce::roundToInt (frame.getY() + 10.0f), headerLinkWidth, 42);
 
-    cooldown.setBounds (juce::roundToInt (cooldownCard.getX()), juce::roundToInt (cooldownCard.getY()),
-                        juce::roundToInt (cooldownCard.getWidth()), juce::roundToInt (cooldownCard.getHeight()));
+    // The slider component only covers the actual control row. The surrounding
+    // Cool Down card remains purely visual/non-interactive.
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 172.0f);
+    const int sliderY = juce::roundToInt (cooldownCard.getY() + 11.0f);
+    const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
+    const int sliderH = juce::jmax (34, juce::roundToInt (cooldownCard.getHeight() - 22.0f));
+    cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
     graphPlotBounds = { graph.getX() + 23.0f, graph.getY() + 62.0f,
                         graph.getWidth() - 46.0f, graph.getHeight() - 107.0f };
