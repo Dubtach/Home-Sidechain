@@ -653,6 +653,28 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
         g.setColour (white.withAlpha (0.96f));
         g.strokePath (line, juce::PathStrokeType (1.25f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
+        // MIDI input is shown independently from the audio waveform. A small
+        // violet/cyan event bead at the bottom of the scope gives a persistent,
+        // low-noise indication that MIDI notes are arriving, even when there is
+        // no audio waveform at all. It also remains visible when a note arrives
+        // during the cooldown window and therefore does not itself trigger the
+        // outgoing event.
+        for (int i = 0; i < pointCount; ++i)
+        {
+            if (! processor.getWaveformMidiInput (i))
+                continue;
+
+            const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
+                          / static_cast<float> (pointCount - 1);
+            const float y = plot.getBottom() - 13.0f;
+            juce::Path bead;
+            bead.addEllipse (x - 2.4f, y - 2.4f, 4.8f, 4.8f);
+            g.setColour (juce::Colour (0xFFB86CFF).withAlpha (0.28f));
+            g.fillPath (bead);
+            g.setColour (juce::Colour (0xFFD8A6FF).withAlpha (0.95f));
+            g.fillEllipse (x - 1.5f, y - 1.5f, 3.0f, 3.0f);
+        }
+
         // Red only on the actual transient waveform segments. Stroke the full
         // path even when the highlighted region ends before the final sample;
         // the previous implementation only drew while the last region was

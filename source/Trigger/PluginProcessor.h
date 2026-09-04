@@ -43,6 +43,7 @@ public:
     int waveformSampleStride = 64;
     std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
     std::array<std::atomic<bool>, waveformPointCount> waveformTriggered {};
+    std::array<std::atomic<bool>, waveformPointCount> waveformMidiInput {};
     std::atomic<size_t> waveformWriteIndex { 0 };
     std::atomic<std::uint64_t> waveformWriteSerial { 0 };
 
@@ -53,6 +54,7 @@ public:
     int getWaveformPointCount() const noexcept { return static_cast<int> (waveformPointCount); }
     float getWaveformPoint (int index) const noexcept;
     bool getWaveformTriggered (int index) const noexcept;
+    bool getWaveformMidiInput (int index) const noexcept;
 
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
     float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }
@@ -73,6 +75,7 @@ private:
     float waveformAccumPeak = 0.0f;
     int waveformAccumSamples = 0;
     bool waveformAccumTriggered = false;
+    bool waveformAccumMidiInput = false;
     std::atomic<std::uint64_t> latestTriggerSerial { 0 };
     std::atomic<bool> testTriggerPending { false };
     int lastSelectedLink = -1;
