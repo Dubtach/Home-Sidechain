@@ -46,6 +46,23 @@ namespace
 
 HomeSeriesTriggerLookAndFeel::HomeSeriesTriggerLookAndFeel() = default;
 
+void HomeSeriesTriggerLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
+                                                          const juce::Colour& backgroundColour,
+                                                          bool highlighted, bool down)
+{
+    // Keep the required Button LookAndFeel hooks fully defined even though
+    // the current Trigger UI only uses a custom ToggleButton for bypass.
+    // Delegate to JUCE for any future buttons instead of leaving unresolved
+    // vtable symbols at link time.
+    juce::LookAndFeel_V4::drawButtonBackground (g, button, backgroundColour, highlighted, down);
+}
+
+void HomeSeriesTriggerLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button,
+                                                    bool highlighted, bool down)
+{
+    juce::LookAndFeel_V4::drawButtonText (g, button, highlighted, down);
+}
+
 void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
                                                       bool highlighted, bool)
 {
