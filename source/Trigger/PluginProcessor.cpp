@@ -173,6 +173,11 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
 
     if (bypassed)
     {
+        // Reset the edge detector while bypassed so re-enabling the plugin
+        // always starts from a clean trigger state instead of inheriting a
+        // stale "already above threshold" state.
+        wasAboveThreshold = false;
+        samplesSinceLastTrigger = retriggerSamples + 1;
         triggerMeter.store (0.0f, std::memory_order_relaxed);
         return;
     }

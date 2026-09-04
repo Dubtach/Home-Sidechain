@@ -131,8 +131,14 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
         g.setColour (black.withAlpha (0.55f));
         g.fillEllipse (c);
 
-        g.setColour (selected ? cyan.withAlpha (0.52f) : white.withAlpha (0.16f));
-        g.drawEllipse (c, selected ? 1.1f : 0.8f);
+        if (selected)
+        {
+            g.setColour (cyan.withAlpha (0.06f));
+            g.fillEllipse (c.expanded (2.0f));
+        }
+
+        g.setColour (selected ? cyan.withAlpha (0.58f) : white.withAlpha (0.16f));
+        g.drawEllipse (c, selected ? 1.2f : 0.8f);
 
         g.setFont (uiFont (9.0f, true));
         g.setColour (selected ? white : white.withAlpha (0.50f));
@@ -506,7 +512,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     // pill floats above it instead of taking away a permanent header row.
     drawWaveform (g, { area.getX() + 1.5f, area.getY() + 1.5f,
                        area.getWidth() - 3.0f, area.getHeight() - 3.0f });
-    drawStatusPill (g, { area.getX() + 16.0f, area.getY() + 12.0f, 106.0f, 24.0f }, text, colour);
+
+    // Let the existing status pill provide the trigger feedback. It gets a
+    // short brightness boost from the real trigger meter; no extra indicator
+    // is introduced.
+    const float pulse = juce::jlimit (0.0f, 1.0f, processor.getTriggerMeter());
+    drawStatusPill (g, { area.getX() + 16.0f, area.getY() + 12.0f, 106.0f, 24.0f },
+                    text, colour.withAlpha (0.70f + pulse * 0.30f));
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
@@ -690,12 +702,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     const float gapW = 6.0f;
     for (float x = plot.getX(); x < plot.getRight(); x += dashW + gapW)
     {
-        g.setColour (cyan.withAlpha (0.86f));
-        g.drawLine (x, thresholdY, juce::jmin (plot.getRight(), x + dashW), thresholdY, 1.5f);
+        g.setColour (cyan.withAlpha (hoveringThreshold ? 1.0f : 0.86f));
+        g.drawLine (x, thresholdY, juce::jmin (plot.getRight(), x + dashW), thresholdY,
+                    hoveringThreshold ? 1.9f : 1.5f);
     }
 
     const float handleX = plot.getRight() - 1.0f;
-    g.setColour (cyan.withAlpha (0.10f));
+    g.setColour (cyan.withAlpha (hoveringThreshold ? 0.18f : 0.10f));
     g.fillEllipse (handleX - 11.0f, thresholdY - 11.0f, 22.0f, 22.0f);
     g.setColour (cyan);
     g.fillEllipse (handleX - 6.0f, thresholdY - 6.0f, 12.0f, 12.0f);
@@ -860,6 +873,24 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseUp (const juce::MouseEvent&)
     draggingThreshold = false;
     setMouseCursor (hoveringThreshold ? juce::MouseCursor::UpDownResizeCursor
                                       : juce::MouseCursor::NormalCursor);
+}
+
+void HomeSidechainTriggerAudioProcessorEditor::mouseDoubleClick (const juce::MouseEvent& e)
+{
+    const float thresholdY = yForDb (processor.getThresholdDb());
+    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 10.0f,
+                                                   graphPlotBounds.getWidth(), 20.0f);
+    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
+
+    if (hitArea.contains (e.position) || badge.contains (e.position))
+    {
+        if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
+        {
+            const float resetDb = -18.0f;
+            parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (resetDb));
+        }
+        repaint();
+    }
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
