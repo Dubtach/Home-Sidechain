@@ -114,10 +114,10 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     const auto b = getLocalBounds().toFloat();
     const int active = juce::jlimit (0, 2, processor.getLink());
 
-    // Compact routing selector: three small, equal circles read like a
-    // destination selector rather than three generic buttons.
-    const float spacing = 10.0f;
-    const float d = juce::jmin (20.0f, b.getHeight() - 10.0f);
+    // Quiet routing selector: intentionally low-contrast so it reads as a
+    // utility next to Bypass rather than a primary control.
+    const float spacing = 6.0f;
+    const float d = juce::jmin (17.0f, b.getHeight() - 12.0f);
     const float totalW = d * 3.0f + spacing * 2.0f;
     const float startX = b.getCentreX() - totalW * 0.5f;
     const float cy = b.getCentreY();
@@ -128,31 +128,21 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
         const bool selected = (i == active);
         const auto c = juce::Rectangle<float> (x, cy - d * 0.5f, d, d);
 
-        if (selected)
-        {
-            g.setColour (cyan.withAlpha (0.12f));
-            g.fillEllipse (c.expanded (2.0f));
-            g.setColour (cyan.withAlpha (0.95f));
-            g.fillEllipse (c);
-            g.setColour (black);
-        }
-        else
-        {
-            g.setColour (black.withAlpha (0.45f));
-            g.fillEllipse (c);
-            g.setColour (white.withAlpha (0.22f));
-            g.drawEllipse (c, 1.0f);
-            g.setColour (white.withAlpha (0.68f));
-        }
+        g.setColour (black.withAlpha (0.55f));
+        g.fillEllipse (c);
 
-        g.setFont (uiFont (10.0f, true));
+        g.setColour (selected ? cyan.withAlpha (0.52f) : white.withAlpha (0.16f));
+        g.drawEllipse (c, selected ? 1.1f : 0.8f);
+
+        g.setFont (uiFont (9.0f, true));
+        g.setColour (selected ? white : white.withAlpha (0.50f));
         g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + i)),
                     c, juce::Justification::centred, true);
 
         if (selected)
         {
-            g.setColour (cyan);
-            g.fillEllipse (c.getCentreX() - 1.5f, c.getBottom() + 4.0f, 3.0f, 3.0f);
+            g.setColour (cyan.withAlpha (0.9f));
+            g.fillRoundedRectangle (c.getCentreX() - 3.0f, c.getBottom() + 2.0f, 6.0f, 1.5f, 0.75f);
         }
     }
 }
@@ -185,12 +175,14 @@ HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
 
 float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 {
-    return 2.0f;
+    // Leave enough room for the knob/glow at the 50 ms endpoint.
+    return 13.0f;
 }
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 88.0f);
+    // Keep the track close to, but never under, the right-aligned value.
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 82.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -491,8 +483,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
     g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
     g.setColour (colour);
     g.fillEllipse (r.getX() + 9.0f, r.getCentreY() - 3.0f, 6.0f, 6.0f);
-    g.setFont (uiFont (8.8f, true));
-    const auto textArea = juce::Rectangle<float> (r.getX() + 23.0f, r.getY() + 1.0f, r.getWidth() - 29.0f, r.getHeight() - 2.0f);
+    g.setFont (uiFont (8.2f, true));
+    const auto textArea = juce::Rectangle<float> (r.getX() + 22.0f, r.getY() + 2.0f, r.getWidth() - 27.0f, r.getHeight() - 4.0f);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
 }
 
@@ -785,8 +777,8 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // and Cool Down cards below. The bypass icon sits just after the A/B/C
     // selector with the overall group ending exactly at the card edge.
     const int headerBypassWidth = 34;
-    const int headerGap = 10;
-    const int headerLinkWidth = 132;
+    const int headerGap = 5;
+    const int headerLinkWidth = 96;
     const int rightEdge = juce::roundToInt (frame.getRight() - 18.0f);
     bypass.setBounds (rightEdge - headerBypassWidth,
                       juce::roundToInt (frame.getY() + 10.0f), headerBypassWidth, 42);
@@ -795,9 +787,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 140.0f);
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 122.0f);
     const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
-    const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 12.0f - sliderX));
+    const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 8.0f - sliderX));
     const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
