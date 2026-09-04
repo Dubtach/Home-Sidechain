@@ -114,48 +114,46 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     const auto b = getLocalBounds().toFloat();
     const int active = juce::jlimit (0, 2, processor.getLink());
 
-    // A compact routing selector: one capsule, three equal zones, with a
-    // small active capsule rather than a large filled button. This keeps the
-    // control visually quiet while making the selected route unmistakable.
-    const auto outer = b.reduced (1.0f, 7.0f);
-    g.setColour (black.withAlpha (0.42f));
-    g.fillRoundedRectangle (outer.translated (0.0f, 1.5f), outer.getHeight() * 0.5f);
-    g.setColour (juce::Colour (0xff0b1218));
-    g.fillRoundedRectangle (outer, outer.getHeight() * 0.5f);
-    g.setColour (edge.withAlpha (0.85f));
-    g.drawRoundedRectangle (outer, outer.getHeight() * 0.5f, 1.0f);
-
-    const float inset = 2.0f;
-    const float segW = (outer.getWidth() - inset * 2.0f) / 3.0f;
-    const float segY = outer.getY() + inset;
-    const float segH = outer.getHeight() - inset * 2.0f;
+    // Compact routing selector: three small, equal circles read like a
+    // destination selector rather than three generic buttons.
+    const float spacing = 10.0f;
+    const float d = juce::jmin (20.0f, b.getHeight() - 10.0f);
+    const float totalW = d * 3.0f + spacing * 2.0f;
+    const float startX = b.getCentreX() - totalW * 0.5f;
+    const float cy = b.getCentreY();
 
     for (int i = 0; i < 3; ++i)
     {
-        const float x = outer.getX() + inset + segW * static_cast<float> (i);
-        const auto seg = juce::Rectangle<float> (x, segY, segW, segH);
+        const float x = startX + i * (d + spacing);
         const bool selected = (i == active);
+        const auto c = juce::Rectangle<float> (x, cy - d * 0.5f, d, d);
 
         if (selected)
         {
-            g.setColour (cyan.withAlpha (0.10f));
-            g.fillRoundedRectangle (seg.reduced (1.5f), seg.getHeight() * 0.5f);
+            g.setColour (cyan.withAlpha (0.12f));
+            g.fillEllipse (c.expanded (2.0f));
             g.setColour (cyan.withAlpha (0.95f));
-            g.fillRoundedRectangle (seg.getX() + 11.0f, seg.getBottom() - 3.0f,
-                                    seg.getWidth() - 22.0f, 2.0f, 1.0f);
+            g.fillEllipse (c);
+            g.setColour (black);
+        }
+        else
+        {
+            g.setColour (black.withAlpha (0.45f));
+            g.fillEllipse (c);
+            g.setColour (white.withAlpha (0.22f));
+            g.drawEllipse (c, 1.0f);
+            g.setColour (white.withAlpha (0.68f));
         }
 
-        g.setFont (uiFont (11.0f, selected));
-        g.setColour (selected ? white : muted.withAlpha (0.72f));
+        g.setFont (uiFont (10.0f, true));
         g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + i)),
-                    seg, juce::Justification::centred, true);
-    }
+                    c, juce::Justification::centred, true);
 
-    for (int i = 1; i < 3; ++i)
-    {
-        const float x = outer.getX() + inset + segW * static_cast<float> (i);
-        g.setColour (white.withAlpha (0.075f));
-        g.drawLine (x, outer.getY() + 5.0f, x, outer.getBottom() - 5.0f, 1.0f);
+        if (selected)
+        {
+            g.setColour (cyan);
+            g.fillEllipse (c.getCentreX() - 1.5f, c.getBottom() + 4.0f, 3.0f, 3.0f);
+        }
     }
 }
 
@@ -164,13 +162,12 @@ void HomeSidechainTriggerLinkSelector::mouseDown (const juce::MouseEvent& e)
     if (!e.mods.isLeftButtonDown())
         return;
 
-    const float segW = juce::jmax (1.0f, static_cast<float> (getWidth()) / 3.0f);
-    const int index = juce::jlimit (0, 2, static_cast<int> (e.position.x / segW));
+    const float segmentW = juce::jmax (1.0f, static_cast<float> (getWidth()) / 3.0f);
+    const int index = juce::jlimit (0, 2, static_cast<int> (std::floor (e.position.x / segmentW)));
 
     if (auto* parameter = processor.apvts.getParameter ("LINK"))
     {
-        const auto range = parameter->getNormalisableRange();
-        const float normalized = range.convertTo0to1 (static_cast<float> (index));
+        const float normalized = parameter->getNormalisableRange().convertTo0to1 (static_cast<float> (index));
         parameter->setValueNotifyingHost (normalized);
     }
     repaint();
@@ -188,13 +185,12 @@ HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
 
 float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 {
-    return 8.0f;
+    return 2.0f;
 }
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    // Reserve a consistent visual gap before the right-aligned value readout.
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 72.0f);
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 88.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -253,56 +249,48 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     const float cy = b.getCentreY() - 1.0f;
     const float x0 = trackStartX();
     const float x1 = trackEndX();
-    const float trackH = 5.5f;
+    const float trackH = 6.0f;
     const float p = static_cast<float> (juce::jlimit (0.0, 1.0, valueToProportionOfLength (getValue())));
     const float px = x0 + (x1 - x0) * p;
 
     const auto track = juce::Rectangle<float> (x0, cy - trackH * 0.5f, x1 - x0, trackH);
-    g.setColour (black.withAlpha (0.90f));
-    g.fillRoundedRectangle (track.expanded (1.25f, 1.25f), 4.0f);
-    g.setColour (juce::Colour (0xff11191e));
-    g.fillRoundedRectangle (track, 3.0f);
-
-    if (px > x0)
-    {
-        g.setColour (cyan.withAlpha (0.82f));
-        g.fillRoundedRectangle (track.withWidth (px - x0), 3.0f);
-    }
-
-    // Small calibration ticks live below the track, keeping the control
-    // informative without turning into a second row of UI.
-    for (int i = 0; i <= 10; ++i)
-    {
-        const float tx = x0 + (x1 - x0) * static_cast<float> (i) / 10.0f;
-        const float tickH = (i == 0 || i == 5 || i == 10) ? 4.0f : 2.5f;
-        g.setColour (white.withAlpha ((i == 0 || i == 5 || i == 10) ? 0.14f : 0.055f));
-        g.drawLine (tx, cy + 8.0f, tx, cy + 8.0f + tickH, 1.0f);
-    }
-
-    g.setColour (cyan.withAlpha (0.09f));
-    g.fillEllipse (px - 17.0f, cy - 17.0f, 34.0f, 34.0f);
-    g.setColour (black.withAlpha (0.88f));
-    g.fillEllipse (px - 10.5f, cy - 10.5f, 21.0f, 21.0f);
+    g.setColour (black.withAlpha (0.86f));
+    g.fillRoundedRectangle (track.expanded (1.5f, 1.5f), 5.0f);
+    g.setColour (juce::Colour (0xff11181d));
+    g.fillRoundedRectangle (track, 4.0f);
     g.setColour (cyan.withAlpha (0.96f));
-    g.drawEllipse (px - 10.0f, cy - 10.0f, 20.0f, 20.0f, 1.4f);
-    g.setColour (white);
-    g.fillEllipse (px - 6.2f, cy - 6.2f, 12.4f, 12.4f);
+    g.fillRoundedRectangle (track.withWidth (juce::jmax (0.0f, px - x0)), 4.0f);
 
-    // Value readout is intentionally outside the draggable track, with a
-    // fixed gap so the two elements read as one control without overlapping.
-    const float valueX = x1 + 13.0f;
-    const float valueW = juce::jmax (48.0f, b.getRight() - valueX - 1.0f);
-    const auto valueArea = juce::Rectangle<float> (valueX, cy - 10.0f, valueW, 20.0f);
+    for (int i = 0; i <= 20; ++i)
+    {
+        const float tx = x0 + (x1 - x0) * static_cast<float> (i) / 20.0f;
+        const float th = (i % 5 == 0) ? 5.0f : 3.0f;
+        g.setColour (white.withAlpha (i % 5 == 0 ? 0.15f : 0.065f));
+        g.drawLine (tx, cy + 9.0f, tx, cy + 9.0f + th, 1.0f);
+    }
+
+    g.setColour (cyan.withAlpha (0.10f));
+    g.fillEllipse (px - 20.0f, cy - 20.0f, 40.0f, 40.0f);
+    g.setColour (black.withAlpha (0.80f));
+    g.fillEllipse (px - 13.0f, cy - 13.0f, 26.0f, 26.0f);
+    g.setColour (cyan);
+    g.drawEllipse (px - 12.0f, cy - 12.0f, 24.0f, 24.0f, 1.7f);
+    g.setColour (white.withAlpha (0.95f));
+    g.fillEllipse (px - 7.5f, cy - 7.5f, 15.0f, 15.0f);
+    g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
+    g.fillEllipse (px - 4.5f, cy - 4.5f, 9.0f, 9.0f);
+
+    const auto valueArea = juce::Rectangle<float> (b.getRight() - 70.0f, cy - 10.0f, 64.0f, 20.0f);
     g.setFont (uiFont (12.5f, true));
     g.setColour (cyan);
     g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea,
-                juce::Justification::left, true);
+                juce::Justification::right, true);
 
-    g.setFont (uiFont (7.4f));
-    g.setColour (muted.withAlpha (0.68f));
-    g.drawText ("50",  static_cast<int> (x0 - 3), static_cast<int> (cy + 14), 18, 9, juce::Justification::left, true);
-    g.drawText ("500", static_cast<int> (x0 + (x1 - x0) * 0.50f - 10), static_cast<int> (cy + 14), 22, 9, juce::Justification::centred, true);
-    g.drawText ("2000", static_cast<int> (x1 - 14), static_cast<int> (cy + 14), 28, 9, juce::Justification::right, true);
+    g.setFont (uiFont (7.8f));
+    g.setColour (muted.withAlpha (0.72f));
+    g.drawText ("50 ms", static_cast<int> (x0 - 4), static_cast<int> (cy + 14), 36, 10, juce::Justification::left, true);
+    g.drawText ("500 ms", static_cast<int> (x0 + (x1 - x0) * 0.50f - 25), static_cast<int> (cy + 14), 50, 10, juce::Justification::centred, true);
+    g.drawText ("2000 ms", static_cast<int> (x1 - 48), static_cast<int> (cy + 14), 48, 10, juce::Justification::right, true);
 }
 
 HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEditor()
@@ -502,9 +490,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
     g.setColour (colour.withAlpha (0.45f));
     g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
     g.setColour (colour);
-    g.fillEllipse (r.getX() + 11.0f, r.getCentreY() - 3.5f, 7.0f, 7.0f);
-    g.setFont (uiFont (8.9f, true));
-    const auto textArea = juce::Rectangle<float> (r.getX() + 25.0f, r.getY() + 1.0f, r.getWidth() - 31.0f, r.getHeight() - 2.0f);
+    g.fillEllipse (r.getX() + 9.0f, r.getCentreY() - 3.0f, 6.0f, 6.0f);
+    g.setFont (uiFont (8.8f, true));
+    const auto textArea = juce::Rectangle<float> (r.getX() + 23.0f, r.getY() + 1.0f, r.getWidth() - 29.0f, r.getHeight() - 2.0f);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
 }
 
@@ -526,7 +514,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     // pill floats above it instead of taking away a permanent header row.
     drawWaveform (g, { area.getX() + 1.5f, area.getY() + 1.5f,
                        area.getWidth() - 3.0f, area.getHeight() - 3.0f });
-    drawStatusPill (g, { area.getX() + 14.0f, area.getY() + 11.0f, 112.0f, 24.0f }, text, colour);
+    drawStatusPill (g, { area.getX() + 16.0f, area.getY() + 12.0f, 106.0f, 24.0f }, text, colour);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
@@ -757,13 +745,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     g.setFont (uiFont (14.0f, true));
     g.setColour (cyan.withAlpha (0.96f));
     g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 13.0f, textW, 18.0f),
+                juce::Rectangle<float> (textX, centerY - 11.0f, textW, 17.0f),
                 juce::Justification::left, true);
 
     g.setFont (uiFont (8.3f));
     g.setColour (muted.withAlpha (0.84f));
     g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 4.0f, textW + 8.0f, 11.0f),
+                juce::Rectangle<float> (textX, centerY + 5.0f, textW + 14.0f, 10.0f),
                 juce::Justification::left, true);
 }
 
@@ -807,11 +795,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    // Text, slider, and value form one continuous control group with equal
-    // breathing room on both sides of the slider.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 142.0f);
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 140.0f);
     const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
-    const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
+    const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 12.0f - sliderX));
     const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
