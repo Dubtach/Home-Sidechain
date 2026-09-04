@@ -116,8 +116,8 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
 
     // Quiet routing selector: intentionally low-contrast so it reads as a
     // utility next to Bypass rather than a primary control.
-    const float spacing = 6.0f;
-    const float d = juce::jmin (17.0f, b.getHeight() - 12.0f);
+    const float spacing = 5.0f;
+    const float d = juce::jmin (23.0f, b.getHeight() - 10.0f);
     const float totalW = d * 3.0f + spacing * 2.0f;
     const float startX = b.getCentreX() - totalW * 0.5f;
     const float cy = b.getCentreY();
@@ -182,7 +182,7 @@ float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
     // Keep the track close to, but never under, the right-aligned value.
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 82.0f);
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 78.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -756,7 +756,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
                                                  frame.getWidth() - 36.0f, 52.0f);
     drawHeader (g, header);
 
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 70.0f,
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 68.0f,
                                                 frame.getWidth() - 36.0f, 184.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
                                                        frame.getWidth() - 36.0f, 42.0f);
@@ -768,7 +768,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     const auto frame = getLocalBounds().toFloat().reduced (4.0f);
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 70.0f,
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 68.0f,
                                                 frame.getWidth() - 36.0f, 184.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
                                                        frame.getWidth() - 36.0f, 42.0f);
@@ -778,7 +778,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // selector with the overall group ending exactly at the card edge.
     const int headerBypassWidth = 34;
     const int headerGap = 5;
-    const int headerLinkWidth = 96;
+    const int headerLinkWidth = 104;
     const int rightEdge = juce::roundToInt (frame.getRight() - 18.0f);
     bypass.setBounds (rightEdge - headerBypassWidth,
                       juce::roundToInt (frame.getY() + 10.0f), headerBypassWidth, 42);
