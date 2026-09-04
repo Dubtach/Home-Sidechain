@@ -61,8 +61,6 @@ private:
     HomeSidechainTriggerGapSlider cooldown;
     HomeSidechainTriggerLinkSelector linkSelector;
     juce::ToggleButton bypass;
-    juce::TextButton triggerButton;
-
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cooldownAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
 
