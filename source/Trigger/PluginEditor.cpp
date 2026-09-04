@@ -86,6 +86,34 @@ void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::To
     g.drawLine (cx, cy - r - 2.0f, cx, cy + 0.5f, 1.8f);
 }
 
+void HomeSeriesTriggerLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
+                                                            const juce::Colour&, bool highlighted, bool down)
+{
+    if (button.getName() != "TEST_TRIGGER")
+        return;
+
+    auto r = button.getLocalBounds().toFloat().reduced (1.0f);
+    if (down)
+        r = r.reduced (1.0f);
+
+    g.setColour (black.withAlpha (0.72f));
+    g.fillRoundedRectangle (r.translated (0.0f, 2.0f), r.getHeight() * 0.5f);
+    g.setColour (cyan.withAlpha (highlighted ? 0.16f : 0.08f));
+    g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
+    g.setColour (cyan.withAlpha (highlighted ? 0.95f : 0.60f));
+    g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
+}
+
+void HomeSeriesTriggerLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool)
+{
+    if (button.getName() != "TEST_TRIGGER")
+        return;
+
+    g.setFont (uiFont (9.0f, true));
+    g.setColour (white);
+    g.drawText ("TRIGGER", button.getLocalBounds().reduced (2, 0), juce::Justification::centred, true);
+}
+
 HomeSidechainTriggerLinkSelector::HomeSidechainTriggerLinkSelector (HomeSidechainTriggerAudioProcessor& p)
     : processor (p)
 {
@@ -168,30 +196,38 @@ float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
     return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 145.0f);
 }
 
+bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
+{
+    const float cy = getLocalBounds().getCentreY() - 1.0f;
+    const auto hit = juce::Rectangle<float> (trackStartX() - 5.0f, cy - 9.0f,
+                                              trackEndX() - trackStartX() + 10.0f, 18.0f);
+    return hit.contains (static_cast<float> (x), static_cast<float> (y));
+}
+
 void HomeSidechainTriggerGapSlider::setValueFromMouseX (float x)
 {
     const float start = trackStartX();
     const float end = trackEndX();
-    const double proportion = juce::jlimit (0.0, 1.0,
-        static_cast<double> (x - start) / juce::jmax (1.0, static_cast<double> (end - start)));
-    setValue (proportionOfLengthToValue (proportion), juce::sendNotificationSync);
+    const double denominator = juce::jmax (1.0, static_cast<double> (end - start));
+    const double proportion = juce::jlimit<double> (0.0, 1.0,
+        static_cast<double> (x - start) / denominator);
+
+    // Map through the real parameter range. This keeps mouse position, the
+    // displayed thumb and the skewed Cool Down parameter in perfect agreement.
+    const auto range = getNormalisableRange();
+    setValue (range.convertFrom0to1 (proportion), juce::sendNotificationSync);
 }
 
 void HomeSidechainTriggerGapSlider::mouseDown (const juce::MouseEvent& e)
 {
-    if (!e.mods.isLeftButtonDown())
-        return;
-
-    const float cy = getLocalBounds().getCentreY() - 1.0f;
-    const auto hit = juce::Rectangle<float> (trackStartX() - 2.0f, cy - 8.0f,
-                                              trackEndX() - trackStartX() + 4.0f, 16.0f);
-    if (hit.contains (e.position))
+    if (! e.mods.isLeftButtonDown() || ! hitTest (e.getMouseDownX(), e.getMouseDownY()))
     {
-        manualMouseTracking = true;
-        setValueFromMouseX (e.position.x);
+        manualMouseTracking = false;
         return;
     }
-    manualMouseTracking = false;
+
+    manualMouseTracking = true;
+    setValueFromMouseX (e.position.x);
 }
 
 void HomeSidechainTriggerGapSlider::mouseDrag (const juce::MouseEvent& e)
@@ -285,6 +321,13 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
 
     cooldownAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "RETRIGGER", cooldown);
     bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "BYPASS", bypass);
+
+    triggerButton.setButtonText ("TRIGGER");
+    triggerButton.setName ("TEST_TRIGGER");
+    triggerButton.setLookAndFeel (&homeSeriesLaf);
+    triggerButton.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    triggerButton.onClick = [this] { processor.requestTestTrigger(); };
+    addAndMakeVisible (triggerButton);
 
     startTimerHz (24);
 }
@@ -425,7 +468,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
 
     drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 15.0f, 158.0f, 34.0f }, text, colour);
 
-    drawWaveform (g, { area.getX() + 18.0f, area.getY() + 57.0f, area.getWidth() - 36.0f, area.getHeight() - 75.0f });
+    // The real child button is positioned in resized(). It is intentionally
+    // not painted here, avoiding duplicate graphics underneath the button.
+    drawWaveform (g, { area.getX() + 12.0f, area.getY() + 54.0f, area.getWidth() - 24.0f, area.getHeight() - 69.0f });
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
@@ -452,8 +497,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 {
     // Reserve a dedicated strip for the timeline labels so they never draw over
     // the waveform or bleed beyond the graph card.
-    const auto scope = area.reduced (5.0f, 5.0f);
-    const auto plot = scope.withTrimmedBottom (22.0f);
+    const auto scope = area.reduced (2.0f, 2.0f);
+    const auto plot = scope.withTrimmedLeft (18.0f).withTrimmedBottom (18.0f);
     const float thresholdDb = processor.getThresholdDb();
 
     g.setColour (plotBg);
@@ -469,7 +514,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
         g.setFont (uiFont (8.2f));
         g.setColour (muted.withAlpha (0.82f));
-        g.drawText (db == 0 ? "0" : juce::String (db), plot.getX() - 1.0f, y - 5.0f, 26.0f, 10.0f, juce::Justification::left);
+        g.drawText (db == 0 ? "0" : juce::String (db), plot.getX() - 20.0f, y - 5.0f, 18.0f, 10.0f, juce::Justification::right, true);
     }
 
     constexpr int divisions = 6;
@@ -506,6 +551,16 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
         bool fillStarted = false;
         bool hotStarted = false;
         int hotStart = -1;
+        int hotEnd = -1;
+
+        if (latestTriggerPoint >= 0)
+        {
+            // Highlight a small window around the bin that actually contained
+            // the trigger. The highlight therefore follows the waveform event
+            // instead of colouring everything after it.
+            hotStart = juce::jmax (0, latestTriggerPoint - 3);
+            hotEnd = juce::jmin (pointCount - 1, latestTriggerPoint + 5);
+        }
 
         for (int i = 0; i < pointCount; ++i)
         {
@@ -513,7 +568,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
             const float db = homeSidechain::linearToDb (juce::jmax (peak, 0.000001f));
             const float y = yForDb (db);
             const float x = plot.getX() + plot.getWidth() * static_cast<float> (i) / static_cast<float> (pointCount - 1);
-            const bool hot = latestTriggerPoint >= 0 && i >= latestTriggerPoint;
+            const bool hot = hotStart >= 0 && i >= hotStart && i <= hotEnd;
 
             if (!fillStarted)
             {
@@ -558,10 +613,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 
         if (hotStarted)
         {
-            hotFill.lineTo (plot.getRight(), plot.getBottom());
             hotFill.closeSubPath();
-            juce::ColourGradient hotArea (red.withAlpha (0.26f), plot.getRight() - 90.0f, plot.getY(),
-                                          juce::Colours::transparentBlack, plot.getRight(), plot.getBottom(), false);
+            juce::ColourGradient hotArea (red.withAlpha (0.30f), plot.getX(), plot.getY(),
+                                          juce::Colours::transparentBlack, plot.getX(), plot.getBottom(), false);
             g.setGradientFill (hotArea);
             g.fillPath (hotFill);
         }
@@ -580,9 +634,10 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
             g.setColour (red);
             g.strokePath (hotLine, juce::PathStrokeType (1.9f, juce::PathStrokeType::curved));
 
-            const float hotX = plot.getX() + plot.getWidth() * static_cast<float> (hotStart) / static_cast<float> (pointCount - 1);
-            g.setColour (red.withAlpha (0.11f));
-            g.fillRoundedRectangle (juce::Rectangle<float> (hotX - 6.0f, plot.getY(), plot.getRight() - hotX + 6.0f, plot.getHeight()), 5.0f);
+            const float hotX0 = plot.getX() + plot.getWidth() * static_cast<float> (hotStart) / static_cast<float> (pointCount - 1);
+            const float hotX1 = plot.getX() + plot.getWidth() * static_cast<float> (hotEnd) / static_cast<float> (pointCount - 1);
+            g.setColour (red.withAlpha (0.12f));
+            g.fillRoundedRectangle (juce::Rectangle<float> (hotX0 - 7.0f, plot.getY(), hotX1 - hotX0 + 14.0f, plot.getHeight()), 5.0f);
         }
     }
 
@@ -682,13 +737,16 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     const int sliderH = juce::jmax (34, juce::roundToInt (cooldownCard.getHeight() - 22.0f));
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
-    graphPlotBounds = { graph.getX() + 23.0f, graph.getY() + 62.0f,
-                        graph.getWidth() - 46.0f, graph.getHeight() - 107.0f };
+    triggerButton.setBounds (juce::roundToInt (graph.getRight() - 120.0f),
+                              juce::roundToInt (graph.getY() + 20.0f), 94, 24);
+
+    graphPlotBounds = { graph.getX() + 32.0f, graph.getY() + 56.0f,
+                        graph.getWidth() - 46.0f, graph.getHeight() - 91.0f };
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
 {
-    const auto hit = graphPlotBounds.expanded (16.0f, 12.0f);
+    const auto hit = graphPlotBounds.expanded (7.0f, 7.0f);
     const bool over = hit.contains (e.position);
     if (over != hoveringThreshold)
     {
@@ -710,7 +768,7 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent
     if (!e.mods.isLeftButtonDown())
         return;
 
-    const auto hitArea = graphPlotBounds.expanded (16.0f, 12.0f);
+    const auto hitArea = graphPlotBounds.expanded (7.0f, 7.0f);
     if (hitArea.contains (e.position))
     {
         draggingThreshold = true;

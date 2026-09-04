@@ -85,6 +85,7 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
                                                                       / static_cast<double> (waveformPointCount))));
     waveformAccumTriggered = false;
     latestTriggerSerial.store (0, std::memory_order_release);
+    testTriggerPending.store (false, std::memory_order_release);
     homeLinkSender.start();
 }
 
@@ -117,6 +118,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         return;
 
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    const bool manualTrigger = testTriggerPending.exchange (false, std::memory_order_acq_rel);
     const float thresholdDb = getThresholdDb();
     const float thresholdLinear = juce::Decibels::decibelsToGain (thresholdDb);
     const int selectedLink = getLink();
@@ -183,6 +185,9 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
         const bool audioTrigger = above && ! wasAboveThreshold;
         bool midiTrigger = false;
         int midiVelocity = 127;
+
+        if (manualTrigger && sample == 0)
+            midiTrigger = true;
 
         while (midiTriggerIndex < midiTriggerCount
                && midiTriggerPositions[static_cast<size_t> (midiTriggerIndex)] < sample)

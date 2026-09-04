@@ -8,6 +8,8 @@ class HomeSeriesTriggerLookAndFeel : public juce::LookAndFeel_V4
 public:
     HomeSeriesTriggerLookAndFeel();
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
+    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
+    void drawButtonText (juce::Graphics&, juce::TextButton&, bool, bool) override;
 };
 
 class HomeSidechainTriggerLinkSelector : public juce::Component
@@ -29,6 +31,7 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
     void mouseUp (const juce::MouseEvent&) override;
+    bool hitTest (int x, int y) override;
 private:
     void setValueFromMouseX (float x);
     float trackStartX() const noexcept;
@@ -58,6 +61,7 @@ private:
     HomeSidechainTriggerGapSlider cooldown;
     HomeSidechainTriggerLinkSelector linkSelector;
     juce::ToggleButton bypass;
+    juce::TextButton triggerButton;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cooldownAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;

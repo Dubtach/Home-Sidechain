@@ -56,6 +56,7 @@ public:
     float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }
     float getInputLevel() const noexcept { return inputLevel.load (std::memory_order_relaxed); }
     int getLatestTriggerPointIndex() const noexcept;
+    void requestTestTrigger() noexcept { testTriggerPending.store (true, std::memory_order_release); }
 
     // Automatic smart trigger input: audio peaks and incoming MIDI notes are
     // handled together; there is deliberately no mode switch in the UI.
@@ -71,6 +72,7 @@ private:
     int waveformAccumSamples = 0;
     bool waveformAccumTriggered = false;
     std::atomic<std::uint64_t> latestTriggerSerial { 0 };
+    std::atomic<bool> testTriggerPending { false };
     int lastSelectedLink = -1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessor)
