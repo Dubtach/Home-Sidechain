@@ -655,8 +655,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 
         // MIDI input gets a deliberately visible, persistent treatment so the
         // user can immediately tell that the smart trigger is receiving MIDI.
-        // Each MIDI event is drawn as a short violet event rail rising from the
-        // scope floor, with a bright diamond head and a soft halo. This remains
+        // Each MIDI event is drawn as a centered violet event rail with a bright
+        // diamond head and a soft halo. This remains
         // independent of the audio waveform and survives the cooldown period.
         for (int i = 0; i < pointCount; ++i)
         {
@@ -665,8 +665,12 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 
             const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
                           / static_cast<float> (pointCount - 1);
-            const float baseY = plot.getBottom() - 4.0f;
-            const float headY = plot.getBottom() - 22.0f;
+            // Keep MIDI events visually centered in the scope rather than
+            // pinned to the bottom edge. This makes MIDI activity immediately
+            // readable even when the incoming signal is silent.
+            const float midY = plot.getCentreY();
+            const float baseY = midY + 18.0f;
+            const float headY = midY - 2.0f;
 
             g.setColour (juce::Colour (0xFFB96CFF).withAlpha (0.16f));
             g.drawLine (x, baseY, x, headY, 7.0f);
