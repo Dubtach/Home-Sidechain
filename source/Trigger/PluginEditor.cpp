@@ -182,7 +182,7 @@ float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 145.0f);
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 132.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -272,10 +272,11 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 4.5f, cy - 4.5f, 9.0f, 9.0f);
 
-    const auto valueArea = juce::Rectangle<float> (b.getRight() - 106.0f, cy - 11.0f, 96.0f, 22.0f);
-    g.setFont (uiFont (13.0f, true));
+    const auto valueArea = juce::Rectangle<float> (b.getRight() - 92.0f, cy - 10.0f, 82.0f, 20.0f);
+    g.setFont (uiFont (12.5f, true));
     g.setColour (cyan);
-    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea, juce::Justification::right, true);
+    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea,
+                juce::Justification::right, true);
 
     g.setFont (uiFont (7.8f));
     g.setColour (muted.withAlpha (0.72f));
@@ -489,18 +490,23 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
 
 void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g, juce::Rectangle<float> area) const
 {
-    drawPanel (g, area, cyan, 12.0f);
+    // Let the graph breathe like the borderless Cool Down section: one dark
+    // integrated scope surface instead of a second framed card around it.
+    g.setColour (plotBg.withAlpha (0.98f));
+    g.fillRoundedRectangle (area, 11.0f);
+    g.setColour (white.withAlpha (0.018f));
+    g.drawRoundedRectangle (area.reduced (0.5f), 11.0f, 0.8f);
 
     const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
     const bool triggering = processor.getTriggerMeter() > 0.35f && !bypassed;
     const auto colour = bypassed ? muted : (triggering ? red : cyan);
     const auto text = bypassed ? "BYPASSED" : (triggering ? "TRIGGERING" : "READY");
 
-    // Paint the scope first, then lay the status indicator over it. The scope
-    // therefore truly fills the graph card while READY/TRIGGERING remains
-    // a compact overlay on top of the waveform UI.
-    drawWaveform (g, { area.getX() + 3.0f, area.getY() + 3.0f, area.getWidth() - 6.0f, area.getHeight() - 6.0f });
-    drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 13.0f, 158.0f, 32.0f }, text, colour);
+    // The waveform intentionally owns almost the entire section. The status
+    // pill floats above it instead of taking away a permanent header row.
+    drawWaveform (g, { area.getX() + 1.5f, area.getY() + 1.5f,
+                       area.getWidth() - 3.0f, area.getHeight() - 3.0f });
+    drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 12.0f, 158.0f, 32.0f }, text, colour);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
@@ -527,13 +533,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 {
     // Use almost the entire graph card for the scope. The status indicator is
     // intentionally overlaid on the scope instead of consuming a separate row.
-    const auto plot = area.reduced (4.0f);
+    const auto plot = area.reduced (2.5f);
     const float thresholdDb = processor.getThresholdDb();
 
     g.setColour (plotBg);
     g.fillRoundedRectangle (plot, 8.0f);
-    g.setColour (black.withAlpha (0.55f));
-    g.drawRoundedRectangle (plot, 8.0f, 1.0f);
+    g.setColour (white.withAlpha (0.012f));
+    g.drawRoundedRectangle (plot, 8.0f, 0.75f);
 
     // Fixed dB scale: the visual line and detector use the same scale.
     for (int db = 0; db >= -36; db -= 12)
@@ -722,22 +728,22 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
 
 void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics& g, juce::Rectangle<float> area) const
 {
-    // Keep this section intentionally quieter than the scope above. There is
-    // no card outline: the spacing and the integrated slider define the area.
+    // Borderless integrated control row. The text stack, slider centerline,
+    // and value readout share the same vertical rhythm.
     const float centerY = area.getCentreY();
     const float textX = area.getX() + 14.0f;
-    const float textW = 142.0f;
+    const float textW = 144.0f;
 
     g.setFont (uiFont (12.0f, true));
-    g.setColour (cyan.withAlpha (0.92f));
+    g.setColour (cyan.withAlpha (0.95f));
     g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 13.0f, textW, 17.0f),
+                juce::Rectangle<float> (textX, centerY - 10.0f, textW, 15.0f),
                 juce::Justification::left, true);
 
     g.setFont (uiFont (8.0f));
     g.setColour (muted.withAlpha (0.82f));
     g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 4.0f, textW + 20.0f, 10.0f),
+                juce::Rectangle<float> (textX, centerY + 5.0f, textW + 18.0f, 10.0f),
                 juce::Justification::left, true);
 }
 
@@ -781,10 +787,10 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 160.0f);
-    const int sliderY = juce::roundToInt (cooldownCard.getY());
-    const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
-    const int sliderH = juce::roundToInt (cooldownCard.getHeight());
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 162.0f);
+    const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
+    const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 18.0f - sliderX));
+    const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
     graphPlotBounds = { graph.getX() + 7.0f, graph.getY() + 7.0f,
