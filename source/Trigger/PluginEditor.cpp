@@ -165,7 +165,7 @@ float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 112.0f);
+    return juce::jmax (trackStartX() + 180.0f, static_cast<float> (getWidth()) - 145.0f);
 }
 
 void HomeSidechainTriggerGapSlider::setValueFromMouseX (float x)
@@ -627,13 +627,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     drawPanel (g, area, cyan, 12.0f);
     const float textX = area.getX() + 24.0f;
     const float textW = 138.0f;
-    const float centerY = area.getCentreY() + 2.0f;
-    g.setFont (uiFont (11.2f, true));
+    const float centerY = area.getCentreY() + 1.5f;
+    g.setFont (uiFont (12.0f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 15.0f, textW, 15.0f), juce::Justification::left, true);
-    g.setFont (uiFont (6.9f));
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 14.0f, textW, 16.0f), juce::Justification::left, true);
+    g.setFont (uiFont (7.2f));
     g.setColour (muted.withAlpha (0.88f));
-    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 2.0f, textW, 10.0f), juce::Justification::left, true);
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 3.0f, textW, 10.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
