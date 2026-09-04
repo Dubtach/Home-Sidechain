@@ -42,6 +42,7 @@ public:
     static constexpr double waveformHistorySeconds = 3.00;
     int waveformSampleStride = 64;
     std::array<std::atomic<float>, waveformPointCount> waveformBuffer {};
+    std::array<std::atomic<bool>, waveformPointCount> waveformTriggered {};
     std::atomic<size_t> waveformWriteIndex { 0 };
     std::atomic<std::uint64_t> waveformWriteSerial { 0 };
 
@@ -51,6 +52,7 @@ public:
     int getLink() const noexcept;
     int getWaveformPointCount() const noexcept { return static_cast<int> (waveformPointCount); }
     float getWaveformPoint (int index) const noexcept;
+    bool getWaveformTriggered (int index) const noexcept;
 
     int getHomeLinkDroppedCount() const noexcept { return homeLinkSender.getDroppedCount(); }
     float getTriggerMeter() const noexcept { return triggerMeter.load (std::memory_order_relaxed); }

@@ -272,7 +272,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 5.5f, cy - 5.5f, 11.0f, 11.0f);
 
-    const auto valueBox = juce::Rectangle<float> (b.getRight() - 112.0f, cy - 20.0f, 98.0f, 40.0f);
+    const auto valueBox = juce::Rectangle<float> (b.getRight() - 130.0f, cy - 20.0f, 98.0f, 40.0f);
     g.setColour (black.withAlpha (0.72f));
     g.fillRoundedRectangle (valueBox, 10.0f);
     g.setColour (edge);
@@ -511,19 +511,17 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     }
 
     const int pointCount = processor.getWaveformPointCount();
-    const int latestTriggerPoint = processor.getLatestTriggerPointIndex();
 
     if (pointCount > 1)
     {
         juce::Path line;
         bool started = false;
 
-        // The trigger indication is part of the waveform itself: no red column,
-        // no background wash, no marker pile-up. Only the small waveform segment
-        // containing the triggering transient is recoloured.
-        const int hotStart = latestTriggerPoint >= 0 ? juce::jmax (0, latestTriggerPoint - 1) : -1;
-        const int hotEnd = latestTriggerPoint >= 0 ? juce::jmin (pointCount - 1, latestTriggerPoint + 2) : -1;
-
+        // Each waveform bin remembers whether that bin contained the audio
+        // transient that actually caused a trigger. The highlight therefore
+        // stays attached to the waveform for the full visible history instead
+        // of fading with the transient meter. Old highlights disappear only
+        // when their waveform bin naturally scrolls out of the history.
         juce::Path hotLine;
         bool hotStarted = false;
 
@@ -543,13 +541,14 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
             else
                 line.lineTo (x, y);
 
-            const bool hot = hotStart >= 0 && i >= hotStart && i <= hotEnd;
+            const bool hot = processor.getWaveformTriggered (i);
             if (hot)
             {
+                // Keep the red section attached to the real waveform. Extend
+                // one point on either side only to make the transient legible
+                // at the current graph scale; there is no fade or timeout.
                 if (!hotStarted)
                 {
-                    // Include the previous point when possible so the red section
-                    // remains a continuous piece of the real waveform.
                     const int begin = juce::jmax (0, i - 1);
                     const float beginPeak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (begin));
                     const float beginDb = homeSidechain::linearToDb (juce::jmax (beginPeak, 0.000001f));
@@ -560,6 +559,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
                     hotStarted = true;
                 }
                 hotLine.lineTo (x, y);
+            }
+            else if (hotStarted)
+            {
+                // Finish this highlighted transient segment and start a fresh
+                // sub-path if another trigger bin appears later in the history.
+                hotLine.startNewSubPath (x, y);
+                hotStarted = false;
             }
         }
 
@@ -643,12 +649,12 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     const float textX = area.getX() + 24.0f;
     const float textW = 138.0f;
     const float centerY = area.getCentreY() + 1.5f;
-    g.setFont (uiFont (12.0f, true));
+    g.setFont (uiFont (14.0f, true));
     g.setColour (cyan);
-    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 14.0f, textW, 16.0f), juce::Justification::left, true);
-    g.setFont (uiFont (7.2f));
+    g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 16.0f, textW + 8.0f, 18.0f), juce::Justification::left, true);
+    g.setFont (uiFont (8.0f));
     g.setColour (muted.withAlpha (0.88f));
-    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 3.0f, textW, 10.0f), juce::Justification::left, true);
+    g.drawText ("TIME BETWEEN TRIGGERS", juce::Rectangle<float> (textX, centerY + 4.0f, textW + 20.0f, 11.0f), juce::Justification::left, true);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)

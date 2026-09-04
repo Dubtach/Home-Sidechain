@@ -53,6 +53,17 @@ float HomeSidechainTriggerAudioProcessor::getWaveformPoint (int index) const noe
     return waveformBuffer[slot].load (std::memory_order_relaxed);
 }
 
+bool HomeSidechainTriggerAudioProcessor::getWaveformTriggered (int index) const noexcept
+{
+    if (index < 0 || index >= static_cast<int> (waveformPointCount))
+        return false;
+
+    const auto write = waveformWriteIndex.load (std::memory_order_acquire);
+    const size_t offset = static_cast<size_t> (index);
+    const size_t slot = (write + offset) % waveformPointCount;
+    return waveformTriggered[slot].load (std::memory_order_relaxed);
+}
+
 int HomeSidechainTriggerAudioProcessor::getLatestTriggerPointIndex() const noexcept
 {
     const auto writeSerial = waveformWriteSerial.load (std::memory_order_acquire);
@@ -77,6 +88,7 @@ void HomeSidechainTriggerAudioProcessor::prepareToPlay (double newSampleRate, in
     triggerMeter.store (0.0f);
     inputLevel.store (0.0f, std::memory_order_relaxed);
     for (auto& value : waveformBuffer) value.store (0.0f, std::memory_order_relaxed);
+    for (auto& value : waveformTriggered) value.store (false, std::memory_order_relaxed);
     waveformWriteIndex.store (0, std::memory_order_release);
     waveformWriteSerial.store (0, std::memory_order_release);
     waveformAccumPeak = 0.0f;
@@ -235,6 +247,7 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             const auto writeSerial = waveformWriteSerial.load (std::memory_order_relaxed);
             const size_t writeSlot = static_cast<size_t> (writeSerial % waveformPointCount);
             waveformBuffer[writeSlot].store (waveformAccumPeak, std::memory_order_relaxed);
+            waveformTriggered[writeSlot].store (waveformAccumTriggered, std::memory_order_relaxed);
             if (waveformAccumTriggered)
                 latestTriggerSerial.store (writeSerial, std::memory_order_release);
 
