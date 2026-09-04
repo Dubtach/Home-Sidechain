@@ -319,7 +319,7 @@ void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
 
 float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 {
-    constexpr float minDb = -48.0f;
+    constexpr float minDb = -36.0f;
     constexpr float maxDb = 0.0f;
     const float n = juce::jlimit (0.0f, 1.0f, (db - minDb) / (maxDb - minDb));
     return graphPlotBounds.getBottom() - n * graphPlotBounds.getHeight();
@@ -327,10 +327,19 @@ float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 
 float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
 {
-    constexpr float minDb = -48.0f;
+    constexpr float minDb = -36.0f;
     constexpr float maxDb = 0.0f;
     const float n = juce::jlimit (0.0f, 1.0f, (graphPlotBounds.getBottom() - y) / graphPlotBounds.getHeight());
     return minDb + n * (maxDb - minDb);
+}
+
+static juce::Rectangle<float> getThresholdBadgeBounds (juce::Rectangle<float> plot, float thresholdY)
+{
+    return { plot.getRight() - 132.0f,
+             juce::jlimit (plot.getY() + 8.0f,
+                           plot.getBottom() - 54.0f,
+                           thresholdY - 27.0f),
+             124.0f, 52.0f };
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool fine)
@@ -339,7 +348,7 @@ void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool 
     {
         const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
         const float deltaY = y - lastThresholdDragY;
-        const float deltaDb = - (deltaY / height) * 48.0f * 0.22f;
+        const float deltaDb = - (deltaY / height) * 36.0f * 0.22f;
         const float currentDb = processor.getThresholdDb();
         const float db = juce::jlimit (-48.0f, 0.0f, currentDb + deltaDb);
         if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
@@ -498,7 +507,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     g.drawRoundedRectangle (plot, 8.0f, 1.0f);
 
     // Fixed dB scale: the visual line and detector use the same scale.
-    for (int db = 0; db >= -48; db -= 12)
+    for (int db = 0; db >= -36; db -= 12)
     {
         const float y = yForDb (static_cast<float> (db));
         g.setColour (white.withAlpha (db == 0 ? 0.12f : 0.055f));
@@ -659,11 +668,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     g.fillEllipse (handleX - 2.1f, thresholdY - 2.1f, 4.2f, 4.2f);
 
     // Compact threshold badge, intentionally overlaid inside the graph.
-    const auto badge = juce::Rectangle<float> (plot.getRight() - 132.0f,
-                                                juce::jlimit (plot.getY() + 8.0f,
-                                                              plot.getBottom() - 54.0f,
-                                                              thresholdY - 27.0f),
-                                                124.0f, 52.0f);
+    const auto badge = getThresholdBadgeBounds (plot, thresholdY);
     g.setColour (black.withAlpha (0.92f));
     g.fillRoundedRectangle (badge, 9.0f);
     g.setColour (edge.withAlpha (0.94f));
@@ -691,7 +696,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     drawPanel (g, area, cyan, 12.0f);
     const float textX = area.getX() + 24.0f;
     const float textW = 138.0f;
-    const float centerY = area.getCentreY() + 1.5f;
+    const float centerY = area.getCentreY() + 1.0f;
     g.setFont (uiFont (14.0f, true));
     g.setColour (cyan);
     g.drawText ("COOL DOWN", juce::Rectangle<float> (textX, centerY - 16.0f, textW + 8.0f, 18.0f), juce::Justification::left, true);
@@ -712,7 +717,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
                                                 frame.getWidth() - 36.0f, 208.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
-                                                       frame.getWidth() - 36.0f, 62.0f);
+                                                       frame.getWidth() - 36.0f, 50.0f);
 
     drawGraphCard (g, graph);
     drawCooldownCard (g, cooldownCard);
@@ -724,7 +729,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
                                                 frame.getWidth() - 36.0f, 208.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
-                                                       frame.getWidth() - 36.0f, 62.0f);
+                                                       frame.getWidth() - 36.0f, 50.0f);
 
     // Keep the header controls aligned to the same right edge as the graph
     // and Cool Down cards below. The bypass icon sits just after the A/B/C
@@ -741,9 +746,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
     const int sliderX = juce::roundToInt (cooldownCard.getX() + 160.0f);
-    const int sliderY = juce::roundToInt (cooldownCard.getY() + 11.0f);
+    const int sliderY = juce::roundToInt (cooldownCard.getY() + 7.0f);
     const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
-    const int sliderH = juce::jmax (34, juce::roundToInt (cooldownCard.getHeight() - 22.0f));
+    const int sliderH = juce::jmax (28, juce::roundToInt (cooldownCard.getHeight() - 14.0f));
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
     graphPlotBounds = { graph.getX() + 10.0f, graph.getY() + 10.0f,
@@ -755,7 +760,8 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseMove (const juce::MouseEvent
     const float thresholdY = yForDb (processor.getThresholdDb());
     const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
                                                    graphPlotBounds.getWidth(), 18.0f);
-    const bool over = hitArea.contains (e.position);
+    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
+    const bool over = hitArea.contains (e.position) || badge.contains (e.position);
     if (over != hoveringThreshold)
     {
         hoveringThreshold = over;
@@ -779,13 +785,21 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent
     const float thresholdY = yForDb (processor.getThresholdDb());
     const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
                                                    graphPlotBounds.getWidth(), 18.0f);
-    if (hitArea.contains (e.position))
+    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
+    if (hitArea.contains (e.position) || badge.contains (e.position))
     {
         draggingThreshold = true;
         hoveringThreshold = true;
+        const bool grabbedBadge = badge.contains (e.position);
         lastThresholdDragY = e.position.y;
         setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
-        setThresholdFromY (e.position.y, e.mods.isShiftDown());
+
+        // Clicking the badge selects it without changing the threshold.
+        // Dragging the badge then moves the threshold vertically just like
+        // dragging the threshold line itself.
+        if (! grabbedBadge)
+            setThresholdFromY (e.position.y, e.mods.isShiftDown());
+
         repaint();
     }
 }
