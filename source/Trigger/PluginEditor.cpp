@@ -272,7 +272,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 5.5f, cy - 5.5f, 11.0f, 11.0f);
 
-    const auto valueBox = juce::Rectangle<float> (b.getRight() - 130.0f, cy - 20.0f, 98.0f, 40.0f);
+    const auto valueBox = juce::Rectangle<float> (b.getRight() - 116.0f, cy - 20.0f, 100.0f, 40.0f);
     g.setColour (black.withAlpha (0.72f));
     g.fillRoundedRectangle (valueBox, 10.0f);
     g.setColour (edge);
@@ -587,13 +587,31 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
         g.setColour (white.withAlpha (0.96f));
         g.strokePath (line, juce::PathStrokeType (1.25f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 
-        // Red only on the actual transient waveform segment.
-        if (hotStarted)
+        // Red only on the actual transient waveform segments. Stroke the full
+        // path even when the highlighted region ends before the final sample;
+        // the previous implementation only drew while the last region was
+        // still open, which made isolated trigger bins effectively invisible.
+        if (! hotLine.isEmpty())
         {
             g.setColour (red.withAlpha (0.22f));
             g.strokePath (hotLine, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             g.setColour (red);
-            g.strokePath (hotLine, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            g.strokePath (hotLine, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+
+            // Make a single-bin transient visible at this zoom level too.
+            for (int i = 0; i < pointCount; ++i)
+            {
+                if (! processor.getWaveformTriggered (i))
+                    continue;
+
+                const float peak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (i));
+                const float db = homeSidechain::linearToDb (juce::jmax (peak, 0.000001f));
+                const float y = yForDb (db);
+                const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
+                              / static_cast<float> (pointCount - 1);
+                g.setColour (red.withAlpha (0.95f));
+                g.fillEllipse (x - 2.8f, y - 2.8f, 5.6f, 5.6f);
+            }
         }
     }
 

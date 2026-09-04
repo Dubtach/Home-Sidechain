@@ -235,7 +235,12 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             samplesSinceLastTrigger = 0;
             triggerMeter.store (1.0f, std::memory_order_relaxed);
             if (audioTrigger)
+            {
+                // Keep the trigger attached to the transient's waveform bin.
+                // Also retain the next bin so very short isolated transients
+                // have a visible red waveform segment at the display zoom.
                 waveformAccumTriggered = true;
+            }
         }
 
         wasAboveThreshold = above;
