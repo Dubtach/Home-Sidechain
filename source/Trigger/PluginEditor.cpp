@@ -130,12 +130,12 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     {
         const float x = contentX + segmentW * static_cast<float> (active);
         const auto activeRect = juce::Rectangle<float> (x, b.getY() + 4.0f, segmentW, b.getHeight() - 8.0f);
-        g.setColour (cyan.withAlpha (0.10f));
+        g.setColour (cyan.withAlpha (0.05f));
         g.fillRoundedRectangle (activeRect, 11.0f);
-        g.setColour (cyan.withAlpha (0.82f));
-        g.drawRoundedRectangle (activeRect, 11.0f, 1.0f);
+        g.setColour (cyan.withAlpha (0.40f));
+        g.drawRoundedRectangle (activeRect, 11.0f, 0.9f);
         g.setColour (cyan);
-        g.fillRoundedRectangle (x + 13.0f, b.getBottom() - 4.0f, segmentW - 26.0f, 2.0f, 1.0f);
+        g.fillRoundedRectangle (x + 12.0f, b.getBottom() - 3.0f, segmentW - 24.0f, 1.8f, 0.9f);
     }
 
     for (int i = 0; i < 3; ++i)
@@ -272,14 +272,10 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 5.5f, cy - 5.5f, 11.0f, 11.0f);
 
-    const auto valueBox = juce::Rectangle<float> (b.getRight() - 116.0f, cy - 20.0f, 100.0f, 40.0f);
-    g.setColour (black.withAlpha (0.72f));
-    g.fillRoundedRectangle (valueBox, 10.0f);
-    g.setColour (edge);
-    g.drawRoundedRectangle (valueBox, 10.0f, 1.0f);
+    const auto valueArea = juce::Rectangle<float> (b.getRight() - 112.0f, cy - 13.0f, 98.0f, 26.0f);
     g.setFont (uiFont (14.0f, true));
     g.setColour (cyan);
-    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueBox.toNearestInt().reduced (2, 0), juce::Justification::centred, true);
+    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea, juce::Justification::right, true);
 
     g.setFont (uiFont (7.8f));
     g.setColour (muted.withAlpha (0.72f));
@@ -337,12 +333,26 @@ float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const no
     return minDb + n * (maxDb - minDb);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y)
+void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool fine)
 {
+    if (fine)
+    {
+        const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
+        const float deltaY = y - lastThresholdDragY;
+        const float deltaDb = - (deltaY / height) * 48.0f * 0.22f;
+        const float currentDb = processor.getThresholdDb();
+        const float db = juce::jlimit (-48.0f, 0.0f, currentDb + deltaDb);
+        if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
+            parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (db));
+        lastThresholdDragY = y;
+        return;
+    }
+
     const float clampedY = juce::jlimit (graphPlotBounds.getY(), graphPlotBounds.getBottom(), y);
     const float db = thresholdForY (clampedY);
     if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
         parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (db));
+    lastThresholdDragY = clampedY;
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawBackground (juce::Graphics& g, juce::Rectangle<float> area) const
@@ -615,6 +625,21 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
         }
     }
 
+    // Very subtle NOW playhead and current-level ghost: this adds life to the scope
+    // without introducing another meter or indicator.
+    const float nowX = plot.getRight() - 1.5f;
+    g.setColour (cyan.withAlpha (0.10f));
+    g.fillRect (nowX - 1.0f, plot.getY() + 4.0f, 2.0f, plot.getHeight() - 22.0f);
+
+    const float currentPeak = juce::jlimit (0.0f, 1.0f, processor.getInputLevel());
+    const float currentDb = homeSidechain::linearToDb (juce::jmax (currentPeak, 0.000001f));
+    const float levelY = yForDb (currentDb);
+    if (levelY > plot.getY() && levelY < plot.getBottom())
+    {
+        g.setColour (cyan.withAlpha (0.18f));
+        g.fillRoundedRectangle (plot.getRight() - 70.0f, levelY - 1.0f, 68.0f, 2.0f, 1.0f);
+    }
+
     // Threshold line and handle use the same y mapping as the detector.
     const float thresholdY = yForDb (thresholdDb);
     const float dashW = 9.0f;
@@ -727,8 +752,10 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
 {
-    const auto hit = graphPlotBounds.expanded (7.0f, 7.0f);
-    const bool over = hit.contains (e.position);
+    const float thresholdY = yForDb (processor.getThresholdDb());
+    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
+                                                   graphPlotBounds.getWidth(), 18.0f);
+    const bool over = hitArea.contains (e.position);
     if (over != hoveringThreshold)
     {
         hoveringThreshold = over;
@@ -749,13 +776,16 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent
     if (!e.mods.isLeftButtonDown())
         return;
 
-    const auto hitArea = graphPlotBounds.expanded (7.0f, 7.0f);
+    const float thresholdY = yForDb (processor.getThresholdDb());
+    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
+                                                   graphPlotBounds.getWidth(), 18.0f);
     if (hitArea.contains (e.position))
     {
         draggingThreshold = true;
         hoveringThreshold = true;
+        lastThresholdDragY = e.position.y;
         setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
-        setThresholdFromY (e.position.y);
+        setThresholdFromY (e.position.y, e.mods.isShiftDown());
         repaint();
     }
 }
@@ -764,7 +794,7 @@ void HomeSidechainTriggerAudioProcessorEditor::mouseDrag (const juce::MouseEvent
 {
     if (draggingThreshold)
     {
-        setThresholdFromY (e.position.y);
+        setThresholdFromY (e.position.y, e.mods.isShiftDown());
         return;
     }
 }

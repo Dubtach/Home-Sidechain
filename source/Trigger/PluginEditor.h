@@ -67,12 +67,13 @@ private:
     juce::Rectangle<float> graphPlotBounds;
     bool draggingThreshold = false;
     bool hoveringThreshold = false;
+    float lastThresholdDragY = 0.0f;
 
     void timerCallback() override;
     void styleBypass();
     float thresholdForY (float y) const noexcept;
     float yForDb (float db) const noexcept;
-    void setThresholdFromY (float y);
+    void setThresholdFromY (float y, bool fine = false);
 
     void drawBackground (juce::Graphics&, juce::Rectangle<float>) const;
     void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
