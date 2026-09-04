@@ -294,7 +294,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p), linkSelector (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (600, 365);
+    setSize (600, 325);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -321,16 +321,45 @@ float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
 {
     constexpr float minDb = -36.0f;
     constexpr float maxDb = 0.0f;
-    const float n = juce::jlimit (0.0f, 1.0f, (db - minDb) / (maxDb - minDb));
-    return graphPlotBounds.getBottom() - n * graphPlotBounds.getHeight();
+    constexpr float floorBand = 0.06f;
+    constexpr float mainBand = 1.0f - floorBand;
+
+    const float clampedDb = juce::jlimit (-60.0f, 3.0f, db);
+    const float height = graphPlotBounds.getHeight();
+
+    // Keep the labelled -36..0 dB range linear and exact. Reserve a small
+    // lower band for quieter audio so the envelope does not get hard-clipped
+    // when the graph is visually focused on the useful trigger range.
+    if (clampedDb < minDb)
+    {
+        const float lowN = juce::jlimit (0.0f, 1.0f,
+            (clampedDb + 60.0f) / 24.0f);
+        return graphPlotBounds.getBottom() - lowN * floorBand * height;
+    }
+
+    const float n = juce::jlimit (0.0f, 1.0f,
+        (clampedDb - minDb) / (maxDb - minDb));
+    return graphPlotBounds.getBottom() - (floorBand + n * mainBand) * height;
 }
 
 float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
 {
     constexpr float minDb = -36.0f;
     constexpr float maxDb = 0.0f;
-    const float n = juce::jlimit (0.0f, 1.0f, (graphPlotBounds.getBottom() - y) / graphPlotBounds.getHeight());
-    return minDb + n * (maxDb - minDb);
+    constexpr float floorBand = 0.06f;
+    constexpr float mainBand = 1.0f - floorBand;
+
+    const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
+    const float n = juce::jlimit (0.0f, 1.0f,
+        (graphPlotBounds.getBottom() - y) / height);
+
+    if (n <= floorBand)
+    {
+        return -60.0f + (n / floorBand) * (minDb + 60.0f);
+    }
+
+    const float mainN = juce::jlimit (0.0f, 1.0f, (n - floorBand) / mainBand);
+    return minDb + mainN * (maxDb - minDb);
 }
 
 static juce::Rectangle<float> getThresholdBadgeBounds (juce::Rectangle<float> plot, float thresholdY)
@@ -348,7 +377,7 @@ void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool 
     {
         const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
         const float deltaY = y - lastThresholdDragY;
-        const float deltaDb = - (deltaY / height) * 36.0f * 0.22f;
+        const float deltaDb = - (deltaY / height) * 48.0f * 0.22f;
         const float currentDb = processor.getThresholdDb();
         const float db = juce::jlimit (-48.0f, 0.0f, currentDb + deltaDb);
         if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
@@ -470,7 +499,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     // Paint the scope first, then lay the status indicator over it. The scope
     // therefore truly fills the graph card while READY/TRIGGERING remains
     // a compact overlay on top of the waveform UI.
-    drawWaveform (g, { area.getX() + 6.0f, area.getY() + 6.0f, area.getWidth() - 12.0f, area.getHeight() - 12.0f });
+    drawWaveform (g, { area.getX() + 3.0f, area.getY() + 3.0f, area.getWidth() - 6.0f, area.getHeight() - 6.0f });
     drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 13.0f, 158.0f, 32.0f }, text, colour);
 }
 
@@ -714,10 +743,10 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
                                                  frame.getWidth() - 36.0f, 52.0f);
     drawHeader (g, header);
 
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
-                                                frame.getWidth() - 36.0f, 208.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
-                                                       frame.getWidth() - 36.0f, 50.0f);
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 70.0f,
+                                                frame.getWidth() - 36.0f, 184.0f);
+    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
+                                                       frame.getWidth() - 36.0f, 46.0f);
 
     drawGraphCard (g, graph);
     drawCooldownCard (g, cooldownCard);
@@ -726,10 +755,10 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     const auto frame = getLocalBounds().toFloat().reduced (4.0f);
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
-                                                frame.getWidth() - 36.0f, 208.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
-                                                       frame.getWidth() - 36.0f, 50.0f);
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 70.0f,
+                                                frame.getWidth() - 36.0f, 184.0f);
+    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
+                                                       frame.getWidth() - 36.0f, 46.0f);
 
     // Keep the header controls aligned to the same right edge as the graph
     // and Cool Down cards below. The bypass icon sits just after the A/B/C
@@ -746,13 +775,13 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
     const int sliderX = juce::roundToInt (cooldownCard.getX() + 160.0f);
-    const int sliderY = juce::roundToInt (cooldownCard.getY() + 7.0f);
+    const int sliderY = juce::roundToInt (cooldownCard.getY() + 4.0f);
     const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
-    const int sliderH = juce::jmax (28, juce::roundToInt (cooldownCard.getHeight() - 14.0f));
+    const int sliderH = juce::jmax (28, juce::roundToInt (cooldownCard.getHeight() - 8.0f));
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
-    graphPlotBounds = { graph.getX() + 10.0f, graph.getY() + 10.0f,
-                        graph.getWidth() - 20.0f, graph.getHeight() - 20.0f };
+    graphPlotBounds = { graph.getX() + 7.0f, graph.getY() + 7.0f,
+                        graph.getWidth() - 14.0f, graph.getHeight() - 14.0f };
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
