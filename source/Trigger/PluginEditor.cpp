@@ -114,38 +114,42 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     const auto b = getLocalBounds().toFloat();
     const int active = juce::jlimit (0, 2, processor.getLink());
 
-    g.setColour (black.withAlpha (0.72f));
-    g.fillRoundedRectangle (b.translated (0.0f, 2.0f), b.getHeight() * 0.5f + 1.0f);
-    g.setColour (juce::Colour (0xff0d1319));
-    g.fillRoundedRectangle (b, b.getHeight() * 0.5f);
-    g.setColour (edge.withAlpha (0.96f));
-    g.drawRoundedRectangle (b, b.getHeight() * 0.5f, 1.0f);
-
-    const float inset = 4.0f;
+    // Borderless, integrated header control: A/B/C reads as routing choices,
+    // not as three separate push buttons. The active route is communicated by
+    // a restrained cyan wash and underline.
+    const float inset = 3.0f;
     const float contentX = b.getX() + inset;
     const float contentW = b.getWidth() - inset * 2.0f;
     const float segmentW = contentW / 3.0f;
 
-    if (active >= 0 && active < 3)
-    {
-        const float x = contentX + segmentW * static_cast<float> (active);
-        const auto activeRect = juce::Rectangle<float> (x, b.getY() + 4.0f, segmentW, b.getHeight() - 8.0f);
-        g.setColour (cyan.withAlpha (0.05f));
-        g.fillRoundedRectangle (activeRect, 11.0f);
-        g.setColour (cyan.withAlpha (0.40f));
-        g.drawRoundedRectangle (activeRect, 11.0f, 0.9f);
-        g.setColour (cyan);
-        g.fillRoundedRectangle (x + 12.0f, b.getBottom() - 3.0f, segmentW - 24.0f, 1.8f, 0.9f);
-    }
+    g.setColour (white.withAlpha (0.018f));
+    g.fillRoundedRectangle (b.withTrimmedTop (7.0f), 8.0f);
 
     for (int i = 0; i < 3; ++i)
     {
         const float x = contentX + segmentW * static_cast<float> (i);
-        g.setFont (uiFont (13.0f, true));
-        g.setColour (i == active ? white : white.withAlpha (0.48f));
+        const bool selected = (i == active);
+        const auto segment = juce::Rectangle<float> (x, b.getY() + 4.0f, segmentW, b.getHeight() - 9.0f);
+
+        if (selected)
+        {
+            g.setColour (cyan.withAlpha (0.06f));
+            g.fillRoundedRectangle (segment.reduced (2.5f, 0.5f), 7.0f);
+            g.setColour (cyan.withAlpha (0.9f));
+            g.fillRoundedRectangle (x + 12.0f, b.getBottom() - 3.0f, segmentW - 24.0f, 1.8f, 0.9f);
+        }
+
+        g.setFont (uiFont (12.5f, true));
+        g.setColour (selected ? white : white.withAlpha (0.42f));
         g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + i)),
-                    juce::Rectangle<float> (x, b.getY(), segmentW, b.getHeight()),
-                    juce::Justification::centred, true);
+                    segment, juce::Justification::centred, true);
+    }
+
+    for (int i = 1; i < 3; ++i)
+    {
+        const float x = contentX + segmentW * static_cast<float> (i);
+        g.setColour (white.withAlpha (0.05f));
+        g.drawLine (x, b.getY() + 10.0f, x, b.getBottom() - 8.0f, 1.0f);
     }
 }
 
@@ -732,7 +736,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     // and value readout share the same vertical rhythm.
     const float centerY = area.getCentreY();
     const float textX = area.getX() + 14.0f;
-    const float textW = 144.0f;
+    const float textW = 122.0f;
 
     g.setFont (uiFont (12.0f, true));
     g.setColour (cyan.withAlpha (0.95f));
@@ -787,9 +791,9 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 162.0f);
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 138.0f);
     const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
-    const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 18.0f - sliderX));
+    const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 12.0f - sliderX));
     const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
     cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
 
