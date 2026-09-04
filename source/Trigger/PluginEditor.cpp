@@ -298,7 +298,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p), linkSelector (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (672, 410);
+    setSize (600, 365);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -685,7 +685,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     drawHeader (g, header);
 
     const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
-                                                frame.getWidth() - 36.0f, 248.0f);
+                                                frame.getWidth() - 36.0f, 208.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
                                                        frame.getWidth() - 36.0f, 62.0f);
 
@@ -697,7 +697,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     const auto frame = getLocalBounds().toFloat().reduced (4.0f);
     const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 72.0f,
-                                                frame.getWidth() - 36.0f, 248.0f);
+                                                frame.getWidth() - 36.0f, 208.0f);
     const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 10.0f,
                                                        frame.getWidth() - 36.0f, 62.0f);
 
@@ -706,7 +706,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
     // selector with the overall group ending exactly at the card edge.
     const int headerBypassWidth = 34;
     const int headerGap = 10;
-    const int headerLinkWidth = 146;
+    const int headerLinkWidth = 132;
     const int rightEdge = juce::roundToInt (frame.getRight() - 18.0f);
     bypass.setBounds (rightEdge - headerBypassWidth,
                       juce::roundToInt (frame.getY() + 10.0f), headerBypassWidth, 42);
@@ -715,7 +715,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 172.0f);
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 160.0f);
     const int sliderY = juce::roundToInt (cooldownCard.getY() + 11.0f);
     const int sliderW = juce::jmax (220, juce::roundToInt (cooldownCard.getRight() - 24.0f - sliderX));
     const int sliderH = juce::jmax (34, juce::roundToInt (cooldownCard.getHeight() - 22.0f));
