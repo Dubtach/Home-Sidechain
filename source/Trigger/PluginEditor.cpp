@@ -129,7 +129,7 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     {
         const float x = contentX + segmentW * static_cast<float> (i);
         const bool selected = (i == active);
-        const auto segment = juce::Rectangle<float> (x, b.getY() + 4.0f, segmentW, b.getHeight() - 9.0f);
+        const auto segment = juce::Rectangle<float> (x, b.getY() + 1.0f, segmentW, b.getHeight() - 3.0f);
 
         if (selected)
         {
@@ -139,7 +139,7 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
             g.fillRoundedRectangle (x + 12.0f, b.getBottom() - 3.0f, segmentW - 24.0f, 1.8f, 0.9f);
         }
 
-        g.setFont (uiFont (12.5f, true));
+        g.setFont (uiFont (12.0f, true));
         g.setColour (selected ? white : white.withAlpha (0.42f));
         g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + i)),
                     segment, juce::Justification::centred, true);
@@ -149,7 +149,7 @@ void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
     {
         const float x = contentX + segmentW * static_cast<float> (i);
         g.setColour (white.withAlpha (0.05f));
-        g.drawLine (x, b.getY() + 10.0f, x, b.getBottom() - 8.0f, 1.0f);
+        g.drawLine (x, b.getY() + 7.0f, x, b.getBottom() - 7.0f, 1.0f);
     }
 }
 
@@ -186,7 +186,7 @@ float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 132.0f);
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 95.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -276,7 +276,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 4.5f, cy - 4.5f, 9.0f, 9.0f);
 
-    const auto valueArea = juce::Rectangle<float> (b.getRight() - 92.0f, cy - 10.0f, 82.0f, 20.0f);
+    const auto valueArea = juce::Rectangle<float> (b.getRight() - 80.0f, cy - 10.0f, 72.0f, 20.0f);
     g.setFont (uiFont (12.5f, true));
     g.setColour (cyan);
     g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea,
@@ -369,11 +369,11 @@ float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const no
 
 static juce::Rectangle<float> getThresholdBadgeBounds (juce::Rectangle<float> plot, float thresholdY)
 {
-    return { plot.getRight() - 132.0f,
-             juce::jlimit (plot.getY() + 8.0f,
-                           plot.getBottom() - 54.0f,
-                           thresholdY - 27.0f),
-             124.0f, 52.0f };
+    return { plot.getRight() - 116.0f,
+             juce::jlimit (plot.getY() + 7.0f,
+                           plot.getBottom() - 47.0f,
+                           thresholdY - 23.0f),
+             108.0f, 44.0f };
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool fine)
@@ -486,9 +486,9 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
     g.setColour (colour.withAlpha (0.45f));
     g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
     g.setColour (colour);
-    g.fillEllipse (r.getX() + 14.0f, r.getCentreY() - 4.5f, 9.0f, 9.0f);
-    g.setFont (uiFont (10.6f, true));
-    const auto textArea = juce::Rectangle<float> (r.getX() + 31.0f, r.getY() + 1.0f, r.getWidth() - 38.0f, r.getHeight() - 2.0f);
+    g.fillEllipse (r.getX() + 11.0f, r.getCentreY() - 3.5f, 7.0f, 7.0f);
+    g.setFont (uiFont (9.4f, true));
+    const auto textArea = juce::Rectangle<float> (r.getX() + 25.0f, r.getY() + 1.0f, r.getWidth() - 31.0f, r.getHeight() - 2.0f);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
 }
 
@@ -510,7 +510,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     // pill floats above it instead of taking away a permanent header row.
     drawWaveform (g, { area.getX() + 1.5f, area.getY() + 1.5f,
                        area.getWidth() - 3.0f, area.getHeight() - 3.0f });
-    drawStatusPill (g, { area.getX() + 18.0f, area.getY() + 12.0f, 158.0f, 32.0f }, text, colour);
+    drawStatusPill (g, { area.getX() + 16.0f, area.getY() + 12.0f, 132.0f, 26.0f }, text, colour);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
@@ -712,14 +712,14 @@ void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, 
     g.fillRoundedRectangle (badge, 9.0f);
     g.setColour (edge.withAlpha (0.94f));
     g.drawRoundedRectangle (badge, 9.0f, 1.0f);
-    g.setFont (uiFont (7.2f, true));
+    g.setFont (uiFont (6.8f, true));
     g.setColour (muted);
-    g.drawText ("THRESHOLD", badge.withTrimmedLeft (10.0f).withTrimmedRight (10.0f).withTrimmedBottom (34.0f),
+    g.drawText ("THRESHOLD", badge.withTrimmedLeft (9.0f).withTrimmedRight (9.0f).withTrimmedBottom (28.0f),
                 juce::Justification::left, true);
-    g.setFont (uiFont (12.4f, true));
+    g.setFont (uiFont (11.6f, true));
     g.setColour (cyan);
     g.drawText (juce::String (thresholdDb, 1) + " dB",
-                badge.withTrimmedLeft (10.0f).withTrimmedRight (8.0f).withTrimmedTop (19.0f).withTrimmedBottom (7.0f),
+                badge.withTrimmedLeft (9.0f).withTrimmedRight (7.0f).withTrimmedTop (16.0f).withTrimmedBottom (6.0f),
                 juce::Justification::left, true);
 
     // Timeline is kept entirely inside the graph card.
@@ -734,20 +734,20 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
 {
     // Borderless integrated control row. The text stack, slider centerline,
     // and value readout share the same vertical rhythm.
-    const float centerY = area.getCentreY();
+    const float centerY = area.getCentreY() + 0.5f;
     const float textX = area.getX() + 14.0f;
-    const float textW = 122.0f;
+    const float textW = 112.0f;
 
-    g.setFont (uiFont (12.0f, true));
-    g.setColour (cyan.withAlpha (0.95f));
+    g.setFont (uiFont (14.0f, true));
+    g.setColour (cyan.withAlpha (0.96f));
     g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 10.0f, textW, 15.0f),
+                juce::Rectangle<float> (textX, centerY - 12.0f, textW, 17.0f),
                 juce::Justification::left, true);
 
-    g.setFont (uiFont (8.0f));
-    g.setColour (muted.withAlpha (0.82f));
+    g.setFont (uiFont (8.3f));
+    g.setColour (muted.withAlpha (0.84f));
     g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 5.0f, textW + 18.0f, 10.0f),
+                juce::Rectangle<float> (textX, centerY + 5.0f, textW + 8.0f, 11.0f),
                 juce::Justification::left, true);
 }
 
@@ -791,7 +791,7 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
     // The slider component only covers the actual control row. The surrounding
     // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 138.0f);
+    const int sliderX = juce::roundToInt (cooldownCard.getX() + 124.0f);
     const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
     const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 12.0f - sliderX));
     const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
