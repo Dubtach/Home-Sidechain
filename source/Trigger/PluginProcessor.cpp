@@ -232,7 +232,13 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
             ++midiTriggerIndex;
         }
 
-        if ((audioTrigger || midiTrigger) && samplesSinceLastTrigger >= retriggerSamples)
+        // MIDI is an independent trigger source and must never be blocked by
+        // the audio Cool Down. Audio triggers still respect Cool Down. If a MIDI
+        // note and an audio transient occur together, MIDI takes priority.
+        const bool shouldTrigger = midiTrigger
+                                 || (audioTrigger && samplesSinceLastTrigger >= retriggerSamples);
+
+        if (shouldTrigger)
         {
             const int triggerVelocity = midiTrigger ? midiVelocity : 127;
 
@@ -251,7 +257,12 @@ void HomeSidechainTriggerAudioProcessor::processBlock (juce::AudioBuffer<float>&
                 pendingNote = note;
             }
 
-            samplesSinceLastTrigger = 0;
+            // Cool Down belongs to the audio detector. Incoming MIDI notes are
+            // independent events, so they must not restart or extend the audio
+            // detector's Cool Down timer.
+            if (audioTrigger)
+                samplesSinceLastTrigger = 0;
+
             triggerMeter.store (1.0f, std::memory_order_relaxed);
             if (audioTrigger)
             {

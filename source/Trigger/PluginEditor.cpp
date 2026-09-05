@@ -188,7 +188,7 @@ float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
 float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
 {
     // Keep the track close to, but never under, the right-aligned value.
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 78.0f);
+    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 66.0f);
 }
 
 bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
@@ -278,7 +278,7 @@ void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
     g.fillEllipse (px - 4.5f, cy - 4.5f, 9.0f, 9.0f);
 
-    const auto valueArea = juce::Rectangle<float> (b.getRight() - 70.0f, cy - 10.0f, 64.0f, 20.0f);
+    const auto valueArea = juce::Rectangle<float> (b.getRight() - 62.0f, cy - 10.0f, 58.0f, 20.0f);
     g.setFont (uiFont (12.5f, true));
     g.setColour (cyan);
     g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea,
@@ -301,7 +301,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     : AudioProcessorEditor (&p), processor (p), linkSelector (p)
 {
     juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (600, 325);
+    setSize (580, 315);
     setResizable (false, false);
     setLookAndFeel (&homeSeriesLaf);
 
@@ -470,9 +470,24 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, ju
     g.setColour (white);
     g.drawText (p3, juce::Rectangle<float> (x + 1.0f, area.getY(), p3w + 1.0f, titleH), juce::Justification::left, true);
 
-    g.setFont (uiFont (7.2f, true));
-    g.setColour (muted.withAlpha (0.86f));
-    g.drawText ("DUBTACH DSP", baseX + 1.0f, area.getY() + 26.0f, 105.0f, 10.0f, juce::Justification::left, true);
+    // Slightly larger, letter-spaced brand line for the Home-series feel.
+    {
+        const auto brandFont = uiFont (8.0f, true);
+        g.setFont (brandFont);
+        g.setColour (muted.withAlpha (0.88f));
+        const juce::String brand = "DUBTACH DSP";
+        float bx = baseX + 1.0f;
+        const float by = area.getY() + 25.0f;
+        constexpr float letterGap = 1.15f;
+        for (int i = 0; i < brand.length(); ++i)
+        {
+            const juce::String ch = brand.substring (i, i + 1);
+            const float cw = static_cast<float> (juce::GlyphArrangement::getStringWidthInt (brandFont, ch));
+            g.drawText (ch, juce::Rectangle<float> (bx, by, cw + 1.0f, 11.0f),
+                        juce::Justification::left, true);
+            bx += cw + letterGap;
+        }
+    }
 
     g.setColour (edge.withAlpha (0.65f));
     g.drawLine (utilitiesLeft - 10.0f, area.getY() + 3.0f, utilitiesLeft - 10.0f, area.getBottom() - 3.0f, 1.0f);
@@ -787,19 +802,19 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     // Borderless integrated control row. The text stack, slider centerline,
     // and value readout share the same vertical rhythm.
     const float centerY = area.getCentreY() + 0.5f;
-    const float textX = area.getX() + 14.0f;
-    const float textW = 112.0f;
+    const float textX = area.getX() + 2.0f;
+    const float textW = 124.0f;
 
     g.setFont (uiFont (14.0f, true));
     g.setColour (cyan.withAlpha (0.96f));
     g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 11.0f, textW, 17.0f),
+                juce::Rectangle<float> (textX, centerY - 10.0f, textW, 17.0f),
                 juce::Justification::left, true);
 
     g.setFont (uiFont (8.3f));
     g.setColour (muted.withAlpha (0.84f));
     g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 5.0f, textW + 14.0f, 10.0f),
+                juce::Rectangle<float> (textX, centerY + 4.0f, textW + 14.0f, 10.0f),
                 juce::Justification::left, true);
 }
 
@@ -808,14 +823,14 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     const auto frame = getLocalBounds().toFloat().reduced (4.0f);
     drawBackground (g, frame);
 
-    const auto header = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 15.0f,
-                                                 frame.getWidth() - 36.0f, 52.0f);
+    const auto header = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 13.0f,
+                                                 frame.getWidth() - 36.0f, 48.0f);
     drawHeader (g, header);
 
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 68.0f,
-                                                frame.getWidth() - 36.0f, 184.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
-                                                       frame.getWidth() - 36.0f, 42.0f);
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 62.0f,
+                                                frame.getWidth() - 36.0f, 176.0f);
+    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 7.0f,
+                                                       frame.getWidth() - 36.0f, 40.0f);
 
     drawGraphCard (g, graph);
     drawCooldownCard (g, cooldownCard);
@@ -824,10 +839,10 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     const auto frame = getLocalBounds().toFloat().reduced (4.0f);
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 68.0f,
-                                                frame.getWidth() - 36.0f, 184.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 8.0f,
-                                                       frame.getWidth() - 36.0f, 42.0f);
+    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 62.0f,
+                                                frame.getWidth() - 36.0f, 176.0f);
+    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 7.0f,
+                                                       frame.getWidth() - 36.0f, 40.0f);
 
     // Keep the header controls aligned to the same right edge as the graph
     // and Cool Down cards below. The bypass icon sits just after the A/B/C
