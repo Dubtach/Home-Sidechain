@@ -1,13 +1,30 @@
-# Receiver v40 redesign
+# Home-Sidechain Receiver – v41 Shaper UI
 
-This revision shifts the Receiver from a conventional dynamics panel to a curve-based volume shaper workflow.
+The Receiver is now a curve-first volume shaper inspired by the workflow of modern ducking/shaper plugins, while keeping the Home-Sidechain cyan/violet/green theme.
 
-- Main interaction: large editable envelope graph.
-- 16 curve presets shown as miniature curve thumbnails.
-- Large Mix control.
-- Optional tempo sync with 1/8, 1/4, 1/2 and 1/1 rates.
-- Full-band, low-band and high-band ducking with adjustable crossover.
-- Home-Link and MIDI are both accepted without a source switch.
-- Home-series Trigger visual language: dark chassis, cyan waveform/curve, violet secondary accents and compact utility controls.
+## UI
+- Trigger-style Home header with A/B/C routing and bypass.
+- Large editable shaper graph.
+- Main circular MIX control.
+- Dual-handle LOW CUT / HIGH CUT filter strip beneath MIX.
+- SYNC + 1/8, 1/4, 1/2, 1/1 rate controls below the graph.
+- 12 preset curve thumbnails below the rate row.
+- TEST and RESET controls.
 
-The core envelope remains sample-based and the graph is only a UI representation; no audio-thread allocations or blocking UI operations were introduced by the editor.
+## Graph editing
+- Main nodes are draggable.
+- Double-click empty space creates a new node, up to eight total.
+- Small handle points between nodes bend the connecting curves.
+- Double-clicking empty space near a handle/node leaves it untouched, avoiding accidental edits.
+
+## Processing
+- Audio and MIDI/Home-Link triggers are accepted together.
+- Sync mode derives cycle length from host BPM.
+- Free mode uses the hidden LENGTH parameter for compatibility/automation.
+- DEPTH controls maximum ducking.
+- MIX blends processed and dry audio.
+- LOW_CUT / HIGH_CUT form a post-filter band around the ducked signal.
+- BAND / CROSSOVER remain available for compatibility and frequency-focused ducking.
+
+## Compatibility
+Legacy SHAPE_1..5 parameters are retained and migrated into the new point model when an older state is loaded.
