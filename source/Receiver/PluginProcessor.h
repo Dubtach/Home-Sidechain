@@ -68,9 +68,11 @@ private:
     bool envelopeActiveInternal = false;
     int remainingSamples = 0;
     juce::LinearSmoothedValue<float> gainSmoother;
+    std::array<float, 2> lowPassState { 0.0f, 0.0f };
 
     float modulationGain (float shape) const noexcept;
     double cycleSamples() const noexcept;
+    double getSampleRate() const noexcept { return sampleRate; }
 
     homeSidechain::HomeLinkReceiverService& homeLinkService() noexcept
     {

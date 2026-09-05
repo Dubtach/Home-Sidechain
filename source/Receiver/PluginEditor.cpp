@@ -1,132 +1,244 @@
+#include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <array>
+#include <cmath>
 
 namespace
 {
-    const juce::Colour background  (0xff06080b);
-    const juce::Colour chassis     (0xff11151b);
-    const juce::Colour scopeBg     (0xff080c11);
-    const juce::Colour cyan        (0xff00e5ff);
-    const juce::Colour cyanSoft    (0xff39d8f7);
-    const juce::Colour violet      (0xffa970ff);
-    const juce::Colour green       (0xff00ff87);
-    const juce::Colour red         (0xffff5a70);
-    const juce::Colour white       (0xfff4f6f8);
-    const juce::Colour muted       (0xff77818e);
-    const juce::Colour grid        (0xff202631);
+    const auto bg = juce::Colour (0xff080a0d);
+    const auto panel = juce::Colour (0xff10151a);
+    const auto plotBg = juce::Colour (0xff070b0f);
+    const auto cyan = juce::Colour (0xff00e5ff);
+    const auto cyanSoft = juce::Colour (0xff69f3ff);
+    const auto violet = juce::Colour (0xff9b6cff);
+    const auto green = juce::Colour (0xff00ff87);
+    const auto yellow = juce::Colour (0xffffe44d);
+    const auto red = juce::Colour (0xffff536b);
+    const auto white = juce::Colour (0xfff6f8fa);
+    const auto muted = juce::Colour (0xff93a0aa);
+    const auto grid = juce::Colour (0xff2a3540);
 
-    class ReceiverLookAndFeel : public juce::LookAndFeel_V4
+    const std::array<std::array<float, 5>, 16> presetShapes = {{
+        {{1.0f, 0.18f, 0.08f, 0.26f, 1.0f}},
+        {{1.0f, 0.05f, 0.02f, 0.08f, 1.0f}},
+        {{1.0f, 0.42f, 0.12f, 0.18f, 1.0f}},
+        {{1.0f, 0.64f, 0.20f, 0.08f, 1.0f}},
+        {{1.0f, 0.24f, 0.18f, 0.48f, 1.0f}},
+        {{1.0f, 0.72f, 0.02f, 0.06f, 1.0f}},
+        {{1.0f, 0.52f, 0.48f, 0.06f, 1.0f}},
+        {{1.0f, 0.14f, 0.34f, 0.12f, 1.0f}},
+        {{1.0f, 0.86f, 0.18f, 0.06f, 1.0f}},
+        {{1.0f, 0.10f, 0.78f, 0.12f, 1.0f}},
+        {{1.0f, 0.34f, 0.78f, 0.22f, 1.0f}},
+        {{1.0f, 0.08f, 0.08f, 0.76f, 1.0f}},
+        {{1.0f, 0.36f, 0.06f, 0.82f, 1.0f}},
+        {{1.0f, 0.58f, 0.38f, 0.88f, 1.0f}},
+        {{1.0f, 0.06f, 0.48f, 0.52f, 1.0f}},
+        {{1.0f, 0.50f, 0.04f, 0.50f, 1.0f}}
+    }};
+
+    const char* presetNames[numPresets] = {
+        "1", "2", "3", "4", "5", "6", "7", "8",
+        "9", "10", "11", "12", "13", "14", "15", "16"
+    };
+
+    const char* rateNames[4] = { "1/8", "1/4", "1/2", "1/1" };
+
+    class ReceiverValueLookAndFeel : public juce::LookAndFeel_V4
     {
     public:
-        void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
-                               float sliderPos, float minSliderPos, float maxSliderPos,
-                               const juce::Slider::SliderStyle style, juce::Slider& slider) override
-        {
-            juce::ignoreUnused (style, slider);
-            const float left = static_cast<float> (x) + 5.0f;
-            const float right = static_cast<float> (x + width) - 5.0f;
-            const float cy = static_cast<float> (y) + static_cast<float> (height) * 0.5f;
-            const float p = juce::jlimit (minSliderPos, maxSliderPos, sliderPos);
-
-            g.setColour (grid);
-            g.fillRoundedRectangle (left, cy - 2.0f, right - left, 4.0f, 2.0f);
-
-            const float fillW = juce::jmax (0.0f, p - left);
-            g.setColour (cyan.withAlpha (0.28f));
-            g.fillRoundedRectangle (left, cy - 2.0f, fillW, 4.0f, 2.0f);
-
-            g.setColour (cyan.withAlpha (0.14f));
-            g.fillEllipse (p - 10.0f, cy - 10.0f, 20.0f, 20.0f);
-            g.setColour (white);
-            g.fillEllipse (p - 4.5f, cy - 4.5f, 9.0f, 9.0f);
-        }
-
         void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour&,
                                    bool highlighted, bool down) override
         {
             const auto b = button.getLocalBounds().toFloat();
+            const auto name = button.getName();
 
-            if (button.getName() == "BYPASS")
+            if (name.startsWith ("LINK_"))
+            {
+                const bool active = button.getToggleState();
+                g.setColour (active ? cyan.withAlpha (0.08f) : white.withAlpha (0.015f));
+                g.fillRoundedRectangle (b, 8.0f);
+                g.setColour (active ? cyan.withAlpha (0.65f) : white.withAlpha (0.14f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
+                if (active)
+                    g.fillRoundedRectangle (b.getX() + 7.0f, b.getBottom() - 3.0f, b.getWidth() - 14.0f, 2.0f, 1.0f);
+                return;
+            }
+
+            if (name.startsWith ("RATE_"))
+            {
+                const bool active = button.getToggleState();
+                g.setColour (active ? cyan.withAlpha (0.10f) : white.withAlpha (0.025f));
+                g.fillRoundedRectangle (b, 7.0f);
+                g.setColour (active ? cyan.withAlpha (0.8f) : white.withAlpha (0.16f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 7.0f, 1.0f);
+                return;
+            }
+
+            if (name.startsWith ("PRESET_"))
+            {
+                const bool active = button.getToggleState();
+                g.setColour (active ? cyan.withAlpha (0.15f) : white.withAlpha (0.025f));
+                g.fillRoundedRectangle (b, 5.0f);
+                g.setColour (active ? cyan.withAlpha (0.80f) : white.withAlpha (0.12f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 5.0f, 1.0f);
+                if (active)
+                    g.fillRoundedRectangle (b.getX() + 5.0f, b.getBottom() - 2.0f, b.getWidth() - 10.0f, 1.8f, 1.0f);
+                return;
+            }
+
+            if (name == "BAND_FULL" || name == "BAND_LOW" || name == "BAND_HIGH")
+            {
+                const bool active = button.getToggleState();
+                g.setColour (active ? violet.withAlpha (0.12f) : white.withAlpha (0.018f));
+                g.fillRoundedRectangle (b, 6.0f);
+                g.setColour (active ? violet.withAlpha (0.8f) : white.withAlpha (0.13f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 6.0f, 1.0f);
+                return;
+            }
+
+            if (name == "SYNC")
+            {
+                const bool active = button.getToggleState();
+                g.setColour (active ? green.withAlpha (0.10f) : white.withAlpha (0.025f));
+                g.fillRoundedRectangle (b, 7.0f);
+                g.setColour (active ? green.withAlpha (0.75f) : white.withAlpha (0.16f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 7.0f, 1.0f);
+                return;
+            }
+
+            if (name == "BYPASS")
             {
                 const bool active = button.getToggleState();
                 const auto c = active ? red : cyan;
-                g.setColour (c.withAlpha (active ? 0.13f : 0.08f));
+                g.setColour (c.withAlpha (active ? 0.14f : 0.07f));
                 g.fillRoundedRectangle (b, 9.0f);
-                g.setColour (c.withAlpha (highlighted ? 0.95f : 0.55f));
-                g.drawRoundedRectangle (b.reduced (0.5f), 9.0f, 1.0f);
-
-                const float cx = b.getCentreX();
-                const float cy = b.getCentreY();
-                juce::Path p;
-                p.addCentredArc (cx, cy + 1.5f, 6.2f, 6.2f, 0.0f, 0.45f,
-                                 juce::MathConstants<float>::twoPi - 0.45f, true);
-                g.setColour (c);
-                g.strokePath (p, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved,
-                                                        juce::PathStrokeType::rounded));
-                g.drawLine (cx, cy - 7.0f, cx, cy + 0.2f, 1.8f);
+                g.setColour (c.withAlpha (highlighted ? 0.95f : 0.62f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 9.0f, 1.2f);
                 return;
             }
 
-            if (button.getName() == "TEST")
+            if (name == "TEST" || name == "RESET")
             {
-                const auto c = cyan;
-                g.setColour (down ? c.withAlpha (0.22f) : (highlighted ? c.withAlpha (0.12f) : white.withAlpha (0.025f)));
-                g.fillRoundedRectangle (b, 8.0f);
-                g.setColour (c.withAlpha (highlighted ? 0.95f : 0.48f));
-                g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
+                const auto c = name == "TEST" ? cyan : white;
+                g.setColour (down ? c.withAlpha (0.20f) : (highlighted ? c.withAlpha (0.09f) : white.withAlpha (0.02f)));
+                g.fillRoundedRectangle (b, 7.0f);
+                g.setColour (c.withAlpha (highlighted ? 0.9f : 0.30f));
+                g.drawRoundedRectangle (b.reduced (0.5f), 7.0f, 1.0f);
                 return;
             }
 
-            if (button.getName() == "RESET")
-            {
-                g.setColour (highlighted ? white.withAlpha (0.08f) : white.withAlpha (0.025f));
-                g.fillRoundedRectangle (b, 8.0f);
-                g.setColour (white.withAlpha (0.25f));
-                g.drawRoundedRectangle (b.reduced (0.5f), 8.0f, 1.0f);
-                return;
-            }
-
-            if (button.getName().startsWith ("LINK_"))
-            {
-                const bool active = button.getToggleState();
-                if (active)
-                {
-                    g.setColour (cyan.withAlpha (0.055f));
-                    g.fillRoundedRectangle (b, 8.0f);
-                    g.setColour (cyan.withAlpha (0.75f));
-                    g.drawRoundedRectangle (b.reduced (0.6f), 8.0f, 1.0f);
-                    g.setColour (cyan);
-                    g.fillRoundedRectangle (b.getX() + 7.0f, b.getBottom() - 3.0f,
-                                            b.getWidth() - 14.0f, 2.0f, 1.0f);
-                }
-                else
-                {
-                    g.setColour (white.withAlpha (0.06f));
-                    g.drawRoundedRectangle (b.reduced (0.6f), 8.0f, 1.0f);
-                }
-                return;
-            }
+            g.setColour (white.withAlpha (0.025f));
+            g.fillRoundedRectangle (b, 6.0f);
         }
 
         void drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool) override
         {
-            if (button.getName() == "BYPASS")
-                return;
+            const auto name = button.getName();
+            if (name == "BYPASS") return;
 
-            const auto b = button.getLocalBounds().toFloat();
-            const bool link = button.getName().startsWith ("LINK_");
-            const float size = link ? 10.5f : 8.2f;
-            g.setFont (juce::FontOptions (size).withName ("Helvetica").withStyle ("Bold"));
-            g.setColour (link && button.getToggleState() ? cyan : white.withAlpha (link ? 0.64f : 0.84f));
-            g.drawText (button.getButtonText(), b, juce::Justification::centred);
+            const bool active = button.getToggleState();
+            const bool link = name.startsWith ("LINK_");
+            const bool rate = name.startsWith ("RATE_");
+            const bool preset = name.startsWith ("PRESET_");
+            const bool band = name.startsWith ("BAND_");
+            const bool sync = name == "SYNC";
+            const float size = preset ? 7.3f : (link ? 10.0f : 8.0f);
+            g.setFont (juce::FontOptions (size).withName ("Helvetica").withStyle (active ? "Bold" : "Plain"));
+            g.setColour (active ? (link || rate ? cyan : band ? violet : sync ? green : white)
+                                : white.withAlpha ((link || rate) ? 0.58f : 0.60f));
+            g.drawText (button.getButtonText(), button.getLocalBounds().toFloat(), juce::Justification::centred);
+        }
+
+        void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
+                               float sliderPos, float minSliderPos, float maxSliderPos,
+                               const juce::Slider::SliderStyle, juce::Slider&) override
+        {
+            const float cy = static_cast<float> (y) + static_cast<float> (height) * 0.5f;
+            const float left = static_cast<float> (x) + 5.0f;
+            const float right = static_cast<float> (x + width) - 5.0f;
+            const float p = juce::jlimit (minSliderPos, maxSliderPos, sliderPos);
+            g.setColour (grid.withAlpha (0.65f));
+            g.fillRoundedRectangle (left, cy - 2.0f, right - left, 4.0f, 2.0f);
+            g.setColour (cyan.withAlpha (0.48f));
+            g.fillRoundedRectangle (left, cy - 2.0f, juce::jmax (0.0f, p - left), 4.0f, 2.0f);
+            g.setColour (cyan.withAlpha (0.14f));
+            g.fillEllipse (p - 10.0f, cy - 10.0f, 20.0f, 20.0f);
+            g.setColour (white);
+            g.fillEllipse (p - 5.0f, cy - 5.0f, 10.0f, 10.0f);
         }
     };
 
-    static ReceiverLookAndFeel receiverLookAndFeel;
+    static ReceiverValueLookAndFeel buttonLnf;
+}
+
+HomeSidechainReceiverAudioProcessorEditor::ReceiverLookAndFeel::ReceiverLookAndFeel()
+{
+    setColour (juce::Slider::rotarySliderFillColourId, cyan);
+    setColour (juce::Slider::textBoxTextColourId, white);
+    setColour (juce::Slider::textBoxBackgroundColourId, plotBg);
+    setColour (juce::Slider::textBoxOutlineColourId, grid);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::ReceiverLookAndFeel::drawRotarySlider
+    (juce::Graphics& g, int x, int y, int w, int h, float sliderPos,
+     float startAngle, float endAngle, juce::Slider& slider)
+{
+    const float radius = static_cast<float> (juce::jmin (w, h)) * 0.38f;
+    const float cx = static_cast<float> (x) + static_cast<float> (w) * 0.5f;
+    const float cy = static_cast<float> (y) + static_cast<float> (h) * 0.5f;
+    const float angle = startAngle + sliderPos * (endAngle - startAngle);
+
+    g.setColour (juce::Colour (0xff0d1116));
+    g.fillEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
+    g.setColour (white.withAlpha (0.08f));
+    g.drawEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f, 1.0f);
+
+    juce::Path bgArc;
+    bgArc.addCentredArc (cx, cy, radius + 3.0f, radius + 3.0f, 0.0f, startAngle, endAngle, true);
+    g.setColour (grid);
+    g.strokePath (bgArc, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved,
+                                                juce::PathStrokeType::rounded));
+
+    juce::Path fillArc;
+    fillArc.addCentredArc (cx, cy, radius + 3.0f, radius + 3.0f, 0.0f, startAngle, angle, true);
+    const auto c = slider.getName() == "MIX_KNOB" ? cyan : violet;
+    g.setColour (c.withAlpha (0.28f));
+    g.strokePath (fillArc, juce::PathStrokeType (10.0f, juce::PathStrokeType::curved,
+                                                  juce::PathStrokeType::rounded));
+    g.setColour (c);
+    g.strokePath (fillArc, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved,
+                                                  juce::PathStrokeType::rounded));
+
+    const float px = cx + std::sin (angle) * (radius - 5.0f);
+    const float py = cy - std::cos (angle) * (radius - 5.0f);
+    g.setColour (white);
+    g.fillEllipse (px - 3.0f, py - 3.0f, 6.0f, 6.0f);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::ReceiverLookAndFeel::drawLinearSlider
+    (juce::Graphics& g, int x, int y, int w, int h, float p, float minP, float maxP,
+     juce::Slider::SliderStyle style, juce::Slider& slider)
+{
+    ReceiverValueLookAndFeel lnf;
+    lnf.drawLinearSlider (g, x, y, w, h, p, minP, maxP, style, slider);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::ReceiverLookAndFeel::drawButtonBackground
+    (juce::Graphics& g, juce::Button& b, const juce::Colour& c, bool hi, bool down)
+{
+    buttonLnf.drawButtonBackground (g, b, c, hi, down);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::ReceiverLookAndFeel::drawButtonText
+    (juce::Graphics& g, juce::TextButton& b, bool hi, bool down)
+{
+    buttonLnf.drawButtonText (g, b, hi, down);
 }
 
 juce::Rectangle<float> ReceiverShaperGraph::plotBounds() const
 {
-    return getLocalBounds().toFloat().reduced (12.0f, 10.0f);
+    return getLocalBounds().toFloat().reduced (22.0f, 18.0f);
 }
 
 juce::Point<float> ReceiverShaperGraph::pointForIndex (int index) const
@@ -140,7 +252,7 @@ juce::Point<float> ReceiverShaperGraph::pointForIndex (int index) const
 int ReceiverShaperGraph::nearestPoint (juce::Point<float> p) const
 {
     int best = -1;
-    float bestDistance = 18.0f;
+    float bestDistance = 15.0f;
     for (int i = 0; i < 5; ++i)
     {
         const float d = pointForIndex (i).getDistanceFrom (p);
@@ -155,58 +267,51 @@ int ReceiverShaperGraph::nearestPoint (juce::Point<float> p) const
 
 void ReceiverShaperGraph::resetShape()
 {
-    const float values[5] = { 1.0f, 0.18f, 0.10f, 0.34f, 1.0f };
+    const auto& values = presetShapes[0];
     for (int i = 0; i < 5; ++i)
-        processor.setShapePoint (i, values[i]);
+        processor.setShapePoint (i, values[static_cast<size_t> (i)]);
     repaint();
 }
 
 void ReceiverShaperGraph::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
-    g.setColour (scopeBg);
-    g.fillRoundedRectangle (bounds, 12.0f);
+    g.setColour (plotBg);
+    g.fillRoundedRectangle (bounds, 11.0f);
 
     const auto plot = plotBounds();
 
-    // Shaper-style grid: dense vertically, lighter horizontally.
     for (int i = 0; i <= 16; ++i)
     {
         const float x = plot.getX() + plot.getWidth() * static_cast<float> (i) / 16.0f;
-        g.setColour (grid.withAlpha (i % 4 == 0 ? 0.80f : 0.36f));
+        g.setColour (grid.withAlpha (i % 4 == 0 ? 0.52f : 0.20f));
         g.drawVerticalLine (juce::roundToInt (x), plot.getY(), plot.getBottom());
     }
     for (int i = 0; i <= 8; ++i)
     {
         const float y = plot.getY() + plot.getHeight() * static_cast<float> (i) / 8.0f;
-        g.setColour (grid.withAlpha (i % 2 == 0 ? 0.65f : 0.30f));
+        g.setColour (grid.withAlpha (i % 2 == 0 ? 0.42f : 0.16f));
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
     }
 
     g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.setColour (muted.withAlpha (0.72f));
-    g.drawText ("0 dB", 7, plot.getY() - 1, 34, 10, juce::Justification::left);
+    g.setColour (muted.withAlpha (0.75f));
+    g.drawText ("0 dB", 7, plot.getY() - 2, 34, 10, juce::Justification::left);
     g.drawText ("-6", 7, plot.getY() + plot.getHeight() * 0.25f - 5, 28, 10, juce::Justification::left);
     g.drawText ("-12", 7, plot.getY() + plot.getHeight() * 0.50f - 5, 28, 10, juce::Justification::left);
     g.drawText ("-24", 7, plot.getY() + plot.getHeight() * 0.75f - 5, 28, 10, juce::Justification::left);
+    g.drawText ("DUCK", plot.getRight() - 34, plot.getY() - 2, 34, 10, juce::Justification::right);
 
+    const double totalMs = processor.cycleSamples() * 1000.0 / juce::jmax (1.0, processor.getSampleRate());
     const double attackMs = processor.apvts.getRawParameterValue ("ATTACK")->load();
     const double holdMs = processor.apvts.getRawParameterValue ("HOLD")->load();
-    const double releaseMs = processor.apvts.getRawParameterValue ("RELEASE")->load();
-    const double totalMs = juce::jmax<double> (1.0, attackMs + holdMs + releaseMs);
+    const double shownTotal = juce::jmax (1.0, totalMs);
+    const float xAttack = plot.getX() + plot.getWidth() * static_cast<float> (juce::jlimit (0.0, 1.0, attackMs / shownTotal));
+    const float xHold = plot.getX() + plot.getWidth() * static_cast<float> (juce::jlimit (0.0, 1.0, (attackMs + holdMs) / shownTotal));
 
-    const float xAttack = plot.getX() + plot.getWidth() * static_cast<float> (attackMs / totalMs);
-    const float xHold = plot.getX() + plot.getWidth() * static_cast<float> ((attackMs + holdMs) / totalMs);
-
-    g.setColour (violet.withAlpha (0.22f));
+    g.setColour (violet.withAlpha (0.18f));
     g.drawLine (xAttack, plot.getY(), xAttack, plot.getBottom(), 1.0f);
     g.drawLine (xHold, plot.getY(), xHold, plot.getBottom(), 1.0f);
-
-    g.setFont (juce::FontOptions (6.8f).withName ("Helvetica").withStyle ("Bold"));
-    g.setColour (muted.withAlpha (0.60f));
-    g.drawText ("ATTACK", plot.getX() + 6, plot.getBottom() - 12, 44, 9, juce::Justification::left);
-    g.drawText ("HOLD", xHold + 4, plot.getBottom() - 12, 28, 9, juce::Justification::left);
-    g.drawText ("RELEASE", plot.getRight() - 48, plot.getBottom() - 12, 44, 9, juce::Justification::right);
 
     juce::Path curve;
     curve.startNewSubPath (pointForIndex (0));
@@ -223,37 +328,35 @@ void ReceiverShaperGraph::paint (juce::Graphics& g)
     fill.lineTo (plot.getX(), plot.getBottom());
     fill.closeSubPath();
 
-    g.setColour (cyan.withAlpha (0.045f));
+    g.setColour (cyan.withAlpha (0.08f));
     g.fillPath (fill);
-    g.setColour (violet.withAlpha (0.11f));
-    g.strokePath (curve, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved,
+    g.setColour (violet.withAlpha (0.12f));
+    g.strokePath (curve, juce::PathStrokeType (10.0f, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
     g.setColour (cyanSoft);
-    g.strokePath (curve, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved,
+    g.strokePath (curve, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
-    // Running-envelope playhead.
-    const float phase = juce::jlimit<float> (0.0f, 1.0f,
-        processor.envelopeDisplayPhase.load (std::memory_order_relaxed));
     if (processor.envelopeActiveForUI.load (std::memory_order_relaxed))
     {
+        const float phase = juce::jlimit<float> (0.0f, 1.0f,
+            processor.envelopeDisplayPhase.load (std::memory_order_relaxed));
         const float px = plot.getX() + plot.getWidth() * phase;
-        const float y = plot.getY() + plot.getHeight() *
+        const float py = plot.getY() + plot.getHeight() *
             (1.0f - juce::jlimit (0.0f, 1.0f, processor.shapeValue (phase)));
-        g.setColour (green.withAlpha (0.68f));
-        g.drawLine (px, plot.getY(), px, plot.getBottom(), 1.3f);
+        g.setColour (green.withAlpha (0.65f));
+        g.drawLine (px, plot.getY(), px, plot.getBottom(), 1.5f);
         g.setColour (green);
-        g.fillEllipse (px - 3.5f, y - 3.5f, 7.0f, 7.0f);
+        g.fillEllipse (px - 4.0f, py - 4.0f, 8.0f, 8.0f);
     }
 
-    // Editable points.
     for (int i = 0; i < 5; ++i)
     {
         const auto p = pointForIndex (i);
-        const bool active = (i == hoveredPoint || i == draggedPoint);
-        const float r = active ? 6.5f : 5.0f;
-        g.setColour (cyan.withAlpha (active ? 0.20f : 0.10f));
-        g.fillEllipse (p.x - r - 3.5f, p.y - r - 3.5f, (r + 3.5f) * 2.0f, (r + 3.5f) * 2.0f);
+        const bool active = i == hoveredPoint || i == draggedPoint;
+        const float r = active ? 6.0f : 4.5f;
+        g.setColour (cyan.withAlpha (active ? 0.24f : 0.10f));
+        g.fillEllipse (p.x - r - 3.0f, p.y - r - 3.0f, (r + 3.0f) * 2.0f, (r + 3.0f) * 2.0f);
         g.setColour (active ? white : cyan);
         g.fillEllipse (p.x - r, p.y - r, r * 2.0f, r * 2.0f);
     }
@@ -285,11 +388,9 @@ void ReceiverShaperGraph::mouseDrag (const juce::MouseEvent& e)
 {
     if (draggedPoint < 0)
         return;
-
     const auto b = plotBounds();
-    const float yNorm = (e.position.y - b.getY()) / juce::jmax<float> (1.0f, b.getHeight());
-    const float value = 1.0f - juce::jlimit<float> (0.0f, 1.0f, yNorm);
-    processor.setShapePoint (draggedPoint, value);
+    const float yNorm = (e.position.y - b.getY()) / juce::jmax (1.0f, b.getHeight());
+    processor.setShapePoint (draggedPoint, 1.0f - juce::jlimit (0.0f, 1.0f, yNorm));
     repaint();
 }
 
@@ -302,19 +403,23 @@ void ReceiverShaperGraph::mouseUp (const juce::MouseEvent&)
 
 void ReceiverShaperGraph::mouseDoubleClick (const juce::MouseEvent& e)
 {
-    if (nearestPoint (e.position) >= 0)
-        resetShape();
+    const int p = nearestPoint (e.position);
+    if (p >= 0)
+        processor.setShapePoint (p, presetShapes[0][static_cast<size_t> (p)]);
+    repaint();
 }
 
-HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor& p)
+HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor
+    (HomeSidechainReceiverAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p), graph (p)
 {
-    setSize (620, 360);
+    setSize (720, 420);
     setResizable (false, false);
-    setLookAndFeel (&receiverLookAndFeel);
+    setLookAndFeel (&lookAndFeel);
 
     bypassButton.setName ("BYPASS");
     bypassButton.setClickingTogglesState (true);
+    bypassButton.setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (bypassButton);
     bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", bypassButton);
 
@@ -322,53 +427,115 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     {
         linkButtons[i].setButtonText (juce::String::charToString (static_cast<juce::juce_wchar> ('A' + i)));
         linkButtons[i].setName ("LINK_" + juce::String (i));
+        linkButtons[i].setLookAndFeel (&lookAndFeel);
         addAndMakeVisible (linkButtons[i]);
         linkButtons[i].onClick = [this, i] { selectLink (i); };
     }
 
     testButton.setName ("TEST");
     testButton.setButtonText ("TEST");
+    testButton.setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (testButton);
     testButton.onClick = [this] { requestTest(); };
 
     resetButton.setName ("RESET");
     resetButton.setButtonText ("RESET");
+    resetButton.setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (resetButton);
     resetButton.onClick = [this] { resetShape(); };
 
+    for (int i = 0; i < 3; ++i)
+    {
+        auto* button = i == 0 ? &fullBandButton : (i == 1 ? &lowBandButton : &highBandButton);
+        const auto name = i == 0 ? "BAND_FULL" : (i == 1 ? "BAND_LOW" : "BAND_HIGH");
+        button->setName (name);
+        button->setButtonText (i == 0 ? "FULL" : (i == 1 ? "LOW" : "HIGH"));
+        button->setRadioGroupId (220);
+        button->setClickingTogglesState (false);
+        button->setLookAndFeel (&lookAndFeel);
+        addAndMakeVisible (*button);
+        button->onClick = [this, i] { selectBand (i); };
+    }
+
+    syncButton.setName ("SYNC");
+    syncButton.setButtonText ("SYNC");
+    syncButton.setClickingTogglesState (true);
+    syncButton.setLookAndFeel (&lookAndFeel);
+    addAndMakeVisible (syncButton);
+    syncAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "SYNC", syncButton);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        rateButtons[i].setName ("RATE_" + juce::String (i));
+        rateButtons[i].setButtonText (rateNames[i]);
+        rateButtons[i].setRadioGroupId (221);
+        rateButtons[i].setLookAndFeel (&lookAndFeel);
+        addAndMakeVisible (rateButtons[i]);
+        rateButtons[i].onClick = [this, i] { selectRate (i); };
+    }
+
+    for (int i = 0; i < numPresets; ++i)
+    {
+        presetButtons[i].setName ("PRESET_" + juce::String (i));
+        presetButtons[i].setButtonText (presetNames[i]);
+        presetButtons[i].setLookAndFeel (&lookAndFeel);
+        presetButtons[i].setClickingTogglesState (false);
+        addAndMakeVisible (presetButtons[i]);
+        presetButtons[i].onClick = [this, i] { selectPreset (i); };
+    }
+
     addAndMakeVisible (graph);
 
-    auto wire = [this] (juce::Slider& slider, const juce::String& id,
-                        std::unique_ptr<SliderAttachment>& attachment, const juce::String& suffix)
-    {
-        styleSlider (slider, suffix);
-        attachment = std::make_unique<SliderAttachment> (processor.apvts, id, slider);
-    };
+    mixKnob.setName ("MIX_KNOB");
+    mixKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    mixKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    mixKnob.setPopupDisplayEnabled (true, false, this);
+    addAndMakeVisible (mixKnob);
+    mixAttachment = std::make_unique<SliderAttachment> (processor.apvts, "MIX", mixKnob);
 
-    wire (depthSlider,   "DEPTH",   depthAttachment,   " dB");
-    wire (attackSlider,  "ATTACK",  attackAttachment,  " ms");
-    wire (holdSlider,    "HOLD",    holdAttachment,    " ms");
-    wire (releaseSlider, "RELEASE", releaseAttachment, " ms");
-    wire (mixSlider,     "MIX",     mixAttachment,     " %");
+    styleSlider (bandSlider, " Hz");
+    bandSlider.setRange (50.0, 800.0, 1.0);
+    bandSlider.setValue (150.0);
+    bandAttachment = std::make_unique<SliderAttachment> (processor.apvts, "CROSSOVER", bandSlider);
+
+    styleSlider (depthSlider, " dB");
+    depthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "DEPTH", depthSlider);
 
     selectLink (processor.getLink());
-    startTimerHz (30);
+    selectBand (juce::roundToInt (processor.apvts.getRawParameterValue ("BAND")->load()));
+    selectRate (juce::roundToInt (processor.apvts.getRawParameterValue ("RATE")->load()));
+    selectPreset (0);
+    startTimerHz (24);
 }
 
 HomeSidechainReceiverAudioProcessorEditor::~HomeSidechainReceiverAudioProcessorEditor()
 {
     stopTimer();
     setLookAndFeel (nullptr);
+    mixKnob.setLookAndFeel (nullptr);
+    bandSlider.setLookAndFeel (nullptr);
+    depthSlider.setLookAndFeel (nullptr);
+    syncButton.setLookAndFeel (nullptr);
+    bypassButton.setLookAndFeel (nullptr);
+    testButton.setLookAndFeel (nullptr);
+    resetButton.setLookAndFeel (nullptr);
+    for (auto& b : linkButtons) b.setLookAndFeel (nullptr);
+    for (auto& b : rateButtons) b.setLookAndFeel (nullptr);
+    for (auto& b : presetButtons) b.setLookAndFeel (nullptr);
+    fullBandButton.setLookAndFeel (nullptr);
+    lowBandButton.setLookAndFeel (nullptr);
+    highBandButton.setLookAndFeel (nullptr);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::styleSlider (juce::Slider& slider, const juce::String& suffix)
 {
     slider.setSliderStyle (juce::Slider::LinearHorizontal);
-    slider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 48, 18);
+    slider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 54, 19);
     slider.setColour (juce::Slider::textBoxTextColourId, white);
-    slider.setColour (juce::Slider::textBoxBackgroundColourId, scopeBg);
+    slider.setColour (juce::Slider::textBoxBackgroundColourId, plotBg);
     slider.setColour (juce::Slider::textBoxOutlineColourId, grid);
     slider.setTextValueSuffix (suffix);
+    slider.setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (slider);
 }
 
@@ -377,9 +544,38 @@ void HomeSidechainReceiverAudioProcessorEditor::selectLink (int index)
     const int clamped = juce::jlimit (0, 2, index);
     if (auto* p = processor.apvts.getParameter ("LINK"))
         p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (clamped)));
-
     for (int i = 0; i < 3; ++i)
         linkButtons[i].setToggleState (i == clamped, juce::dontSendNotification);
+    refreshButtonStates();
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::selectBand (int index)
+{
+    const int clamped = juce::jlimit (0, 2, index);
+    if (auto* p = processor.apvts.getParameter ("BAND"))
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (clamped)));
+    fullBandButton.setToggleState (clamped == 0, juce::dontSendNotification);
+    lowBandButton.setToggleState (clamped == 1, juce::dontSendNotification);
+    highBandButton.setToggleState (clamped == 2, juce::dontSendNotification);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::selectRate (int index)
+{
+    const int clamped = juce::jlimit (0, 3, index);
+    if (auto* p = processor.apvts.getParameter ("RATE"))
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (clamped)));
+    for (int i = 0; i < 4; ++i)
+        rateButtons[i].setToggleState (i == clamped, juce::dontSendNotification);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::selectPreset (int index)
+{
+    const int clamped = juce::jlimit (0, numPresets - 1, index);
+    for (int i = 0; i < 5; ++i)
+        processor.setShapePoint (i, presetShapes[static_cast<size_t> (clamped)][static_cast<size_t> (i)]);
+    for (int i = 0; i < numPresets; ++i)
+        presetButtons[i].setToggleState (i == clamped, juce::dontSendNotification);
+    graph.repaint();
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::requestTest()
@@ -389,68 +585,120 @@ void HomeSidechainReceiverAudioProcessorEditor::requestTest()
 
 void HomeSidechainReceiverAudioProcessorEditor::resetShape()
 {
-    graph.resetShape();
+    selectPreset (0);
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::refreshButtonStates()
+{
+    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    bypassButton.setTooltip (bypassed ? "Bypass receiver" : "Enable receiver");
+}
+
+void HomeSidechainReceiverAudioProcessorEditor::drawRotaryLabel (juce::Graphics& g, const juce::String& text,
+                                                                  juce::Rectangle<float> area, float size) const
+{
+    g.setColour (muted);
+    g.setFont (juce::FontOptions (size).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText (text, area, juce::Justification::centred);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (background);
+    g.fillAll (bg);
+    const auto body = getLocalBounds().toFloat().reduced (8.0f);
+    g.setColour (juce::Colour (0xff0d1115));
+    g.fillRoundedRectangle (body, 14.0f);
+    g.setColour (white.withAlpha (0.08f));
+    g.drawRoundedRectangle (body, 14.0f, 1.0f);
 
-    const auto body = getLocalBounds().toFloat().reduced (7.0f);
-    g.setColour (chassis);
-    g.fillRoundedRectangle (body, 13.0f);
-
-    // Header title.
     g.setColour (white);
-    g.setFont (juce::FontOptions (16.5f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("Home-Sidechain Receiver", 16, 10, 285, 20, juce::Justification::left);
-
+    g.setFont (juce::FontOptions (20.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("Home-", 22, 14, 80, 24, juce::Justification::left);
     g.setColour (cyan);
+    g.drawText ("SIDECHAIN", 93, 14, 122, 24, juce::Justification::left);
+    g.setColour (white);
+    g.drawText ("Receiver", 213, 14, 85, 24, juce::Justification::left);
+
+    g.setColour (muted);
     g.setFont (juce::FontOptions (8.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("DUBTACH DSP", 17, 31, 110, 10, juce::Justification::left);
-
-    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const float activity = juce::jmax (processor.triggerActivity.load (std::memory_order_relaxed),
-                                       processor.midiActivity.load (std::memory_order_relaxed));
-    const bool receiving = activity > 0.08f && !bypassed;
-    const bool connected = processor.homeLinkConnected.load (std::memory_order_relaxed);
-    const juce::String state = bypassed ? "BYPASSED" : (receiving ? "RECEIVING" : (connected ? "READY" : "WAITING"));
-    const juce::Colour stateColour = bypassed ? red : (receiving ? green : (connected ? cyan : muted));
-
-    g.setColour (stateColour.withAlpha (0.12f));
-    g.fillRoundedRectangle (306.0f, 11.0f, 82.0f, 21.0f, 10.5f);
-    g.setColour (stateColour);
-    g.fillEllipse (313.0f, 18.0f, 6.0f, 6.0f);
-    g.setFont (juce::FontOptions (7.6f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText (state, 326, 14, 56, 14, juce::Justification::left);
+    g.drawText ("D U B T A C H   D S P", 23, 37, 150, 11, juce::Justification::left);
 
     g.setColour (muted.withAlpha (0.55f));
     g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
-    g.drawText ("LINK", 420, 14, 23, 10, juce::Justification::left);
+    g.drawText ("SHAPER", 24, 58, 50, 9, juce::Justification::left);
+    g.drawText ("16 CURVES", 518, 58, 60, 9, juce::Justification::right);
+
+    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    const bool receiving = processor.envelopeActiveForUI.load (std::memory_order_relaxed);
+    const auto stateColour = bypassed ? red : (receiving ? green : cyan);
+    const auto state = bypassed ? "BYPASSED" : (receiving ? "RECEIVING" : "READY");
+    g.setColour (stateColour.withAlpha (0.10f));
+    g.fillRoundedRectangle (318.0f, 14.0f, 78.0f, 21.0f, 10.0f);
+    g.setColour (stateColour);
+    g.fillEllipse (326.0f, 21.0f, 6.0f, 6.0f);
+    g.setFont (juce::FontOptions (7.3f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText (state, 338, 17, 51, 14, juce::Justification::left);
+
+    g.setColour (muted.withAlpha (0.55f));
+    g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("LINK", 480, 18, 28, 9, juce::Justification::left);
+
+    g.setColour (muted.withAlpha (0.55f));
+    g.drawText ("MIX", 82, 188, 100, 10, juce::Justification::centred);
+    g.drawText ("BAND", 26, 270, 44, 10, juce::Justification::left);
+    g.drawText ("CROSSOVER", 26, 326, 68, 9, juce::Justification::left);
+    g.drawText ("DEPTH", 26, 365, 46, 9, juce::Justification::left);
+
+    const double mix = processor.apvts.getRawParameterValue ("MIX")->load();
+    g.setColour (white);
+    g.setFont (juce::FontOptions (13.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText (juce::String (juce::roundToInt (mix * 100.0)) + "%", 76, 202, 112, 18, juce::Justification::centred);
+
+    g.setColour (muted.withAlpha (0.48f));
+    g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("SYNC", 430, 322, 38, 9, juce::Justification::left);
+
+    g.setColour (white.withAlpha (0.60f));
+    g.setFont (juce::FontOptions (7.0f).withName ("Helvetica").withStyle ("Bold"));
+    g.drawText ("DUCKING CURVE", 290, 60, 130, 9, juce::Justification::left);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::resized()
 {
-    const int topY = 9;
-    linkButtons[0].setBounds (445, topY, 28, 26);
-    linkButtons[1].setBounds (474, topY, 28, 26);
-    linkButtons[2].setBounds (503, topY, 28, 26);
-    bypassButton.setBounds (536, topY, 40, 26);
+    linkButtons[0].setBounds (511, 14, 34, 26);
+    linkButtons[1].setBounds (547, 14, 34, 26);
+    linkButtons[2].setBounds (583, 14, 34, 26);
+    bypassButton.setBounds (624, 14, 40, 26);
 
-    graph.setBounds (16, 43, 588, 232);
+    graph.setBounds (194, 72, 470, 230);
 
-    testButton.setBounds (506, 286, 46, 22);
-    resetButton.setBounds (558, 286, 46, 22);
+    mixKnob.setBounds (26, 82, 170, 120);
 
-    const int y = 315;
-    const int h = 31;
-    const int w = 111;
-    const int gap = 6;
-    depthSlider.setBounds   (16 + 0 * (w + gap), y, w, h);
-    attackSlider.setBounds  (16 + 1 * (w + gap), y, w, h);
-    holdSlider.setBounds    (16 + 2 * (w + gap), y, w, h);
-    releaseSlider.setBounds (16 + 3 * (w + gap), y, w, h);
-    mixSlider.setBounds     (16 + 4 * (w + gap), y, w, h);
+    fullBandButton.setBounds (24, 282, 50, 24);
+    lowBandButton.setBounds (77, 282, 50, 24);
+    highBandButton.setBounds (130, 282, 50, 24);
+
+    bandSlider.setBounds (24, 340, 172, 22);
+    depthSlider.setBounds (24, 381, 172, 22);
+
+    testButton.setBounds (504, 40, 52, 22);
+    resetButton.setBounds (560, 40, 52, 22);
+
+    syncButton.setBounds (466, 316, 50, 24);
+    for (int i = 0; i < 4; ++i)
+        rateButtons[i].setBounds (520 + i * 36, 316, 32, 24);
+
+    const int left = 194;
+    const int top = 344;
+    const int gap = 4;
+    const int w = 54;
+    const int h = 25;
+    for (int i = 0; i < numPresets; ++i)
+    {
+        const int row = i / 8;
+        const int col = i % 8;
+        presetButtons[i].setBounds (left + col * (w + gap), top + row * (h + gap), w, h);
+    }
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::timerCallback()

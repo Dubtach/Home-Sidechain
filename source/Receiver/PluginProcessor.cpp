@@ -46,6 +46,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
         "CURVE", "Curve", juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "BAND", "Band", juce::StringArray { "Full", "Low", "High" }, 0, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "RATE", "Rate", juce::StringArray { "1/8", "1/4", "1/2", "1/1" }, 3, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "CROSSOVER", "Crossover", juce::NormalisableRange<float> (50.0f, 800.0f, 1.0f, 0.35f), 150.0f,
+        FloatAttributes{}.withLabel ("Hz")));
 
     for (int i = 1; i <= 5; ++i)
     {
@@ -70,6 +77,7 @@ void HomeSidechainReceiverAudioProcessor::prepareToPlay (double newSampleRate, i
     envelopeDisplayPhase.store (0.0f, std::memory_order_relaxed);
     gainSmoother.reset (sampleRate, 0.008);
     gainSmoother.setCurrentAndTargetValue (1.0f);
+    lowPassState = { 0.0f, 0.0f };
 
     const int link = getLink();
     homeLinkLastLink = link;
@@ -110,6 +118,15 @@ double HomeSidechainReceiverAudioProcessor::getHostBpm() const noexcept
 
 double HomeSidechainReceiverAudioProcessor::cycleSamples() const noexcept
 {
+    const bool sync = apvts.getRawParameterValue ("SYNC")->load() > 0.5f;
+    if (sync)
+    {
+        static constexpr double beats[] = { 0.5, 1.0, 2.0, 4.0 };
+        const int rateIndex = juce::jlimit (0, 3, static_cast<int> (apvts.getRawParameterValue ("RATE")->load()));
+        const double bpm = getHostBpm();
+        return juce::jmax (1.0, beats[rateIndex] * 60.0 / juce::jmax (1.0, bpm) * sampleRate);
+    }
+
     const double attack = apvts.getRawParameterValue ("ATTACK")->load();
     const double hold = apvts.getRawParameterValue ("HOLD")->load();
     const double release = apvts.getRawParameterValue ("RELEASE")->load();
@@ -263,6 +280,9 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
         const double totalCycle = cycleSamples();
         int triggerIndex = 0;
         float lastPhaseForDisplay = envelopeActiveInternal ? envelopeDisplayPhase.load (std::memory_order_relaxed) : 0.0f;
+        const int bandMode = juce::jlimit (0, 2, static_cast<int> (apvts.getRawParameterValue ("BAND")->load()));
+        const float crossover = juce::jlimit (50.0f, 800.0f, apvts.getRawParameterValue ("CROSSOVER")->load());
+        const float alpha = std::exp (-juce::MathConstants<float>::twoPi * crossover / static_cast<float> (juce::jmax (1.0, sampleRate)));
 
         for (int i = 0; i < samples; ++i)
         {
@@ -294,7 +314,23 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             const float gain = gainSmoother.getNextValue();
 
             for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-                buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
+            {
+                const int stateIndex = juce::jmin (channel, 1);
+                const float in = buffer.getSample (channel, i);
+                const float low = (1.0f - alpha) * in + alpha * lowPassState[static_cast<size_t> (stateIndex)];
+                lowPassState[static_cast<size_t> (stateIndex)] = low;
+                const float high = in - low;
+
+                float processed = in;
+                if (bandMode == 0)
+                    processed = in * gain;
+                else if (bandMode == 1)
+                    processed = low * gain + high;
+                else
+                    processed = high * gain + low;
+
+                buffer.setSample (channel, i, processed);
+            }
         }
 
         envelopeDisplayPhase.store (envelopeActiveInternal ? juce::jlimit (0.0f, 1.0f, lastPhaseForDisplay) : 0.0f,

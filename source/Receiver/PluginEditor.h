@@ -40,28 +40,55 @@ public:
     void resized() override;
 
 private:
+    class ReceiverLookAndFeel : public juce::LookAndFeel_V4
+    {
+    public:
+        ReceiverLookAndFeel();
+        void drawRotarySlider (juce::Graphics&, int, int, int, int, float,
+                               float, float, juce::Slider&) override;
+        void drawLinearSlider (juce::Graphics&, int, int, int, int, float, float, float,
+                               juce::Slider::SliderStyle, juce::Slider&) override;
+        void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&,
+                                   bool, bool) override;
+        void drawButtonText (juce::Graphics&, juce::TextButton&, bool, bool) override;
+    };
+
+    static constexpr int numPresets = 16;
     HomeSidechainReceiverAudioProcessor& processor;
+    ReceiverLookAndFeel lookAndFeel;
     ReceiverShaperGraph graph;
 
+    juce::Slider mixKnob;
+    juce::Slider bandSlider;
+    juce::Slider depthSlider;
+    juce::ToggleButton syncButton;
+
     juce::TextButton linkButtons[3];
-    juce::ToggleButton bypassButton;
+    juce::TextButton bypassButton;
     juce::TextButton testButton;
     juce::TextButton resetButton;
+    juce::TextButton fullBandButton;
+    juce::TextButton lowBandButton;
+    juce::TextButton highBandButton;
+    juce::TextButton rateButtons[4];
+    juce::TextButton presetButtons[numPresets];
 
-    juce::Slider depthSlider, attackSlider, holdSlider, releaseSlider, mixSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> bandAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> depthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
 
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
-
-    std::unique_ptr<SliderAttachment> depthAttachment, attackAttachment, holdAttachment,
-                                    releaseAttachment, mixAttachment;
-    std::unique_ptr<ButtonAttachment> bypassAttachment;
-
-    void styleSlider (juce::Slider&, const juce::String& suffix);
+    void timerCallback() override;
     void selectLink (int index);
+    void selectBand (int index);
+    void selectRate (int index);
+    void selectPreset (int index);
     void requestTest();
     void resetShape();
-    void timerCallback() override;
+    void styleSlider (juce::Slider& slider, const juce::String& suffix);
+    void refreshButtonStates();
+    void drawRotaryLabel (juce::Graphics&, const juce::String&, juce::Rectangle<float>, float) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessorEditor)
 };
