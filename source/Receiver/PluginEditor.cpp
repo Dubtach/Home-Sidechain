@@ -413,6 +413,8 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     (HomeSidechainReceiverAudioProcessor& p)
     : AudioProcessorEditor (&p), processor (p), graph (p)
 {
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     setSize (720, 420);
     setResizable (false, false);
     setLookAndFeel (&lookAndFeel);
