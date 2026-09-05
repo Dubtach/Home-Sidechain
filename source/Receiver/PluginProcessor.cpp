@@ -166,7 +166,7 @@ bool HomeSidechainReceiverAudioProcessor::isBusesLayoutSupported (const BusesLay
 
 int HomeSidechainReceiverAudioProcessor::getLink() const noexcept
 {
-    return juce::jlimit (0, 7, static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
+    return juce::jlimit (0, 2, static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
 }
 
 double HomeSidechainReceiverAudioProcessor::getHostBpm() const noexcept

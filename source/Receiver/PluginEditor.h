@@ -2,7 +2,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include <vector>
+#include <array>
 
 class ReceiverHomeLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -16,10 +16,10 @@ public:
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
 };
 
-class ReceiverShapeEditor : public juce::Component
+class ReceiverShaperGraph : public juce::Component
 {
 public:
-    explicit ReceiverShapeEditor (HomeSidechainReceiverAudioProcessor& p);
+    explicit ReceiverShaperGraph (HomeSidechainReceiverAudioProcessor&);
     void paint (juce::Graphics&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
@@ -32,9 +32,9 @@ private:
     HomeSidechainReceiverAudioProcessor& processor;
     int draggedNode = -1;
     int draggedHandle = -1;
-    bool draggingHandle = false;
     int hoveredNode = -1;
     int hoveredHandle = -1;
+    bool draggingHandle = false;
 
     juce::Rectangle<float> plotBounds() const noexcept;
     juce::Point<float> nodePoint (int index) const noexcept;
@@ -45,29 +45,34 @@ private:
     float yToValue (float y) const noexcept;
     float phaseToX (float phase) const noexcept;
     float valueToY (float value) const noexcept;
-    void sortNodesByX (int movingIndex);
+    std::array<int, HomeSidechainReceiverAudioProcessor::maxNodes> sortedNodeIndices (int& count) const noexcept;
+    bool canDeleteNode (int index) const noexcept;
+    void deleteNode (int index);
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShapeEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShaperGraph)
 };
 
 class ReceiverFilterEditor : public juce::Component
 {
 public:
-    explicit ReceiverFilterEditor (HomeSidechainReceiverAudioProcessor& p);
+    explicit ReceiverFilterEditor (HomeSidechainReceiverAudioProcessor&);
     void paint (juce::Graphics&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
     bool draggingLow = false;
     bool draggingHigh = false;
-    juce::Point<float> filterPointForHz (double hz) const noexcept;
-    double hzForX (float x) const noexcept;
-    void updateFromX (float x, bool lowCut);
+    bool hoveredLow = false;
+    bool hoveredHigh = false;
+    juce::Point<float> filterPointForHz (double) const noexcept;
+    double hzForX (float) const noexcept;
+    void updateFromX (float, bool lowCut);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverFilterEditor)
 };
@@ -85,33 +90,37 @@ public:
 private:
     HomeSidechainReceiverAudioProcessor& processor;
     ReceiverHomeLookAndFeel lookAndFeel;
-    ReceiverShapeEditor shapeEditor;
+    ReceiverShaperGraph shaperGraph;
     ReceiverFilterEditor filterEditor;
 
     juce::Slider mixKnob;
-    juce::Slider depthSlider;
-    juce::ToggleButton syncButton;
+    juce::Slider depthKnob;
     juce::ToggleButton bypassButton;
+    juce::ToggleButton syncButton;
 
     juce::TextButton linkButtons[3];
-    juce::TextButton testButton;
-    juce::TextButton resetButton;
     juce::TextButton rateButtons[4];
     juce::TextButton presetButtons[12];
+    juce::TextButton testButton;
+    juce::TextButton resetButton;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> depthAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment;
 
     void timerCallback() override;
-    void selectLink (int index);
-    void selectRate (int index);
-    void selectPreset (int index);
+    void selectLink (int);
+    void selectRate (int);
+    void selectPreset (int);
     void requestTest();
     void resetShape();
-    void styleSlider (juce::Slider& slider, const juce::String& suffix);
-    void refreshLinkButtons();
+    void refreshButtons();
+    void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawGraphFrame (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawBottomControls (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawCurvePreset (juce::Graphics&, juce::Rectangle<float>, int, bool) const;
+    void drawStatus (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessorEditor)
 };
