@@ -200,7 +200,7 @@ void ReceiverShaperGraph::paint (juce::Graphics& g)
                                                juce::PathStrokeType::rounded));
 
     // Section labels make the timing relationship explicit without adding controls.
-    const double totalMs = juce::jmax (1.0,
+    const double totalMs = juce::jmax<double> (1.0,
         processor.apvts.getRawParameterValue ("ATTACK")->load()
       + processor.apvts.getRawParameterValue ("HOLD")->load()
       + processor.apvts.getRawParameterValue ("RELEASE")->load());
@@ -271,7 +271,7 @@ void ReceiverShaperGraph::mouseDrag (const juce::MouseEvent& e)
         return;
 
     const auto b = plotBounds();
-    const float value = 1.0f - juce::jlimit (0.0f, 1.0f, (e.position.y - b.getY()) / juce::jmax (1.0f, b.getHeight()));
+    const float value = 1.0f - juce::jlimit<float> (0.0f, 1.0f, (e.position.y - b.getY()) / juce::jmax<float> (1.0f, static_cast<float> (b.getHeight())));
     processor.setShapePoint (draggedPoint, value);
     repaint();
 }
