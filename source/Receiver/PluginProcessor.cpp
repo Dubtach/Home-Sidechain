@@ -588,3 +588,9 @@ juce::AudioProcessorEditor* HomeSidechainReceiverAudioProcessor::createEditor()
 {
     return new HomeSidechainReceiverAudioProcessorEditor (*this);
 }
+
+
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new HomeSidechainReceiverAudioProcessor();
+}
