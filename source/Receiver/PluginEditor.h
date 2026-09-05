@@ -15,6 +15,7 @@ public:
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
+    void resetShape();
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
@@ -24,7 +25,6 @@ private:
     juce::Rectangle<float> plotBounds() const;
     juce::Point<float> pointForIndex (int index) const;
     int nearestPoint (juce::Point<float>) const;
-    void resetShape();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShaperGraph)
 };

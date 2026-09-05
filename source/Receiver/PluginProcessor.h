@@ -56,6 +56,7 @@ public:
     void setShapePoint (int index, float value);
     float getShapePoint (int index) const noexcept;
     double getHostBpm() const noexcept;
+    float shapeValue (float phase) const noexcept;
 
     // UI-only diagnostic trigger. It is atomic so the editor never touches the
     // audio/envelope state directly.
@@ -68,7 +69,6 @@ private:
     int remainingSamples = 0;
     juce::LinearSmoothedValue<float> gainSmoother;
 
-    float shapeValue (float phase) const noexcept;
     float modulationGain (float shape) const noexcept;
     double cycleSamples() const noexcept;
 
