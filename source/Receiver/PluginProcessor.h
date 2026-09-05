@@ -57,6 +57,8 @@ public:
     float getShapePoint (int index) const noexcept;
     double getHostBpm() const noexcept;
     float shapeValue (float phase) const noexcept;
+    double cycleSamples() const noexcept;
+    double getSampleRate() const noexcept { return sampleRate; }
 
     // UI-only diagnostic trigger. It is atomic so the editor never touches the
     // audio/envelope state directly.
@@ -71,8 +73,6 @@ private:
     std::array<float, 2> lowPassState { 0.0f, 0.0f };
 
     float modulationGain (float shape) const noexcept;
-    double cycleSamples() const noexcept;
-    double getSampleRate() const noexcept { return sampleRate; }
 
     homeSidechain::HomeLinkReceiverService& homeLinkService() noexcept
     {
