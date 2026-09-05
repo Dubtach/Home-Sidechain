@@ -114,7 +114,7 @@ namespace
         }
     };
 
-    static ReceiverLookAndFeel lookAndFeel;
+    static ReceiverLookAndFeel receiverLookAndFeel;
 }
 
 juce::Rectangle<float> ReceiverShaperGraph::plotBounds() const
@@ -289,7 +289,7 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
 {
     setSize (620, 390);
     setResizable (false, false);
-    setLookAndFeel (&lookAndFeel);
+    setLookAndFeel (&receiverLookAndFeel);
 
     bypassButton.setName ("BYPASS");
     bypassButton.setClickingTogglesState (true);
