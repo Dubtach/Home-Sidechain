@@ -14,6 +14,7 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
@@ -23,6 +24,7 @@ private:
     juce::Rectangle<float> plotBounds() const;
     juce::Point<float> pointForIndex (int index) const;
     int nearestPoint (juce::Point<float>) const;
+    void resetShape();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShaperGraph)
 };
@@ -43,16 +45,16 @@ private:
 
     juce::TextButton linkButtons[3];
     juce::ToggleButton bypassButton;
-    juce::TextButton testButton { "TEST" };
-    juce::TextButton resetButton { "RESET" };
+    juce::TextButton testButton;
+    juce::TextButton resetButton;
 
-    juce::Slider depthSlider, attackSlider, holdSlider, releaseSlider, mixSlider, curveSlider;
+    juce::Slider depthSlider, attackSlider, holdSlider, releaseSlider, mixSlider;
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     std::unique_ptr<SliderAttachment> depthAttachment, attackAttachment, holdAttachment,
-                                    releaseAttachment, mixAttachment, curveAttachment;
+                                    releaseAttachment, mixAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment;
 
     void styleSlider (juce::Slider&, const juce::String& suffix);
