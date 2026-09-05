@@ -64,8 +64,10 @@ void HomeSidechainReceiverAudioProcessor::prepareToPlay (double newSampleRate, i
     sampleRate = newSampleRate;
     testTriggerRequested.store (false, std::memory_order_release);
     envelopePhase = 0.0f;
-    envelopeActive = false;
+    envelopeActiveInternal = false;
+    envelopeActiveForUI.store (false, std::memory_order_relaxed);
     remainingSamples = 0;
+    envelopeDisplayPhase.store (0.0f, std::memory_order_relaxed);
     gainSmoother.reset (sampleRate, 0.008);
     gainSmoother.setCurrentAndTargetValue (1.0f);
 
@@ -159,7 +161,8 @@ void HomeSidechainReceiverAudioProcessor::setShapePoint (int index, float value)
 
 void HomeSidechainReceiverAudioProcessor::triggerEnvelope()
 {
-    envelopeActive = true;
+    envelopeActiveInternal = true;
+    envelopeActiveForUI.store (true, std::memory_order_relaxed);
     envelopePhase = 0.0f;
     remainingSamples = juce::jmax (1, static_cast<int> (std::round (cycleSamples())));
     triggerActivity.store (1.0f, std::memory_order_relaxed);
@@ -259,6 +262,7 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
     {
         const double totalCycle = cycleSamples();
         int triggerIndex = 0;
+        float lastPhaseForDisplay = envelopeActiveInternal ? envelopeDisplayPhase.load (std::memory_order_relaxed) : 0.0f;
 
         for (int i = 0; i < samples; ++i)
         {
@@ -270,16 +274,18 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             }
 
             float targetGain = 1.0f;
-            if (envelopeActive && remainingSamples > 0)
+            if (envelopeActiveInternal && remainingSamples > 0)
             {
                 const float phase = 1.0f - static_cast<float> (
                     static_cast<double> (remainingSamples) / juce::jmax (1.0, totalCycle));
+                lastPhaseForDisplay = phase;
                 targetGain = modulationGain (shapeValue (phase));
                 --remainingSamples;
                 if (remainingSamples <= 0)
                 {
                     remainingSamples = 0;
-                    envelopeActive = false;
+                    envelopeActiveInternal = false;
+                    envelopeActiveForUI.store (false, std::memory_order_relaxed);
                 }
             }
 
@@ -290,6 +296,13 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
                 buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
         }
+
+        envelopeDisplayPhase.store (envelopeActiveInternal ? juce::jlimit (0.0f, 1.0f, lastPhaseForDisplay) : 0.0f,
+                                     std::memory_order_relaxed);
+    }
+    else
+    {
+        envelopeDisplayPhase.store (0.0f, std::memory_order_relaxed);
     }
 }
 

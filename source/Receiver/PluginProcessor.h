@@ -38,6 +38,8 @@ public:
     // Smoothed visual activity for the editor. This is intentionally independent
     // of the audio envelope so the user can clearly see that MIDI arrived.
     std::atomic<float> triggerActivity { 0.0f };
+    std::atomic<float> envelopeDisplayPhase { 0.0f };
+    std::atomic<bool> envelopeActiveForUI { false };
     std::atomic<float> midiActivity { 0.0f };
     std::atomic<int> triggerCount { 0 };
     std::atomic<int> midiEventCount { 0 };
@@ -62,7 +64,7 @@ public:
 private:
     double sampleRate = 44100.0;
     float envelopePhase = 0.0f;
-    bool envelopeActive = false;
+    bool envelopeActiveInternal = false;
     int remainingSamples = 0;
     juce::LinearSmoothedValue<float> gainSmoother;
 

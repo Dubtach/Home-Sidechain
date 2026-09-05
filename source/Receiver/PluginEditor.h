@@ -3,23 +3,28 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class ReceiverEnvelopeView : public juce::Component
+class ReceiverShaperGraph : public juce::Component
 {
 public:
-    explicit ReceiverEnvelopeView (HomeSidechainReceiverAudioProcessor& p) : processor (p) {}
+    explicit ReceiverShaperGraph (HomeSidechainReceiverAudioProcessor& p) : processor (p) {}
 
     void paint (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override;
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
     int draggedPoint = -1;
+    int hoveredPoint = -1;
 
+    juce::Rectangle<float> plotBounds() const;
     juce::Point<float> pointForIndex (int index) const;
     int nearestPoint (juce::Point<float>) const;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverEnvelopeView)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShaperGraph)
 };
 
 class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -34,11 +39,12 @@ public:
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
-    ReceiverEnvelopeView envelopeView;
+    ReceiverShaperGraph graph;
 
     juce::TextButton linkButtons[3];
-    juce::TextButton testButton { "TEST" };
     juce::ToggleButton bypassButton;
+    juce::TextButton testButton { "TEST" };
+    juce::TextButton resetButton { "RESET" };
 
     juce::Slider depthSlider, attackSlider, holdSlider, releaseSlider, mixSlider, curveSlider;
 
@@ -52,6 +58,7 @@ private:
     void styleSlider (juce::Slider&, const juce::String& suffix);
     void selectLink (int index);
     void requestTest();
+    void resetShape();
     void timerCallback() override;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessorEditor)
