@@ -206,7 +206,8 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
 {
     setSize (600, 360);
     setResizable (false, false);
-    setLookAndFeel (&lookAndFeel);
+    static ReceiverLookAndFeel receiverLookAndFeel;
+    setLookAndFeel (&receiverLookAndFeel);
 
     bypassButton.setName ("BYPASS");
     bypassButton.setClickingTogglesState (true);
