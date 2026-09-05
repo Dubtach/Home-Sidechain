@@ -26,21 +26,15 @@ namespace
     }
 
     constexpr std::array<float, HomeSidechainReceiverAudioProcessor::maxNodes> presetX =
-        { 0.00f, 0.10f, 0.22f, 0.38f, 0.56f, 0.72f, 0.88f, 1.00f };
+        { 0.00f, 0.16f, 0.38f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f };
 
-    constexpr std::array<std::array<float, HomeSidechainReceiverAudioProcessor::maxNodes>, 12> presetY = {{
-        { 1.00f, 1.00f, 1.00f, 0.96f, 0.62f, 0.18f, 0.04f, 0.04f },
-        { 1.00f, 0.92f, 0.28f, 0.08f, 0.06f, 0.06f, 0.05f, 0.05f },
-        { 1.00f, 0.66f, 0.12f, 0.06f, 0.08f, 0.12f, 0.30f, 1.00f },
-        { 1.00f, 0.92f, 0.56f, 0.28f, 0.14f, 0.08f, 0.06f, 0.06f },
-        { 1.00f, 0.98f, 0.80f, 0.48f, 0.18f, 0.08f, 0.06f, 0.06f },
-        { 1.00f, 0.88f, 0.34f, 0.18f, 0.16f, 0.14f, 0.12f, 0.10f },
-        { 1.00f, 0.96f, 0.86f, 0.72f, 0.48f, 0.22f, 0.08f, 0.04f },
-        { 1.00f, 0.72f, 0.50f, 0.28f, 0.12f, 0.08f, 0.18f, 0.60f },
-        { 1.00f, 0.24f, 0.10f, 0.22f, 0.58f, 0.86f, 0.94f, 0.96f },
-        { 1.00f, 0.46f, 0.34f, 0.22f, 0.16f, 0.14f, 0.12f, 0.10f },
-        { 1.00f, 0.82f, 0.66f, 0.44f, 0.22f, 0.18f, 0.36f, 0.72f },
-        { 1.00f, 0.76f, 0.18f, 0.06f, 0.06f, 0.06f, 0.72f, 1.00f }
+    constexpr std::array<std::array<float, HomeSidechainReceiverAudioProcessor::maxNodes>, 6> presetY = {{
+        { 1.00f, 0.10f, 0.05f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.03f, 0.02f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.35f, 0.08f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.68f, 0.10f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.16f, 0.52f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.08f, 0.18f, 0.72f, 1.00f, 1.00f, 1.00f, 1.00f }
     }};
 
     void drawCard (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour accent, float radius)
@@ -240,8 +234,8 @@ juce::Point<float> ReceiverShaperGraph::handlePoint (int segment) const noexcept
     const auto a = nodePoint (ids[static_cast<size_t> (segment)]);
     const auto b = nodePoint (ids[static_cast<size_t> (segment + 1)]);
     const auto mid = a + (b - a) * 0.5f;
-    const float offset = processor.getHandle (segment) * plotBounds().getHeight() * 0.16f;
-    return { mid.x, mid.y - offset };
+    const float offset = processor.getHandle (segment) * plotBounds().getHeight() * 0.13f;
+    return { mid.x, mid.y + offset };
 }
 
 int ReceiverShaperGraph::nearestNode (juce::Point<float> p) const noexcept
@@ -335,9 +329,9 @@ void ReceiverShaperGraph::paint (juce::Graphics& g)
             const auto p0 = nodePoint (ids[static_cast<size_t> (s)]);
             const auto p1 = nodePoint (ids[static_cast<size_t> (s + 1)]);
             const auto mid = p0 + (p1 - p0) * 0.5f;
-            const float off = processor.getHandle (s) * plot.getHeight() * 0.16f;
-            const auto c1 = juce::Point<float> (mid.x - (mid.x - p0.x) * 0.40f, mid.y - off);
-            const auto c2 = juce::Point<float> (mid.x + (p1.x - mid.x) * 0.40f, mid.y - off);
+            const float off = processor.getHandle (s) * plot.getHeight() * 0.13f;
+            const auto c1 = juce::Point<float> (mid.x - (mid.x - p0.x) * 0.40f, mid.y + off);
+            const auto c2 = juce::Point<float> (mid.x + (p1.x - mid.x) * 0.40f, mid.y + off);
             curve.cubicTo (c1.x, c1.y, c2.x, c2.y, p1.x, p1.y);
         }
 
@@ -459,8 +453,8 @@ void ReceiverShaperGraph::mouseDrag (const juce::MouseEvent& e)
             const auto a = nodePoint (sortedNodeIndices (count)[static_cast<size_t> (draggedHandle)]);
             const auto b = nodePoint (sortedNodeIndices (count)[static_cast<size_t> (draggedHandle + 1)]);
             const float midY = (a.y + b.y) * 0.5f;
-            const float amount = juce::jlimit (-1.0f, 1.0f,
-                                               (midY - e.position.y) / juce::jmax (1.0f, plot.getHeight() * 0.16f));
+            const float amount = juce::jlimit (0.0f, 1.0f,
+                                               (e.position.y - midY) / juce::jmax (1.0f, plot.getHeight() * 0.13f));
             processor.setHandle (draggedHandle, amount);
         }
     }
@@ -642,14 +636,6 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     mixAttachment = std::make_unique<SliderAttachment> (processor.apvts, "MIX", mixKnob);
     addAndMakeVisible (mixKnob);
 
-    depthKnob.setName ("DEPTH");
-    depthKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    depthKnob.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    depthKnob.setLookAndFeel (&lookAndFeel);
-    depthKnob.setPopupDisplayEnabled (true, false, this);
-    depthKnob.textFromValueFunction = [] (double v) { return juce::String (v, 1) + " dB"; };
-    depthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "DEPTH", depthKnob);
-    addAndMakeVisible (depthKnob);
 
     syncButton.setName ("SYNC"); syncButton.setButtonText ("SYNC"); syncButton.setClickingTogglesState (true);
     syncButton.setLookAndFeel (&lookAndFeel); syncAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "SYNC", syncButton);
@@ -664,7 +650,7 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
         addAndMakeVisible (rateButtons[i]);
     }
 
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         presetButtons[i].setName ("PRESET_" + juce::String (i));
         presetButtons[i].setLookAndFeel (&lookAndFeel);
@@ -682,7 +668,7 @@ HomeSidechainReceiverAudioProcessorEditor::~HomeSidechainReceiverAudioProcessorE
 {
     stopTimer();
     setLookAndFeel (nullptr);
-    mixKnob.setLookAndFeel (nullptr); depthKnob.setLookAndFeel (nullptr);
+    mixKnob.setLookAndFeel (nullptr);
     bypassButton.setLookAndFeel (nullptr); syncButton.setLookAndFeel (nullptr);
     for (auto& b : linkButtons) b.setLookAndFeel (nullptr);
     for (auto& b : rateButtons) b.setLookAndFeel (nullptr);
@@ -708,16 +694,20 @@ void HomeSidechainReceiverAudioProcessorEditor::selectRate (int index)
 
 void HomeSidechainReceiverAudioProcessorEditor::selectPreset (int index)
 {
-    const int p = juce::jlimit (0, 11, index);
+    const int p = juce::jlimit (0, 5, index);
     for (int i = 0; i < HomeSidechainReceiverAudioProcessor::maxNodes; ++i)
     {
-        processor.setNodeActive (i, true);
-        processor.setNodeX (i, presetX[static_cast<size_t> (i)]);
-        processor.setNodeY (i, presetY[static_cast<size_t> (p)][static_cast<size_t> (i)]);
+        const bool active = i < 4;
+        processor.setNodeActive (i, active);
+        if (active)
+        {
+            processor.setNodeX (i, presetX[static_cast<size_t> (i)]);
+            processor.setNodeY (i, presetY[static_cast<size_t> (p)][static_cast<size_t> (i)]);
+        }
     }
     for (int i = 0; i < HomeSidechainReceiverAudioProcessor::maxNodes - 1; ++i)
-        processor.setHandle (i, (p % 3 == 0) ? 0.0f : ((i % 2 == 0) ? 0.25f : -0.15f));
-    for (int i = 0; i < 12; ++i) presetButtons[i].setToggleState (i == p, juce::dontSendNotification);
+        processor.setHandle (i, (i < 3 && p > 0) ? (0.15f + 0.10f * (float) ((p + i) % 3)) : 0.0f);
+    for (int i = 0; i < 6; ++i) presetButtons[i].setToggleState (i == p, juce::dontSendNotification);
     shaperGraph.repaint();
 }
 
@@ -765,11 +755,10 @@ void HomeSidechainReceiverAudioProcessorEditor::drawBottomControls (juce::Graphi
 {
     drawCard (g, r, violet, 10.0f);
     g.setFont (font (7.2f, true)); g.setColour (muted);
-    g.drawText ("RATE", r.getX() + 15, r.getY() + 8, 50, 10, juce::Justification::left);
-    g.drawText ("SHAPES", r.getX() + 178, r.getY() + 8, 60, 10, juce::Justification::left);
-    g.drawText ("MIX", r.getX() + 424, r.getY() + 8, 40, 10, juce::Justification::centred);
-    g.drawText ("DEPTH", r.getX() + 512, r.getY() + 8, 50, 10, juce::Justification::centred);
-}
+    g.drawText ("RATE", r.getX() + 15, r.getY() + 8, 42, 10, juce::Justification::left);
+    g.drawText ("SHAPES", r.getX() + 238, r.getY() + 8, 60, 10, juce::Justification::left);
+    g.drawText ("MIX", r.getRight() - 116, r.getY() + 8, 40, 10, juce::Justification::centred);
+    }
 
 void HomeSidechainReceiverAudioProcessorEditor::drawCurvePreset (juce::Graphics& g, juce::Rectangle<float> r, int index, bool active) const
 {
@@ -780,7 +769,7 @@ void HomeSidechainReceiverAudioProcessorEditor::drawCurvePreset (juce::Graphics&
     auto p = r.reduced (5.0f);
     juce::Path curve;
     curve.startNewSubPath (p.getX(), p.getBottom());
-    for (int i = 1; i < HomeSidechainReceiverAudioProcessor::maxNodes; ++i)
+    for (int i = 1; i < 4; ++i)
     {
         const float x = p.getX() + p.getWidth() * presetX[static_cast<size_t> (i)];
         const float y = p.getBottom() - p.getHeight() * presetY[static_cast<size_t> (index)][static_cast<size_t> (i)];
@@ -817,8 +806,7 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     shaperGraph.setBounds (28, 84, 584, 164);
     filterEditor.setBounds (29, 251, 175, 29);
 
-    mixKnob.setBounds (410, 309, 56, 50);
-    depthKnob.setBounds (498, 309, 56, 50);
+    mixKnob.setBounds (444, 309, 56, 50);
 
     for (int i = 0; i < 3; ++i) linkButtons[i].setBounds (510 + i * 26, 12, 25, 22);
     bypassButton.setBounds (592, 10, 28, 26);
@@ -829,9 +817,9 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     testButton.setBounds (516, 63, 42, 19);
     resetButton.setBounds (564, 63, 42, 19);
 
-    const int x0 = 236, y0 = 326, w = 27, h = 21, gap = 4;
-    for (int i = 0; i < 12; ++i)
-        presetButtons[i].setBounds (x0 + (i % 6) * (w + gap), y0 + (i / 6) * (h + gap), w, h);
+    const int x0 = 252, y0 = 326, w = 32, h = 21, gap = 5;
+    for (int i = 0; i < 6; ++i)
+        presetButtons[i].setBounds (x0 + i * (w + gap), y0, w, h);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::timerCallback()

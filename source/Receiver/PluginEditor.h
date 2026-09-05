@@ -94,13 +94,12 @@ private:
     ReceiverFilterEditor filterEditor;
 
     juce::Slider mixKnob;
-    juce::Slider depthKnob;
     juce::ToggleButton bypassButton;
     juce::ToggleButton syncButton;
 
     juce::TextButton linkButtons[3];
     juce::TextButton rateButtons[4];
-    juce::TextButton presetButtons[12];
+    juce::TextButton presetButtons[6];
     juce::TextButton testButton;
     juce::TextButton resetButton;
 

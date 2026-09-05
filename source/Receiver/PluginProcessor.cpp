@@ -8,26 +8,20 @@ namespace
     constexpr int legacyShapeCount = 5;
     constexpr float defaultLegacyShape[legacyShapeCount] = { 1.0f, 0.35f, 0.0f, 0.25f, 0.85f };
     constexpr float defaultNodeX[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { 0.0f, 0.12f, 0.28f, 0.50f, 0.68f, 0.84f, 1.0f, 1.0f };
+        { 0.0f, 0.16f, 0.38f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     constexpr float defaultNodeY[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { 1.0f, 0.18f, 0.06f, 0.12f, 0.30f, 0.62f, 1.0f, 1.0f };
+        { 1.0f, 0.14f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     constexpr bool defaultNodeActive[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { true, true, true, true, true, true, true, false };
+        { true, true, true, true, false, false, false, false };
 
-    const float presetY[12][HomeSidechainReceiverAudioProcessor::maxNodes] =
+    const float presetY[6][HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        { 1.0f, 0.18f, 0.06f, 0.12f, 0.30f, 0.62f, 1.0f, 1.0f },
-        { 1.0f, 0.03f, 0.00f, 0.02f, 0.05f, 0.12f, 1.0f, 1.0f },
-        { 1.0f, 0.55f, 0.16f, 0.10f, 0.24f, 0.48f, 1.0f, 1.0f },
-        { 1.0f, 0.72f, 0.25f, 0.08f, 0.10f, 0.22f, 1.0f, 1.0f },
-        { 1.0f, 0.25f, 0.12f, 0.50f, 0.70f, 0.84f, 1.0f, 1.0f },
-        { 1.0f, 0.65f, 0.04f, 0.04f, 0.04f, 0.08f, 1.0f, 1.0f },
-        { 1.0f, 0.20f, 0.55f, 0.25f, 0.10f, 0.20f, 1.0f, 1.0f },
-        { 1.0f, 0.10f, 0.10f, 0.18f, 0.55f, 0.84f, 1.0f, 1.0f },
-        { 1.0f, 0.90f, 0.42f, 0.12f, 0.08f, 0.12f, 1.0f, 1.0f },
-        { 1.0f, 0.12f, 0.78f, 0.12f, 0.05f, 0.10f, 1.0f, 1.0f },
-        { 1.0f, 0.38f, 0.72f, 0.28f, 0.12f, 0.42f, 1.0f, 1.0f },
-        { 1.0f, 0.08f, 0.08f, 0.78f, 0.80f, 0.86f, 1.0f, 1.0f }
+        { 1.00f, 0.10f, 0.05f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.03f, 0.02f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.35f, 0.08f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.68f, 0.10f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.16f, 0.52f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
+        { 1.00f, 0.08f, 0.18f, 0.72f, 1.00f, 1.00f, 1.00f, 1.00f }
     };
 }
 
@@ -66,9 +60,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
         FloatAttributes{}.withLabel ("ms")));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "DEPTH", "Depth", juce::NormalisableRange<float> (0.0f, 48.0f, 0.01f), 12.0f,
-        FloatAttributes{}.withLabel ("dB")));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "ATTACK", "Attack", juce::NormalisableRange<float> (0.1f, 250.0f, 0.1f, 0.35f), 2.0f,
         FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -78,7 +69,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
         "RELEASE", "Release", juce::NormalisableRange<float> (5.0f, 2000.0f, 0.1f, 0.4f), 180.0f,
         FloatAttributes{}.withLabel ("ms")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "CURVE", "Curve", juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
+        "CURVE", "Curve", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
@@ -108,13 +99,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
         {
             params.push_back (std::make_unique<juce::AudioParameterFloat> (
                 "HANDLE_" + suffix, "Handle " + suffix,
-                juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
+                juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
         }
         else
         {
             params.push_back (std::make_unique<juce::AudioParameterFloat> (
                 "HANDLE_" + suffix, "Handle " + suffix,
-                juce::NormalisableRange<float> (-1.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
+                juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
         }
     }
 
@@ -198,10 +189,6 @@ float HomeSidechainReceiverAudioProcessor::getMix() const noexcept
     return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("MIX")->load());
 }
 
-float HomeSidechainReceiverAudioProcessor::getDepth() const noexcept
-{
-    return juce::jmax<float> (0.0f, apvts.getRawParameterValue ("DEPTH")->load());
-}
 
 bool HomeSidechainReceiverAudioProcessor::isNodeActive (int index) const noexcept
 {
@@ -224,7 +211,7 @@ float HomeSidechainReceiverAudioProcessor::getNodeY (int index) const noexcept
 float HomeSidechainReceiverAudioProcessor::getHandle (int segment) const noexcept
 {
     const int i = juce::jlimit<int> (0, maxNodes - 2, segment);
-    return juce::jlimit<float> (-1.0f, 1.0f, apvts.getRawParameterValue ("HANDLE_" + juce::String (i + 1))->load());
+    return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("HANDLE_" + juce::String (i + 1))->load());
 }
 
 void HomeSidechainReceiverAudioProcessor::setNodeX (int index, float value)
@@ -245,7 +232,7 @@ void HomeSidechainReceiverAudioProcessor::setHandle (int segment, float value)
 {
     const int i = juce::jlimit<int> (0, maxNodes - 2, segment);
     if (auto* p = apvts.getParameter ("HANDLE_" + juce::String (i + 1)))
-        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit<float> (-1.0f, 1.0f, value)));
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, value)));
 }
 
 void HomeSidechainReceiverAudioProcessor::setNodeActive (int index, bool active)
@@ -303,12 +290,9 @@ float HomeSidechainReceiverAudioProcessor::shapeValueCached (float phase) const 
 
     const float dx = juce::jmax<float> (0.0001f, cachedNodeX[static_cast<size_t> (segment + 1)] - cachedNodeX[static_cast<size_t> (segment)]);
     float t = juce::jlimit<float> (0.0f, 1.0f, (phase - cachedNodeX[static_cast<size_t> (segment)]) / dx);
-    const float handle = cachedHandle[static_cast<size_t> (segment)];
-    const float exponent = std::pow (2.5f, std::abs (handle));
-    if (handle > 0.001f)
-        t = std::pow (t, 1.0f / exponent);
-    else if (handle < -0.001f)
-        t = 1.0f - std::pow (1.0f - t, 1.0f / exponent);
+    const float handle = juce::jlimit<float> (0.0f, 1.0f, cachedHandle[static_cast<size_t> (segment)]);
+    const float exponent = 1.0f + handle * 3.0f;
+    t = std::pow (t, 1.0f / exponent);
 
     return juce::jmap (t, cachedNodeY[static_cast<size_t> (segment)], cachedNodeY[static_cast<size_t> (segment + 1)]);
 }
@@ -344,24 +328,18 @@ float HomeSidechainReceiverAudioProcessor::shapeValue (float phase) const noexce
 
     const float dx = juce::jmax<float> (0.0001f, nodes[segment + 1].x - nodes[segment].x);
     float t = juce::jlimit<float> (0.0f, 1.0f, (phase - nodes[segment].x) / dx);
-    const float handle = getHandle (segment);
-
-    // Handle is a normalized bend amount. Positive bends toward the next
-    // point; negative bends toward the previous point.
-    const float exponent = std::pow (2.5f, std::abs (handle));
-    if (handle > 0.001f)
-        t = std::pow (t, 1.0f / exponent);
-    else if (handle < -0.001f)
-        t = 1.0f - std::pow (1.0f - t, 1.0f / exponent);
+    const float handle = juce::jlimit<float> (0.0f, 1.0f, getHandle (segment));
+    const float exponent = 1.0f + handle * 3.0f;
+    t = std::pow (t, 1.0f / exponent);
 
     return juce::jmap (t, nodes[segment].y, nodes[segment + 1].y);
 }
 
 float HomeSidechainReceiverAudioProcessor::modulationGain (float shape) const noexcept
 {
-    const float depth = getDepth();
-    const float duckAmount = juce::jlimit<float> (0.0f, 1.0f, shape);
-    return juce::Decibels::decibelsToGain (-depth * duckAmount);
+    // The curve directly represents output gain: 1.0 = full level,
+    // 0.0 = full duck. There is no separate Depth control.
+    return juce::jlimit<float> (0.0f, 1.0f, shape);
 }
 
 void HomeSidechainReceiverAudioProcessor::triggerEnvelope()
@@ -577,7 +555,7 @@ void HomeSidechainReceiverAudioProcessor::setStateInformation (const void* data,
                     if (auto* py = apvts.getParameter ("NODE_Y_" + juce::String (i + 1)))
                         py->setValueNotifyingHost (py->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, y)));
                     if (auto* pa = apvts.getParameter ("NODE_ACTIVE_" + juce::String (i + 1)))
-                        pa->setValueNotifyingHost (i < 7 ? 1.0f : 0.0f);
+                        pa->setValueNotifyingHost (i < 4 ? 1.0f : 0.0f);
                 }
             }
         }

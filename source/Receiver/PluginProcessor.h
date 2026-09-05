@@ -75,7 +75,6 @@ public:
     void requestTestTrigger() noexcept { testTriggerRequested.store (true, std::memory_order_release); }
 
     float getMix() const noexcept;
-    float getDepth() const noexcept;
 
 private:
     double sampleRate = 44100.0;
