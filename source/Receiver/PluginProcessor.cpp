@@ -24,11 +24,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         "LINK", "Link", homeSidechain::linkNames(), 0, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "SOURCE", "Source", juce::StringArray { "Home-Link", "MIDI", "Both" }, 0, ChoiceAttributes{}));
+        "SOURCE", "Source", juce::StringArray { "Home-Link", "MIDI", "Both" }, 2, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterBool> (
-        "SYNC", "Sync", true, BoolAttributes{}));
+        "SYNC", "Sync", false, BoolAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         "BARS", "Bars", juce::StringArray { "1/4", "1/2", "1", "2", "4" }, 2, ChoiceAttributes{}));
+
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "DEPTH", "Depth", juce::NormalisableRange<float> (0.0f, 48.0f, 0.01f), 12.0f,
         FloatAttributes{}.withLabel ("dB")));
@@ -46,16 +47,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
 
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SHAPE_1", "Shape 1", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SHAPE_2", "Shape 2", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.2f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SHAPE_3", "Shape 3", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.05f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SHAPE_4", "Shape 4", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.15f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SHAPE_5", "Shape 5", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.75f, FloatAttributes{}));
+    for (int i = 1; i <= 5; ++i)
+    {
+        const auto id = "SHAPE_" + juce::String (i);
+        const float defaults[] = { 1.0f, 0.35f, 0.0f, 0.25f, 0.85f };
+        params.push_back (std::make_unique<juce::AudioParameterFloat> (
+            id, "Shape " + juce::String (i), juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+            defaults[i - 1], FloatAttributes{}));
+    }
 
     return { params.begin(), params.end() };
 }
@@ -67,8 +66,9 @@ void HomeSidechainReceiverAudioProcessor::prepareToPlay (double newSampleRate, i
     envelopePhase = 0.0f;
     envelopeActive = false;
     remainingSamples = 0;
-    gainSmoother.reset (sampleRate, 0.01);
+    gainSmoother.reset (sampleRate, 0.008);
     gainSmoother.setCurrentAndTargetValue (1.0f);
+
     const int link = getLink();
     homeLinkLastLink = link;
     homeLinkLastSequence = homeLinkService().latestSequence (link);
@@ -84,10 +84,8 @@ bool HomeSidechainReceiverAudioProcessor::isBusesLayoutSupported (const BusesLay
     const auto mainOut = layouts.getMainOutputChannelSet();
     const auto mainIn = layouts.getMainInputChannelSet();
 
-    if (mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
-        return false;
-
-    if (mainIn != juce::AudioChannelSet::mono() && mainIn != juce::AudioChannelSet::stereo())
+    if ((mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
+        || (mainIn != juce::AudioChannelSet::mono() && mainIn != juce::AudioChannelSet::stereo()))
         return false;
 
     return mainOut == mainIn;
@@ -105,24 +103,15 @@ double HomeSidechainReceiverAudioProcessor::getHostBpm() const noexcept
             if (auto bpm = position->getBpm())
                 if (*bpm > 1.0)
                     return *bpm;
-
     return 120.0;
 }
 
 double HomeSidechainReceiverAudioProcessor::cycleSamples() const noexcept
 {
-    if (apvts.getRawParameterValue ("SYNC")->load() < 0.5f)
-    {
-        const auto attack = apvts.getRawParameterValue ("ATTACK")->load();
-        const auto hold = apvts.getRawParameterValue ("HOLD")->load();
-        const auto release = apvts.getRawParameterValue ("RELEASE")->load();
-        return juce::jmax (1.0, (attack + hold + release) * 0.001 * sampleRate);
-    }
-
-    static constexpr double barValues[] = { 0.25, 0.5, 1.0, 2.0, 4.0 };
-    const auto index = juce::jlimit (0, 4, static_cast<int> (apvts.getRawParameterValue ("BARS")->load()));
-    const auto seconds = (60.0 / getHostBpm()) * 4.0 * barValues[index];
-    return juce::jmax (1.0, seconds * sampleRate);
+    const double attack = apvts.getRawParameterValue ("ATTACK")->load();
+    const double hold = apvts.getRawParameterValue ("HOLD")->load();
+    const double release = apvts.getRawParameterValue ("RELEASE")->load();
+    return juce::jmax (1.0, (attack + hold + release) * 0.001 * sampleRate);
 }
 
 float HomeSidechainReceiverAudioProcessor::shapeValue (float phase) const noexcept
@@ -150,25 +139,21 @@ float HomeSidechainReceiverAudioProcessor::shapeValue (float phase) const noexce
 float HomeSidechainReceiverAudioProcessor::modulationGain (float shape) const noexcept
 {
     const auto depth = apvts.getRawParameterValue ("DEPTH")->load();
-    const auto mode = static_cast<int> (apvts.getRawParameterValue ("MODE")->load());
-
-    if (mode == 1) // Pump: make the dip more pronounced.
-        shape = std::pow (juce::jlimit (0.0f, 1.0f, shape), 1.7f);
-    else if (mode == 2) // Gate: squash the upper part of the curve into a sharper gate.
-        shape = shape > 0.45f ? 1.0f : shape * 0.15f;
-
-    return juce::Decibels::decibelsToGain (-depth * juce::jlimit (0.0f, 1.0f, shape));
+    const float duckAmount = juce::jlimit (0.0f, 1.0f, shape);
+    return juce::Decibels::decibelsToGain (-depth * duckAmount);
 }
 
 float HomeSidechainReceiverAudioProcessor::getShapePoint (int index) const noexcept
 {
-    const auto id = "SHAPE_" + juce::String (juce::jlimit (1, 5, index + 1));
+    const auto safeIndex = juce::jlimit (0, 4, index);
+    const auto id = "SHAPE_" + juce::String (safeIndex + 1);
     return apvts.getRawParameterValue (id)->load();
 }
 
 void HomeSidechainReceiverAudioProcessor::setShapePoint (int index, float value)
 {
-    if (auto* p = apvts.getParameter ("SHAPE_" + juce::String (juce::jlimit (1, 5, index + 1))))
+    const auto safeIndex = juce::jlimit (0, 4, index);
+    if (auto* p = apvts.getParameter ("SHAPE_" + juce::String (safeIndex + 1)))
         p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
 }
 
@@ -185,7 +170,6 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
                                                         juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-
     const int samples = buffer.getNumSamples();
     if (samples <= 0)
         return;
@@ -197,32 +181,22 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
         homeLinkLastSequence = homeLinkService().latestSequence (link);
     }
 
-    const int sourceMode = static_cast<int> (apvts.getRawParameterValue ("SOURCE")->load());
     const int targetNote = homeSidechain::midiNoteForLink (link);
-    const bool useHomeLink = sourceMode == 0 || sourceMode == 2;
-    const bool useMidi = sourceMode == 1 || sourceMode == 2;
-
     const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const float mix = juce::jlimit (0.0f, 1.0f,
-                                    apvts.getRawParameterValue ("MIX")->load());
+    const float mix = juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("MIX")->load());
 
-    triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.94f,
-                           std::memory_order_relaxed);
-    midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.94f,
-                        std::memory_order_relaxed);
-    homeLinkActivity.store (homeLinkActivity.load (std::memory_order_relaxed) * 0.94f,
-                            std::memory_order_relaxed);
+    triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
+    midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
+    homeLinkActivity.store (homeLinkActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
 
     const auto heartbeatAge = static_cast<uint32_t> (
         juce::Time::getMillisecondCounter() - homeLinkService().lastHeartbeatMs (link));
     const bool connected = heartbeatAge < 450u;
     homeLinkConnected.store (connected, std::memory_order_relaxed);
 
-    std::array<int, 128> triggerPositions {};
+    std::array<int, 256> triggerPositions {};
     int triggerPositionCount = 0;
 
-    // TEST is intentionally not a parameter: pressing it simply schedules one
-    // receiver envelope at the start of the current audio block.
     if (testTriggerRequested.exchange (false, std::memory_order_acq_rel)
         && triggerPositionCount < static_cast<int> (triggerPositions.size()))
     {
@@ -230,80 +204,55 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
         triggerActivity.store (1.0f, std::memory_order_relaxed);
     }
 
-    // -------------------------------------------------------------------------
-    // Automatic Home-Link events.
-    // -------------------------------------------------------------------------
-    if (useHomeLink)
+    auto latest = homeLinkService().latestSequence (link);
+    auto next = homeLinkLastSequence + 1;
+    if (latest > next && latest - next >= 256)
+        next = latest - 255;
+
+    while (next <= latest && triggerPositionCount < static_cast<int> (triggerPositions.size()))
     {
-        auto latest = homeLinkService().latestSequence (link);
-        auto next = homeLinkLastSequence + 1;
-
-        if (latest > next && latest - next >= 256)
-            next = latest - 255;
-
-        while (next <= latest && triggerPositionCount < static_cast<int> (triggerPositions.size()))
+        homeSidechain::HomeLinkEvent event;
+        if (homeLinkService().readEvent (link, next, event))
         {
-            homeSidechain::HomeLinkEvent event;
-
-            if (homeLinkService().readEvent (link, next, event))
-            {
-                // Home-Link transport is intentionally zero-lookahead. The
-                // event has already been detected from the source audio block,
-                // so start at sample 0 of the Receiver block rather than adding
-                // another artificial block of delay.
-                triggerPositions[static_cast<size_t> (triggerPositionCount++)] = 0;
-
-                homeLinkActivity.store (1.0f, std::memory_order_relaxed);
-                triggerActivity.store (1.0f, std::memory_order_relaxed);
-                triggerCount.fetch_add (1, std::memory_order_relaxed);
-                homeLinkTriggerCount.fetch_add (1, std::memory_order_relaxed);
-                lastHomeLinkVelocity.store (static_cast<int> (event.velocity), std::memory_order_relaxed);
-            }
-
-            ++next;
+            triggerPositions[static_cast<size_t> (triggerPositionCount++)] = 0;
+            homeLinkActivity.store (1.0f, std::memory_order_relaxed);
+            triggerActivity.store (1.0f, std::memory_order_relaxed);
+            homeLinkTriggerCount.fetch_add (1, std::memory_order_relaxed);
+            lastHomeLinkVelocity.store (static_cast<int> (event.velocity), std::memory_order_relaxed);
         }
-
-        if (latest > homeLinkLastSequence)
-            homeLinkLastSequence = latest;
+        ++next;
     }
+    if (latest > homeLinkLastSequence)
+        homeLinkLastSequence = latest;
 
-    // -------------------------------------------------------------------------
-    // Optional host-MIDI fallback / advanced mode.
-    // -------------------------------------------------------------------------
     int incomingMidiEvents = 0;
     int mostRecentNote = -1;
     int mostRecentChannel = 0;
-
-    if (useMidi)
+    for (const auto metadata : midi)
     {
-        for (const auto metadata : midi)
+        const auto message = metadata.getMessage();
+        ++incomingMidiEvents;
+        mostRecentChannel = juce::jmax (mostRecentChannel, message.getChannel());
+
+        if (message.isNoteOn())
         {
-            const auto message = metadata.getMessage();
-            ++incomingMidiEvents;
-
-            if (message.getChannel() > 0)
-                mostRecentChannel = message.getChannel();
-
-            if (message.isNoteOn())
+            mostRecentNote = message.getNoteNumber();
+            if (message.getNoteNumber() == targetNote
+                && triggerPositionCount < static_cast<int> (triggerPositions.size()))
             {
-                mostRecentNote = message.getNoteNumber();
-
-                if (message.getNoteNumber() == targetNote
-                    && triggerPositionCount < static_cast<int> (triggerPositions.size()))
-                {
-                    triggerPositions[static_cast<size_t> (triggerPositionCount++)]
-                        = juce::jlimit (0, samples - 1, metadata.samplePosition);
-                }
+                triggerPositions[static_cast<size_t> (triggerPositionCount++)]
+                    = juce::jlimit (0, samples - 1, metadata.samplePosition);
+                midiActivity.store (1.0f, std::memory_order_relaxed);
             }
         }
+    }
 
-        if (incomingMidiEvents > 0)
-        {
-            midiActivity.store (1.0f, std::memory_order_relaxed);
-            midiEventCount.fetch_add (incomingMidiEvents, std::memory_order_relaxed);
-            lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
-            lastMidiChannel.store (juce::jmax (0, mostRecentChannel), std::memory_order_relaxed);
-        }
+    if (incomingMidiEvents > 0)
+    {
+        midiActivity.store (1.0f, std::memory_order_relaxed);
+        midiEventCount.fetch_add (incomingMidiEvents, std::memory_order_relaxed);
+        lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
+        lastMidiChannel.store (mostRecentChannel, std::memory_order_relaxed);
     }
 
     if (! bypassed)
@@ -321,16 +270,12 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             }
 
             float targetGain = 1.0f;
-
             if (envelopeActive && remainingSamples > 0)
             {
                 const float phase = 1.0f - static_cast<float> (
                     static_cast<double> (remainingSamples) / juce::jmax (1.0, totalCycle));
-
                 targetGain = modulationGain (shapeValue (phase));
-
                 --remainingSamples;
-
                 if (remainingSamples <= 0)
                 {
                     remainingSamples = 0;
@@ -345,12 +290,6 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
             for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
                 buffer.setSample (channel, i, buffer.getSample (channel, i) * gain);
         }
-    }
-    else if (triggerPositionCount > 0)
-    {
-        // Keep connection diagnostics alive while bypassed without touching audio.
-        triggerActivity.store (1.0f, std::memory_order_relaxed);
-        triggerCount.fetch_add (triggerPositionCount, std::memory_order_relaxed);
     }
 }
 

@@ -3,23 +3,23 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class ShaperGraph : public juce::Component
+class ReceiverEnvelopeView : public juce::Component
 {
 public:
-    explicit ShaperGraph (HomeSidechainReceiverAudioProcessor& p) : processor (p) {}
+    explicit ReceiverEnvelopeView (HomeSidechainReceiverAudioProcessor& p) : processor (p) {}
 
-    void paint (juce::Graphics& g) override;
-    void mouseDown (const juce::MouseEvent& event) override;
-    void mouseDrag (const juce::MouseEvent& event) override;
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
-    int selectedPoint = -1;
+    int draggedPoint = -1;
 
     juce::Point<float> pointForIndex (int index) const;
-    int nearestPoint (juce::Point<float> p) const;
+    int nearestPoint (juce::Point<float>) const;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ShaperGraph)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverEnvelopeView)
 };
 
 class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -27,41 +27,32 @@ class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEdi
 {
 public:
     explicit HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor&);
-    ~HomeSidechainReceiverAudioProcessorEditor() override = default;
+    ~HomeSidechainReceiverAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
     HomeSidechainReceiverAudioProcessor& processor;
-    ShaperGraph graph;
+    ReceiverEnvelopeView envelopeView;
 
-    juce::ComboBox mode;
-    juce::ComboBox link;
-    juce::ComboBox bars;
-    juce::ComboBox source;
-    juce::ToggleButton sync { "SYNC" };
-    juce::ToggleButton bypass { "BYPASS" };
+    juce::TextButton linkButtons[3];
     juce::TextButton testButton { "TEST" };
+    juce::ToggleButton bypassButton;
 
-    juce::Slider depth, attack, hold, release, curve, mix;
+    juce::Slider depthSlider, attackSlider, holdSlider, releaseSlider, mixSlider, curveSlider;
 
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> linkAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> barsAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> sourceAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> depthAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attackAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> holdAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> releaseAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> curveAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> mixAttachment;
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-    void styleSlider (juce::Slider& slider);
+    std::unique_ptr<SliderAttachment> depthAttachment, attackAttachment, holdAttachment,
+                                    releaseAttachment, mixAttachment, curveAttachment;
+    std::unique_ptr<ButtonAttachment> bypassAttachment;
+
+    void styleSlider (juce::Slider&, const juce::String& suffix);
+    void selectLink (int index);
+    void requestTest();
     void timerCallback() override;
-    void testButtonClicked();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessorEditor)
 };
