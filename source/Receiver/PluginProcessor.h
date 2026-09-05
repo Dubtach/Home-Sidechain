@@ -35,6 +35,8 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
+
     // UI telemetry. These are written atomically from the audio thread and
     // consumed by the editor timer; they are never used for audio decisions.
     std::atomic<float> triggerActivity { 0.0f };
