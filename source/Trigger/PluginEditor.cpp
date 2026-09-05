@@ -504,8 +504,8 @@ void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g
     g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
     g.setColour (colour);
     g.fillEllipse (r.getX() + 9.0f, r.getCentreY() - 3.0f, 6.0f, 6.0f);
-    g.setFont (uiFont (8.2f, true));
-    const auto textArea = juce::Rectangle<float> (r.getX() + 22.0f, r.getY() + 2.0f, r.getWidth() - 27.0f, r.getHeight() - 4.0f);
+    g.setFont (uiFont (7.8f, true));
+    const auto textArea = juce::Rectangle<float> (r.getX() + 21.0f, r.getY() + 2.0f, r.getWidth() - 26.0f, r.getHeight() - 4.0f);
     g.drawText (text, textArea, juce::Justification::centredLeft, true);
 }
 
@@ -532,7 +532,7 @@ void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g,
     // short brightness boost from the real trigger meter; no extra indicator
     // is introduced.
     const float pulse = juce::jlimit (0.0f, 1.0f, processor.getTriggerMeter());
-    drawStatusPill (g, { area.getX() + 16.0f, area.getY() + 12.0f, 106.0f, 24.0f },
+    drawStatusPill (g, { area.getX() + 12.0f, area.getY() + 10.0f, 92.0f, 22.0f },
                     text, colour.withAlpha (0.70f + pulse * 0.30f));
 }
 
@@ -808,13 +808,13 @@ void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics&
     g.setFont (uiFont (14.0f, true));
     g.setColour (cyan.withAlpha (0.96f));
     g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 10.0f, textW, 17.0f),
+                juce::Rectangle<float> (textX, centerY - 8.5f, textW, 17.0f),
                 juce::Justification::left, true);
 
     g.setFont (uiFont (8.3f));
     g.setColour (muted.withAlpha (0.84f));
     g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 4.0f, textW + 14.0f, 10.0f),
+                juce::Rectangle<float> (textX, centerY + 5.5f, textW + 14.0f, 10.0f),
                 juce::Justification::left, true);
 }
 

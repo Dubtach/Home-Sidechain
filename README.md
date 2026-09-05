@@ -1,3 +1,3 @@
-# Home-Sidechain Trigger v35.5
+# Home-Sidechain Trigger v36.0
 
-Visualizes incoming MIDI note-ons in the Trigger graph with persistent event beads, while preserving the existing audio waveform, persistent audio-trigger highlight, threshold interaction, Cool Down control, A/B/C link selector, bypass, and low-latency audio/MIDI/Home-Link behavior.
+Final polish checkpoint based on v35.9. The compact UI is preserved while the READY/TRIGGERING indicator is tightened and the Cool Down typography is aligned. Audio-triggered Cool Down behavior, independent MIDI triggering, threshold interaction, A/B/C Home-Link routing, bypass, MIDI output, persistent waveform analysis, and low-latency Home-Link transport are preserved.
