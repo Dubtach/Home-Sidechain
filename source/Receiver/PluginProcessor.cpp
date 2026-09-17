@@ -1,29 +1,77 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 namespace
 {
-    constexpr int legacyShapeCount = 5;
-    constexpr float defaultLegacyShape[legacyShapeCount] = { 1.0f, 0.35f, 0.0f, 0.25f, 0.85f };
-    constexpr float defaultNodeX[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { 0.0f, 0.16f, 0.38f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
-    constexpr float defaultNodeY[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { 1.0f, 0.14f, 0.08f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
-    constexpr bool defaultNodeActive[HomeSidechainReceiverAudioProcessor::maxNodes] =
-        { true, true, true, true, false, false, false, false };
-
-    const float presetY[6][HomeSidechainReceiverAudioProcessor::maxNodes] =
+    struct PresetPoint
     {
-        { 1.00f, 0.10f, 0.05f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
-        { 1.00f, 0.03f, 0.02f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
-        { 1.00f, 0.35f, 0.08f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
-        { 1.00f, 0.68f, 0.10f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
-        { 1.00f, 0.16f, 0.52f, 1.00f, 1.00f, 1.00f, 1.00f, 1.00f },
-        { 1.00f, 0.08f, 0.18f, 0.72f, 1.00f, 1.00f, 1.00f, 1.00f }
+        float x, y, tension;
     };
+
+    struct PresetDefinition
+    {
+        const char* name;
+        int count;
+        PresetPoint points[8];
+    };
+
+    // Factory shapes. Every one starts the cycle ducked (or flat) and returns
+    // to unity by the end so it loops cleanly in host-sync mode.
+    const PresetDefinition presets[HomeSidechainReceiverAudioProcessor::numPresets] =
+    {
+        { "Classic",  2, { { 0.00f, 0.00f, 0.34f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Tight",    3, { { 0.00f, 0.00f, 0.24f }, { 0.55f, 1.00f, 0.50f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Soft",     2, { { 0.00f, 0.28f, 0.44f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Deep",     3, { { 0.00f, 0.00f, 0.50f }, { 0.14f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Gate",     4, { { 0.00f, 0.00f, 0.50f }, { 0.48f, 0.00f, 0.50f }, { 0.50f, 1.00f, 0.50f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Offbeat",  4, { { 0.00f, 1.00f, 0.50f }, { 0.48f, 1.00f, 0.50f }, { 0.50f, 0.00f, 0.32f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Double",   4, { { 0.00f, 0.00f, 0.30f }, { 0.48f, 1.00f, 0.50f }, { 0.50f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Triplet",  6, { { 0.00f, 0.00f, 0.30f }, { 0.32f, 1.00f, 0.50f }, { 0.34f, 0.00f, 0.30f },
+                           { 0.66f, 1.00f, 0.50f }, { 0.68f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Valley",   4, { { 0.00f, 1.00f, 0.40f }, { 0.28f, 0.10f, 0.50f }, { 0.72f, 0.10f, 0.60f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Wave",     3, { { 0.00f, 1.00f, 0.64f }, { 0.50f, 0.00f, 0.36f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Stutter",  8, { { 0.00f, 0.00f, 0.28f }, { 0.24f, 1.00f, 0.50f }, { 0.25f, 0.00f, 0.28f }, { 0.49f, 1.00f, 0.50f },
+                           { 0.50f, 0.00f, 0.28f }, { 0.74f, 1.00f, 0.50f }, { 0.75f, 0.00f, 0.28f }, { 1.00f, 1.00f, 0.50f } } },
+        { "Swell",    2, { { 0.00f, 0.00f, 0.70f }, { 1.00f, 1.00f, 0.50f } } }
+    };
+
+    constexpr float defaultNodeX[HomeSidechainReceiverAudioProcessor::maxNodes] =
+    {
+        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
+    };
+
+    constexpr float defaultNodeY[HomeSidechainReceiverAudioProcessor::maxNodes] =
+    {
+        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
+    };
+
+    constexpr float defaultTension[HomeSidechainReceiverAudioProcessor::maxNodes] =
+    {
+        0.34f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f
+    };
+
+    constexpr bool defaultNodeActive[HomeSidechainReceiverAudioProcessor::maxNodes] =
+    {
+        true, true, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false
+    };
+
+    inline float onePoleCoefficient (float frequencyHz, double sampleRate) noexcept
+    {
+        const auto sr = static_cast<float> (juce::jmax (1.0, sampleRate));
+        const float f = juce::jlimit (1.0f, sr * 0.49f, frequencyHz);
+        return 1.0f - std::exp (-juce::MathConstants<float>::twoPi * f / sr);
+    }
 }
+
+// =============================================================================
+// Construction and parameters
+// =============================================================================
 
 HomeSidechainReceiverAudioProcessor::HomeSidechainReceiverAudioProcessor()
     : AudioProcessor (BusesProperties()
@@ -31,6 +79,34 @@ HomeSidechainReceiverAudioProcessor::HomeSidechainReceiverAudioProcessor()
                         .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "Parameters", createParameters())
 {
+    activeCurve = buildSnapshot();
+}
+
+juce::StringArray HomeSidechainReceiverAudioProcessor::rateNames()
+{
+    return { "1/16", "1/8", "1/4", "1/2", "1/1", "2/1" };
+}
+
+double HomeSidechainReceiverAudioProcessor::beatsForRate (int rate) noexcept
+{
+    static constexpr double beats[numRates] = { 0.25, 0.5, 1.0, 2.0, 4.0, 8.0 };
+    return beats[juce::jlimit (0, numRates - 1, rate)];
+}
+
+juce::String HomeSidechainReceiverAudioProcessor::presetName (int index)
+{
+    return presets[juce::jlimit (0, numPresets - 1, index)].name;
+}
+
+receiverCurve::Snapshot HomeSidechainReceiverAudioProcessor::presetSnapshot (int index)
+{
+    const auto& preset = presets[juce::jlimit (0, numPresets - 1, index)];
+    receiverCurve::Snapshot snapshot;
+
+    for (int i = 0; i < preset.count; ++i)
+        snapshot.add (preset.points[i].x, preset.points[i].y, preset.points[i].tension);
+
+    return snapshot;
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioProcessor::createParameters()
@@ -44,103 +120,327 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
     params.push_back (std::make_unique<juce::AudioParameterBool> (
         "BYPASS", "Bypass", false, BoolAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "MODE", "Mode", juce::StringArray { "Duck", "Pump", "Gate", "Shape" }, 0, ChoiceAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
         "LINK", "Link", homeSidechain::linkNames(), 0, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
         "SOURCE", "Source", juce::StringArray { "Home-Link", "MIDI", "Both" }, 2, ChoiceAttributes{}));
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        "RUN", "Run Mode", juce::StringArray { "Trigger", "Host Sync" }, 0, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterBool> (
-        "SYNC", "Sync", true, BoolAttributes{}));
+        "SYNC", "Tempo Sync", true, BoolAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "BARS", "Bars", juce::StringArray { "1/4", "1/2", "1", "2", "4" }, 2, ChoiceAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "RATE", "Rate", juce::StringArray { "1/8", "1/4", "1/2", "1/1" }, 2, ChoiceAttributes{}));
+        "RATE", "Rate", rateNames(), 2, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "LENGTH", "Length", juce::NormalisableRange<float> (100.0f, 4000.0f, 0.1f, 0.4f), 1000.0f,
+        "LENGTH", "Length", juce::NormalisableRange<float> (20.0f, 4000.0f, 0.1f, 0.4f), 500.0f,
         FloatAttributes{}.withLabel ("ms")));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "ATTACK", "Attack", juce::NormalisableRange<float> (0.1f, 250.0f, 0.1f, 0.35f), 2.0f,
-        FloatAttributes{}.withLabel ("ms")));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "HOLD", "Hold", juce::NormalisableRange<float> (0.0f, 1000.0f, 0.1f, 0.4f), 0.0f,
-        FloatAttributes{}.withLabel ("ms")));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "RELEASE", "Release", juce::NormalisableRange<float> (5.0f, 2000.0f, 0.1f, 0.4f), 180.0f,
-        FloatAttributes{}.withLabel ("ms")));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "CURVE", "Curve", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
+        "DEPTH", "Depth", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        "BAND", "Band", juce::StringArray { "Full", "Low", "High" }, 0, ChoiceAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "CROSSOVER", "Crossover", juce::NormalisableRange<float> (50.0f, 800.0f, 1.0f, 0.35f), 150.0f,
+        "SMOOTH", "Smooth", juce::NormalisableRange<float> (0.0f, 40.0f, 0.1f, 0.6f), 1.5f,
+        FloatAttributes{}.withLabel ("ms")));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        "LOW_CUT", "Low Cut", juce::NormalisableRange<float> (20.0f, 2000.0f, 0.1f, 0.35f), 20.0f,
         FloatAttributes{}.withLabel ("Hz")));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "LOW_CUT", "Low Cut", juce::NormalisableRange<float> (20.0f, 4000.0f, 0.1f, 0.35f), 20.0f,
-        FloatAttributes{}.withLabel ("Hz")));
-    params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "HIGH_CUT", "High Cut", juce::NormalisableRange<float> (1000.0f, 20000.0f, 0.1f, 0.35f), 20000.0f,
+        "HIGH_CUT", "High Cut", juce::NormalisableRange<float> (500.0f, 20000.0f, 0.1f, 0.35f), 20000.0f,
         FloatAttributes{}.withLabel ("Hz")));
 
     for (int i = 1; i <= maxNodes; ++i)
     {
         const auto suffix = juce::String (i);
+        const auto slot = static_cast<size_t> (i - 1);
+
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             "NODE_X_" + suffix, "Node X " + suffix,
-            juce::NormalisableRange<float> (0.0f, 1.0f, 0.0001f), defaultNodeX[i - 1], FloatAttributes{}));
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.0001f), defaultNodeX[slot], FloatAttributes{}));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
             "NODE_Y_" + suffix, "Node Y " + suffix,
-            juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), defaultNodeY[i - 1], FloatAttributes{}));
-        params.push_back (std::make_unique<juce::AudioParameterBool> (
-            "NODE_ACTIVE_" + suffix, "Node Active " + suffix, defaultNodeActive[i - 1], BoolAttributes{}));
-        if (i < maxNodes)
-        {
-            params.push_back (std::make_unique<juce::AudioParameterFloat> (
-                "HANDLE_" + suffix, "Handle " + suffix,
-                juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
-        }
-        else
-        {
-            params.push_back (std::make_unique<juce::AudioParameterFloat> (
-                "HANDLE_" + suffix, "Handle " + suffix,
-                juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 0.0f, FloatAttributes{}));
-        }
-    }
-
-    // Legacy parameters SHAPE_1..5 remain available for old sessions that
-    // reference them. They are not used by the new graph unless migrated.
-    for (int i = 1; i <= legacyShapeCount; ++i)
-    {
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.0005f), defaultNodeY[slot], FloatAttributes{}));
         params.push_back (std::make_unique<juce::AudioParameterFloat> (
-            "SHAPE_" + juce::String (i), "Legacy Shape " + juce::String (i),
-            juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), defaultLegacyShape[i - 1], FloatAttributes{}));
+            "TENSION_" + suffix, "Tension " + suffix,
+            juce::NormalisableRange<float> (0.0f, 1.0f, 0.0005f), defaultTension[slot], FloatAttributes{}));
+        params.push_back (std::make_unique<juce::AudioParameterBool> (
+            "NODE_ON_" + suffix, "Node On " + suffix, defaultNodeActive[slot], BoolAttributes{}));
     }
 
     return { params.begin(), params.end() };
 }
 
+// =============================================================================
+// Parameter access
+// =============================================================================
+
+int HomeSidechainReceiverAudioProcessor::getLink() const noexcept
+{
+    return juce::jlimit (0, homeSidechain::numberOfLinks - 1,
+                         static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
+}
+
+void HomeSidechainReceiverAudioProcessor::setLink (int link)
+{
+    if (auto* p = apvts.getParameter ("LINK"))
+        p->setValueNotifyingHost (p->convertTo0to1 (
+            static_cast<float> (juce::jlimit (0, homeSidechain::numberOfLinks - 1, link))));
+}
+
+int HomeSidechainReceiverAudioProcessor::getRunMode() const noexcept
+{
+    return juce::jlimit (0, 1, static_cast<int> (apvts.getRawParameterValue ("RUN")->load()));
+}
+
+void HomeSidechainReceiverAudioProcessor::setRunMode (int mode)
+{
+    if (auto* p = apvts.getParameter ("RUN"))
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (juce::jlimit (0, 1, mode))));
+}
+
+int HomeSidechainReceiverAudioProcessor::getSource() const noexcept
+{
+    return juce::jlimit (0, 2, static_cast<int> (apvts.getRawParameterValue ("SOURCE")->load()));
+}
+
+void HomeSidechainReceiverAudioProcessor::setSource (int source)
+{
+    if (auto* p = apvts.getParameter ("SOURCE"))
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (juce::jlimit (0, 2, source))));
+}
+
+int HomeSidechainReceiverAudioProcessor::getRate() const noexcept
+{
+    return juce::jlimit (0, numRates - 1, static_cast<int> (apvts.getRawParameterValue ("RATE")->load()));
+}
+
+void HomeSidechainReceiverAudioProcessor::setRate (int rate)
+{
+    if (auto* p = apvts.getParameter ("RATE"))
+        p->setValueNotifyingHost (p->convertTo0to1 (static_cast<float> (juce::jlimit (0, numRates - 1, rate))));
+}
+
+bool HomeSidechainReceiverAudioProcessor::isSynced() const noexcept
+{
+    return apvts.getRawParameterValue ("SYNC")->load() > 0.5f;
+}
+
+bool HomeSidechainReceiverAudioProcessor::isBypassed() const noexcept
+{
+    return apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+}
+
+float HomeSidechainReceiverAudioProcessor::getMix() const noexcept
+{
+    return juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("MIX")->load());
+}
+
+float HomeSidechainReceiverAudioProcessor::getDepth() const noexcept
+{
+    return juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("DEPTH")->load());
+}
+
+double HomeSidechainReceiverAudioProcessor::getHostBpm() const noexcept
+{
+    if (auto* playHead = getPlayHead())
+        if (auto position = playHead->getPosition())
+            if (auto bpm = position->getBpm())
+                if (*bpm > 1.0)
+                    return *bpm;
+
+    return 120.0;
+}
+
+double HomeSidechainReceiverAudioProcessor::cycleSamples() const noexcept
+{
+    // Host-sync always follows the grid; free length only applies to triggers.
+    if (getRunMode() == 1 || isSynced())
+    {
+        const double bpm = juce::jmax (1.0, getHostBpm());
+        return juce::jmax (1.0, beatsForRate (getRate()) * 60.0 / bpm * currentSampleRate);
+    }
+
+    const double lengthMs = apvts.getRawParameterValue ("LENGTH")->load();
+    return juce::jmax (1.0, lengthMs * 0.001 * currentSampleRate);
+}
+
+int HomeSidechainReceiverAudioProcessor::gridDivisions() const noexcept
+{
+    const double beats = beatsForRate (getRate());
+    return juce::jlimit (4, 32, static_cast<int> (std::lround (beats * 4.0)));
+}
+
+// =============================================================================
+// Curve access
+// =============================================================================
+
+bool HomeSidechainReceiverAudioProcessor::isNodeActive (int slot) const noexcept
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    return apvts.getRawParameterValue ("NODE_ON_" + juce::String (i + 1))->load() > 0.5f;
+}
+
+float HomeSidechainReceiverAudioProcessor::getNodeX (int slot) const noexcept
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    return juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("NODE_X_" + juce::String (i + 1))->load());
+}
+
+float HomeSidechainReceiverAudioProcessor::getNodeY (int slot) const noexcept
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    return juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("NODE_Y_" + juce::String (i + 1))->load());
+}
+
+float HomeSidechainReceiverAudioProcessor::getTension (int slot) const noexcept
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    return juce::jlimit (0.0f, 1.0f, apvts.getRawParameterValue ("TENSION_" + juce::String (i + 1))->load());
+}
+
+void HomeSidechainReceiverAudioProcessor::setNodeX (int slot, float value)
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    if (auto* p = apvts.getParameter ("NODE_X_" + juce::String (i + 1)))
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
+}
+
+void HomeSidechainReceiverAudioProcessor::setNodeY (int slot, float value)
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    if (auto* p = apvts.getParameter ("NODE_Y_" + juce::String (i + 1)))
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
+}
+
+void HomeSidechainReceiverAudioProcessor::setTension (int slot, float value)
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    if (auto* p = apvts.getParameter ("TENSION_" + juce::String (i + 1)))
+        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit (0.0f, 1.0f, value)));
+}
+
+void HomeSidechainReceiverAudioProcessor::setNodeActive (int slot, bool active)
+{
+    const int i = juce::jlimit (0, maxNodes - 1, slot);
+    if (auto* p = apvts.getParameter ("NODE_ON_" + juce::String (i + 1)))
+        p->setValueNotifyingHost (active ? 1.0f : 0.0f);
+}
+
+int HomeSidechainReceiverAudioProcessor::activeNodeCount() const noexcept
+{
+    int count = 0;
+
+    for (int i = 0; i < maxNodes; ++i)
+        if (isNodeActive (i))
+            ++count;
+
+    return count;
+}
+
+receiverCurve::Snapshot HomeSidechainReceiverAudioProcessor::buildSnapshot() const noexcept
+{
+    struct Entry { float x, y, tension; };
+    std::array<Entry, maxNodes> entries {};
+    int count = 0;
+
+    for (int i = 0; i < maxNodes; ++i)
+    {
+        if (! isNodeActive (i))
+            continue;
+
+        entries[static_cast<size_t> (count)] = { getNodeX (i), getNodeY (i), getTension (i) };
+        ++count;
+    }
+
+    std::sort (entries.begin(), entries.begin() + count,
+               [] (const Entry& a, const Entry& b) { return a.x < b.x; });
+
+    receiverCurve::Snapshot snapshot;
+
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& entry = entries[static_cast<size_t> (i)];
+        snapshot.add (entry.x, entry.y, entry.tension);
+    }
+
+    return snapshot;
+}
+
+int HomeSidechainReceiverAudioProcessor::addNode (float x, float y)
+{
+    for (int i = 0; i < maxNodes; ++i)
+    {
+        if (isNodeActive (i))
+            continue;
+
+        setNodeX (i, x);
+        setNodeY (i, y);
+        setTension (i, 0.5f);
+        setNodeActive (i, true);
+        return i;
+    }
+
+    return -1;
+}
+
+void HomeSidechainReceiverAudioProcessor::removeNode (int slot)
+{
+    if (activeNodeCount() <= 2)
+        return;
+
+    setNodeActive (slot, false);
+}
+
+void HomeSidechainReceiverAudioProcessor::applyPreset (int index)
+{
+    const auto& preset = presets[juce::jlimit (0, numPresets - 1, index)];
+
+    for (int i = 0; i < maxNodes; ++i)
+    {
+        const bool used = i < preset.count;
+        setNodeActive (i, used);
+
+        if (used)
+        {
+            setNodeX (i, preset.points[i].x);
+            setNodeY (i, preset.points[i].y);
+            setTension (i, preset.points[i].tension);
+        }
+    }
+}
+
+void HomeSidechainReceiverAudioProcessor::resetCurve()
+{
+    applyPreset (0);
+}
+
+// =============================================================================
+// Audio
+// =============================================================================
+
 void HomeSidechainReceiverAudioProcessor::prepareToPlay (double newSampleRate, int samplesPerBlock)
 {
-    sampleRate = newSampleRate;
+    juce::ignoreUnused (samplesPerBlock);
+
+    currentSampleRate = juce::jmax (1.0, newSampleRate);
     testTriggerRequested.store (false, std::memory_order_release);
-    envelopePhase = 0.0f;
+
+    envelopePhase = 0.0;
     envelopeActiveInternal = false;
+    remainingSamples = 0.0;
     envelopeActiveForUI.store (false, std::memory_order_relaxed);
-    remainingSamples = 0;
     envelopeDisplayPhase.store (0.0f, std::memory_order_relaxed);
-    gainSmoother.reset (sampleRate, 0.008);
-    gainSmoother.setCurrentAndTargetValue (1.0f);
+    currentGainForUI.store (1.0f, std::memory_order_relaxed);
+
+    gainState = 1.0f;
+    smoothCoefficient = 0.0f;
     lowCutState = { 0.0f, 0.0f };
     highCutState = { 0.0f, 0.0f };
-    crossoverState = { 0.0f, 0.0f };
-    refreshShapeCache();
+
+    activeCurve = buildSnapshot();
 
     const int link = getLink();
     homeLinkLastLink = link;
     homeLinkLastSequence = homeLinkService().latestSequence (link);
-    juce::ignoreUnused (samplesPerBlock);
 }
 
 void HomeSidechainReceiverAudioProcessor::releaseResources() {}
@@ -149,218 +449,43 @@ bool HomeSidechainReceiverAudioProcessor::isBusesLayoutSupported (const BusesLay
 {
     const auto mainOut = layouts.getMainOutputChannelSet();
     const auto mainIn = layouts.getMainInputChannelSet();
-    if ((mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
-        || (mainIn != juce::AudioChannelSet::mono() && mainIn != juce::AudioChannelSet::stereo()))
+
+    if (mainOut != juce::AudioChannelSet::mono() && mainOut != juce::AudioChannelSet::stereo())
         return false;
+
+    if (mainIn != juce::AudioChannelSet::mono() && mainIn != juce::AudioChannelSet::stereo())
+        return false;
+
     return mainOut == mainIn;
-}
-
-int HomeSidechainReceiverAudioProcessor::getLink() const noexcept
-{
-    return juce::jlimit (0, 2, static_cast<int> (apvts.getRawParameterValue ("LINK")->load()));
-}
-
-double HomeSidechainReceiverAudioProcessor::getHostBpm() const noexcept
-{
-    if (auto* playHead = getPlayHead())
-        if (auto pos = playHead->getPosition())
-            if (auto bpm = pos->getBpm())
-                if (*bpm > 1.0)
-                    return *bpm;
-    return 120.0;
-}
-
-double HomeSidechainReceiverAudioProcessor::cycleSamples() const noexcept
-{
-    const bool sync = apvts.getRawParameterValue ("SYNC")->load() > 0.5f;
-    if (sync)
-    {
-        static constexpr double beats[] = { 0.5, 1.0, 2.0, 4.0 };
-        const int rate = juce::jlimit<int> (0, 3, static_cast<int> (apvts.getRawParameterValue ("RATE")->load()));
-        const double bpm = juce::jmax<double> (1.0, getHostBpm());
-        return juce::jmax<double> (1.0, beats[rate] * 60.0 / bpm * sampleRate);
-    }
-    const double lengthMs = apvts.getRawParameterValue ("LENGTH")->load();
-    return juce::jmax<double> (1.0, lengthMs * 0.001 * sampleRate);
-}
-
-float HomeSidechainReceiverAudioProcessor::getMix() const noexcept
-{
-    return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("MIX")->load());
-}
-
-
-bool HomeSidechainReceiverAudioProcessor::isNodeActive (int index) const noexcept
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    return apvts.getRawParameterValue ("NODE_ACTIVE_" + juce::String (i + 1))->load() > 0.5f;
-}
-
-float HomeSidechainReceiverAudioProcessor::getNodeX (int index) const noexcept
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("NODE_X_" + juce::String (i + 1))->load());
-}
-
-float HomeSidechainReceiverAudioProcessor::getNodeY (int index) const noexcept
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("NODE_Y_" + juce::String (i + 1))->load());
-}
-
-float HomeSidechainReceiverAudioProcessor::getHandle (int segment) const noexcept
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 2, segment);
-    return juce::jlimit<float> (0.0f, 1.0f, apvts.getRawParameterValue ("HANDLE_" + juce::String (i + 1))->load());
-}
-
-void HomeSidechainReceiverAudioProcessor::setNodeX (int index, float value)
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    if (auto* p = apvts.getParameter ("NODE_X_" + juce::String (i + 1)))
-        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, value)));
-}
-
-void HomeSidechainReceiverAudioProcessor::setNodeY (int index, float value)
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    if (auto* p = apvts.getParameter ("NODE_Y_" + juce::String (i + 1)))
-        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, value)));
-}
-
-void HomeSidechainReceiverAudioProcessor::setHandle (int segment, float value)
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 2, segment);
-    if (auto* p = apvts.getParameter ("HANDLE_" + juce::String (i + 1)))
-        p->setValueNotifyingHost (p->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, value)));
-}
-
-void HomeSidechainReceiverAudioProcessor::setNodeActive (int index, bool active)
-{
-    const int i = juce::jlimit<int> (0, maxNodes - 1, index);
-    if (auto* p = apvts.getParameter ("NODE_ACTIVE_" + juce::String (i + 1)))
-        p->setValueNotifyingHost (active ? 1.0f : 0.0f);
-}
-
-int HomeSidechainReceiverAudioProcessor::activeNodeCount() const noexcept
-{
-    int count = 0;
-    for (int i = 0; i < maxNodes; ++i)
-        if (isNodeActive (i))
-            ++count;
-    return count;
-}
-
-void HomeSidechainReceiverAudioProcessor::refreshShapeCache() noexcept
-{
-    struct Node { float x, y; int index; };
-    std::array<Node, maxNodes> nodes {};
-    int count = 0;
-    for (int i = 0; i < maxNodes; ++i)
-        if (isNodeActive (i))
-            nodes[static_cast<size_t> (count++)] = { getNodeX (i), getNodeY (i), i };
-
-    std::sort (nodes.begin(), nodes.begin() + count, [] (const Node& a, const Node& b) { return a.x < b.x; });
-    cachedNodeCount = count;
-    for (int i = 0; i < count; ++i)
-    {
-        cachedNodeX[static_cast<size_t> (i)] = nodes[static_cast<size_t> (i)].x;
-        cachedNodeY[static_cast<size_t> (i)] = nodes[static_cast<size_t> (i)].y;
-    }
-    for (int i = 0; i < maxNodes - 1; ++i)
-        cachedHandle[static_cast<size_t> (i)] = getHandle (i);
-}
-
-float HomeSidechainReceiverAudioProcessor::shapeValueCached (float phase) const noexcept
-{
-    phase = juce::jlimit<float> (0.0f, 1.0f, phase);
-    if (cachedNodeCount < 2)
-        return phase;
-    if (phase <= cachedNodeX[0]) return cachedNodeY[0];
-    if (phase >= cachedNodeX[static_cast<size_t> (cachedNodeCount - 1)])
-        return cachedNodeY[static_cast<size_t> (cachedNodeCount - 1)];
-
-    int segment = 0;
-    for (int i = 0; i < cachedNodeCount - 1; ++i)
-        if (phase >= cachedNodeX[static_cast<size_t> (i)] && phase <= cachedNodeX[static_cast<size_t> (i + 1)])
-        {
-            segment = i;
-            break;
-        }
-
-    const float dx = juce::jmax<float> (0.0001f, cachedNodeX[static_cast<size_t> (segment + 1)] - cachedNodeX[static_cast<size_t> (segment)]);
-    float t = juce::jlimit<float> (0.0f, 1.0f, (phase - cachedNodeX[static_cast<size_t> (segment)]) / dx);
-    const float handle = juce::jlimit<float> (0.0f, 1.0f, cachedHandle[static_cast<size_t> (segment)]);
-    const float exponent = 1.0f + handle * 3.0f;
-    t = std::pow (t, 1.0f / exponent);
-
-    return juce::jmap (t, cachedNodeY[static_cast<size_t> (segment)], cachedNodeY[static_cast<size_t> (segment + 1)]);
-}
-
-float HomeSidechainReceiverAudioProcessor::shapeValue (float phase) const noexcept
-{
-    phase = juce::jlimit<float> (0.0f, 1.0f, phase);
-
-    struct Node { float x, y; int index; };
-    std::array<Node, maxNodes> nodes {};
-    int count = 0;
-    for (int i = 0; i < maxNodes; ++i)
-        if (isNodeActive (i))
-            nodes[static_cast<size_t> (count++)] = { getNodeX (i), getNodeY (i), i };
-
-    if (count < 2)
-        return phase;
-
-    std::sort (nodes.begin(), nodes.begin() + count, [](const Node& a, const Node& b) { return a.x < b.x; });
-
-    if (phase <= nodes[0].x) return nodes[0].y;
-    if (phase >= nodes[count - 1].x) return nodes[count - 1].y;
-
-    int segment = 0;
-    for (int i = 0; i < count - 1; ++i)
-    {
-        if (phase >= nodes[i].x && phase <= nodes[i + 1].x)
-        {
-            segment = i;
-            break;
-        }
-    }
-
-    const float dx = juce::jmax<float> (0.0001f, nodes[segment + 1].x - nodes[segment].x);
-    float t = juce::jlimit<float> (0.0f, 1.0f, (phase - nodes[segment].x) / dx);
-    const float handle = juce::jlimit<float> (0.0f, 1.0f, getHandle (segment));
-    const float exponent = 1.0f + handle * 3.0f;
-    t = std::pow (t, 1.0f / exponent);
-
-    return juce::jmap (t, nodes[segment].y, nodes[segment + 1].y);
-}
-
-float HomeSidechainReceiverAudioProcessor::modulationGain (float shape) const noexcept
-{
-    // The curve directly represents output gain: 1.0 = full level,
-    // 0.0 = full duck. There is no separate Depth control.
-    return juce::jlimit<float> (0.0f, 1.0f, shape);
 }
 
 void HomeSidechainReceiverAudioProcessor::triggerEnvelope()
 {
     envelopeActiveInternal = true;
     envelopeActiveForUI.store (true, std::memory_order_relaxed);
-    envelopePhase = 0.0f;
-    remainingSamples = juce::jmax<int> (1, static_cast<int> (std::lround (cycleSamples())));
+    envelopePhase = 0.0;
+    remainingSamples = juce::jmax (1.0, cycleSamples());
     triggerActivity.store (1.0f, std::memory_order_relaxed);
     triggerCount.fetch_add (1, std::memory_order_relaxed);
+}
+
+float HomeSidechainReceiverAudioProcessor::gainForPhase (float phase, float depth) const noexcept
+{
+    const float shape = juce::jlimit (0.0f, 1.0f, activeCurve.valueAt (phase));
+    return 1.0f - depth * (1.0f - shape);
 }
 
 void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                                         juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
-    const int samples = buffer.getNumSamples();
-    if (samples <= 0)
+
+    const int numSamples = buffer.getNumSamples();
+    if (numSamples <= 0)
         return;
 
     const int link = getLink();
+
     if (link != homeLinkLastLink)
     {
         homeLinkLastLink = link;
@@ -368,168 +493,237 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
     }
 
     const int targetNote = homeSidechain::midiNoteForLink (link);
-    const bool bypassed = apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
+    const int source = getSource();
+    const bool acceptHomeLink = source != 1;
+    const bool acceptMidi = source != 0;
+    const bool bypassed = isBypassed();
+    const int runMode = getRunMode();
 
     triggerActivity.store (triggerActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
     midiActivity.store (midiActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
     homeLinkActivity.store (homeLinkActivity.load (std::memory_order_relaxed) * 0.90f, std::memory_order_relaxed);
+    hostBpmForUI.store (static_cast<float> (getHostBpm()), std::memory_order_relaxed);
 
     const auto heartbeatAge = static_cast<uint32_t> (
         juce::Time::getMillisecondCounter() - homeLinkService().lastHeartbeatMs (link));
     homeLinkConnected.store (heartbeatAge < 450u, std::memory_order_relaxed);
 
+    // -------------------------------------------------------------------------
+    // Collect trigger positions for this block. No allocation, no socket I/O.
+    // -------------------------------------------------------------------------
     std::array<int, 256> triggerPositions {};
     int triggerPositionCount = 0;
 
     if (testTriggerRequested.exchange (false, std::memory_order_acq_rel))
         triggerPositions[static_cast<size_t> (triggerPositionCount++)] = 0;
 
-    const auto latest = homeLinkService().latestSequence (link);
-    auto next = homeLinkLastSequence + 1;
-    if (latest > next && latest - next >= 256)
-        next = latest - 255;
-
-    while (next <= latest && triggerPositionCount < static_cast<int> (triggerPositions.size()))
+    if (acceptHomeLink)
     {
-        homeSidechain::HomeLinkEvent event;
-        if (homeLinkService().readEvent (link, next, event))
+        const auto latest = homeLinkService().latestSequence (link);
+        auto next = homeLinkLastSequence + 1;
+
+        if (latest > next && latest - next >= 256)
+            next = latest - 255;
+
+        while (next <= latest && triggerPositionCount < static_cast<int> (triggerPositions.size()))
         {
-            triggerPositions[static_cast<size_t> (triggerPositionCount++)] = 0;
-            homeLinkActivity.store (1.0f, std::memory_order_relaxed);
-            triggerActivity.store (1.0f, std::memory_order_relaxed);
-            homeLinkTriggerCount.fetch_add (1, std::memory_order_relaxed);
-            lastHomeLinkVelocity.store (static_cast<int> (event.velocity), std::memory_order_relaxed);
+            homeSidechain::HomeLinkEvent event;
+
+            if (homeLinkService().readEvent (link, next, event))
+            {
+                triggerPositions[static_cast<size_t> (triggerPositionCount++)] = 0;
+                homeLinkActivity.store (1.0f, std::memory_order_relaxed);
+                triggerActivity.store (1.0f, std::memory_order_relaxed);
+                homeLinkTriggerCount.fetch_add (1, std::memory_order_relaxed);
+            }
+
+            ++next;
         }
-        ++next;
+
+        if (latest > homeLinkLastSequence)
+            homeLinkLastSequence = latest;
     }
-    if (latest > homeLinkLastSequence)
-        homeLinkLastSequence = latest;
 
     int incomingMidiEvents = 0;
     int mostRecentNote = -1;
-    int mostRecentChannel = 0;
+
     for (const auto metadata : midi)
     {
         const auto message = metadata.getMessage();
+
+        if (! message.isNoteOn())
+            continue;
+
         ++incomingMidiEvents;
-        mostRecentChannel = juce::jmax<int> (mostRecentChannel, message.getChannel());
-        if (message.isNoteOn())
+        mostRecentNote = message.getNoteNumber();
+
+        if (acceptMidi
+            && message.getNoteNumber() == targetNote
+            && triggerPositionCount < static_cast<int> (triggerPositions.size()))
         {
-            mostRecentNote = message.getNoteNumber();
-            if (message.getNoteNumber() == targetNote
-                && triggerPositionCount < static_cast<int> (triggerPositions.size()))
-            {
-                triggerPositions[static_cast<size_t> (triggerPositionCount++)] =
-                    juce::jlimit<int> (0, samples - 1, metadata.samplePosition);
-                midiActivity.store (1.0f, std::memory_order_relaxed);
-            }
+            triggerPositions[static_cast<size_t> (triggerPositionCount++)] =
+                juce::jlimit (0, numSamples - 1, metadata.samplePosition);
+            midiActivity.store (1.0f, std::memory_order_relaxed);
         }
     }
 
     if (incomingMidiEvents > 0)
     {
-        midiActivity.store (1.0f, std::memory_order_relaxed);
         midiEventCount.fetch_add (incomingMidiEvents, std::memory_order_relaxed);
         lastMidiNote.store (mostRecentNote, std::memory_order_relaxed);
-        lastMidiChannel.store (mostRecentChannel, std::memory_order_relaxed);
     }
 
     if (bypassed)
     {
         envelopeActiveInternal = false;
-        remainingSamples = 0;
+        remainingSamples = 0.0;
+        gainState = 1.0f;
         envelopeActiveForUI.store (false, std::memory_order_relaxed);
         envelopeDisplayPhase.store (0.0f, std::memory_order_relaxed);
+        currentGainForUI.store (1.0f, std::memory_order_relaxed);
         return;
     }
 
-    const double totalCycle = cycleSamples();
-    refreshShapeCache();
-    const float mix = getMix();
-    const int bandMode = juce::jlimit<int> (0, 2, static_cast<int> (apvts.getRawParameterValue ("BAND")->load()));
-    const float lowCutHz = juce::jlimit<float> (20.0f, 4000.0f, apvts.getRawParameterValue ("LOW_CUT")->load());
-    const float highCutHz = juce::jlimit<float> (1000.0f, 20000.0f, apvts.getRawParameterValue ("HIGH_CUT")->load());
-    const float crossover = juce::jlimit<float> (50.0f, 800.0f, apvts.getRawParameterValue ("CROSSOVER")->load());
+    // -------------------------------------------------------------------------
+    // Block-stable settings. The curve is sorted once per block, never per
+    // sample, and no parameter is read inside the sample loop.
+    // -------------------------------------------------------------------------
+    activeCurve = buildSnapshot();
 
-    const float safeLowCut = juce::jmin<float> (lowCutHz, juce::jmax<float> (20.0f, highCutHz * 0.98f));
-    const float safeHighCut = juce::jmax<float> (juce::jmin<float> (20000.0f, highCutHz), safeLowCut * 1.02f);
-    const float lowAlpha = std::exp (-juce::MathConstants<float>::twoPi * safeLowCut / static_cast<float> (juce::jmax<double> (1.0, sampleRate)));
-    const float highAlpha = std::exp (-juce::MathConstants<float>::twoPi * safeHighCut / static_cast<float> (juce::jmax<double> (1.0, sampleRate)));
-    const float splitAlpha = std::exp (-juce::MathConstants<float>::twoPi * crossover / static_cast<float> (juce::jmax<double> (1.0, sampleRate)));
+    const double totalCycle = juce::jmax (1.0, cycleSamples());
+    const double phaseIncrement = 1.0 / totalCycle;
+    const float mix = getMix();
+    const float depth = getDepth();
+    const float smoothMs = juce::jlimit (0.0f, 40.0f, apvts.getRawParameterValue ("SMOOTH")->load());
+    const float lowCutHz = juce::jlimit (20.0f, 2000.0f, apvts.getRawParameterValue ("LOW_CUT")->load());
+    const float highCutHz = juce::jmax (lowCutHz * 1.05f,
+                                        juce::jlimit (500.0f, 20000.0f,
+                                                      apvts.getRawParameterValue ("HIGH_CUT")->load()));
+
+    const float lowAlpha = onePoleCoefficient (lowCutHz, currentSampleRate);
+    const float highAlpha = onePoleCoefficient (highCutHz, currentSampleRate);
+
+    // A one-pole smoother never snaps when the time constant changes, so the
+    // Smooth control is safe to automate.
+    smoothCoefficient = smoothMs <= 0.01f
+        ? 0.0f
+        : std::exp (-1.0f / juce::jmax (1.0f, smoothMs * 0.001f * static_cast<float> (currentSampleRate)));
+
+    // -------------------------------------------------------------------------
+    // Host-sync mode locks the shape to the transport, which is what makes the
+    // plugin usable with no trigger source at all.
+    // -------------------------------------------------------------------------
+    if (runMode == 1)
+    {
+        envelopeActiveInternal = true;
+        envelopeActiveForUI.store (true, std::memory_order_relaxed);
+
+        if (auto* playHead = getPlayHead())
+        {
+            if (auto position = playHead->getPosition())
+            {
+                if (position->getIsPlaying())
+                {
+                    if (auto ppq = position->getPpqPosition())
+                    {
+                        const double beats = juce::jmax (0.0001, beatsForRate (getRate()));
+                        double wrapped = std::fmod (*ppq / beats, 1.0);
+
+                        if (wrapped < 0.0)
+                            wrapped += 1.0;
+
+                        envelopePhase = wrapped;
+                    }
+                }
+            }
+        }
+
+        triggerPositionCount = 0;
+    }
 
     std::sort (triggerPositions.begin(), triggerPositions.begin() + triggerPositionCount);
-    int triggerIndex = 0;
-    float lastPhaseForDisplay = envelopeDisplayPhase.load (std::memory_order_relaxed);
 
-    for (int i = 0; i < samples; ++i)
+    int triggerIndex = 0;
+    const int numChannels = buffer.getNumChannels();
+    float blockPeak = 0.0f;
+    float lastGain = gainState;
+
+    for (int i = 0; i < numSamples; ++i)
     {
-        while (triggerIndex < triggerPositionCount && triggerPositions[static_cast<size_t> (triggerIndex)] == i)
+        while (triggerIndex < triggerPositionCount
+               && triggerPositions[static_cast<size_t> (triggerIndex)] == i)
         {
             triggerEnvelope();
             ++triggerIndex;
         }
 
         float targetGain = 1.0f;
-        if (envelopeActiveInternal && remainingSamples > 0)
+
+        if (runMode == 1)
         {
-            const float phase = 1.0f - static_cast<float> (
-                static_cast<double> (remainingSamples) / juce::jmax<double> (1.0, totalCycle));
-            envelopePhase = juce::jlimit<float> (0.0f, 1.0f, phase);
-            lastPhaseForDisplay = envelopePhase;
-            targetGain = modulationGain (shapeValueCached (envelopePhase));
-            --remainingSamples;
-            if (remainingSamples <= 0)
+            targetGain = gainForPhase (static_cast<float> (envelopePhase), depth);
+            envelopePhase += phaseIncrement;
+
+            if (envelopePhase >= 1.0)
+                envelopePhase -= std::floor (envelopePhase);
+        }
+        else if (envelopeActiveInternal && remainingSamples > 0.0)
+        {
+            envelopePhase = juce::jlimit (0.0, 1.0, 1.0 - remainingSamples / totalCycle);
+            targetGain = gainForPhase (static_cast<float> (envelopePhase), depth);
+            remainingSamples -= 1.0;
+
+            if (remainingSamples <= 0.0)
             {
-                remainingSamples = 0;
+                remainingSamples = 0.0;
                 envelopeActiveInternal = false;
                 envelopeActiveForUI.store (false, std::memory_order_relaxed);
             }
         }
 
-        const float currentTarget = juce::jmap (mix, 1.0f, targetGain);
-        gainSmoother.setTargetValue (currentTarget);
-        const float gain = gainSmoother.getNextValue();
+        gainState = targetGain + (gainState - targetGain) * smoothCoefficient;
+        const float gain = gainState;
+        lastGain = gain;
 
-        for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+        for (int channel = 0; channel < numChannels; ++channel)
         {
-            const int state = juce::jmin<int> (channel, 1);
+            const auto state = static_cast<size_t> (juce::jmin (channel, 1));
             const float in = buffer.getSample (channel, i);
 
-            lowCutState[static_cast<size_t> (state)] =
-                lowAlpha * lowCutState[static_cast<size_t> (state)] + (1.0f - lowAlpha) * in;
-            const float highPassed = in - lowCutState[static_cast<size_t> (state)];
+            lowCutState[state] += (in - lowCutState[state]) * lowAlpha;
+            highCutState[state] += (in - highCutState[state]) * highAlpha;
 
-            highCutState[static_cast<size_t> (state)] =
-                highAlpha * highCutState[static_cast<size_t> (state)] + (1.0f - highAlpha) * highPassed;
-            const float bandPassed = highCutState[static_cast<size_t> (state)];
+            // Everything below Low Cut and above High Cut passes untouched;
+            // only the band between them is ducked.
+            const float below = lowCutState[state];
+            const float above = in - highCutState[state];
+            const float band = highCutState[state] - below;
 
-            crossoverState[static_cast<size_t> (state)] =
-                splitAlpha * crossoverState[static_cast<size_t> (state)]
-                + (1.0f - splitAlpha) * highPassed;
-            const float splitLow = crossoverState[static_cast<size_t> (state)];
-            const float splitHigh = highPassed - splitLow;
+            const float wet = below + above + band * gain;
 
-            float wet = in;
-            if (bandMode == 0)
-                wet = bandPassed * gain;
-            else if (bandMode == 1)
-                wet = splitLow * gain + splitHigh;
-            else
-                wet = splitHigh * gain + splitLow;
+            buffer.setSample (channel, i, in + (wet - in) * mix);
 
-            buffer.setSample (channel, i, juce::jmap (mix, in, wet));
+            if (channel == 0)
+                blockPeak = juce::jmax (blockPeak, std::abs (in));
         }
     }
 
-    envelopeDisplayPhase.store (envelopeActiveInternal ? juce::jlimit<float> (0.0f, 1.0f, lastPhaseForDisplay) : 0.0f,
-                                 std::memory_order_relaxed);
+    envelopeDisplayPhase.store (juce::jlimit (0.0f, 1.0f, static_cast<float> (envelopePhase)),
+                                std::memory_order_relaxed);
+    currentGainForUI.store (juce::jlimit (0.0f, 1.0f, lastGain), std::memory_order_relaxed);
+    inputLevelForUI.store (juce::jmax (inputLevelForUI.load (std::memory_order_relaxed) * 0.80f, blockPeak),
+                           std::memory_order_relaxed);
 }
+
+// =============================================================================
+// State
+// =============================================================================
 
 void HomeSidechainReceiverAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     if (auto xml = apvts.copyState().createXml())
     {
-        xml->setAttribute ("NodeModel", 1);
+        xml->setAttribute ("CurveModel", 2);
         copyXmlToBinary (*xml, destData);
     }
 }
@@ -537,36 +731,14 @@ void HomeSidechainReceiverAudioProcessor::getStateInformation (juce::MemoryBlock
 void HomeSidechainReceiverAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
-    {
         if (xml->hasTagName (apvts.state.getType()))
-        {
-            const bool hasNewNodes = xml->getStringAttribute ("NodeModel", {}).isNotEmpty();
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
-
-            if (! hasNewNodes)
-            {
-                for (int i = 0; i < maxNodes; ++i)
-                {
-                    const float x = defaultNodeX[i];
-                    const float y = i < legacyShapeCount ?
-                        apvts.getRawParameterValue ("SHAPE_" + juce::String (i + 1))->load() : defaultNodeY[i];
-                    if (auto* px = apvts.getParameter ("NODE_X_" + juce::String (i + 1)))
-                        px->setValueNotifyingHost (px->convertTo0to1 (x));
-                    if (auto* py = apvts.getParameter ("NODE_Y_" + juce::String (i + 1)))
-                        py->setValueNotifyingHost (py->convertTo0to1 (juce::jlimit<float> (0.0f, 1.0f, y)));
-                    if (auto* pa = apvts.getParameter ("NODE_ACTIVE_" + juce::String (i + 1)))
-                        pa->setValueNotifyingHost (i < 4 ? 1.0f : 0.0f);
-                }
-            }
-        }
-    }
 }
 
 juce::AudioProcessorEditor* HomeSidechainReceiverAudioProcessor::createEditor()
 {
     return new HomeSidechainReceiverAudioProcessorEditor (*this);
 }
-
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
