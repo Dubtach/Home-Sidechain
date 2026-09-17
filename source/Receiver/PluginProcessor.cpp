@@ -17,35 +17,45 @@ namespace
         PresetPoint points[8];
     };
 
-    // Factory shapes. Every one starts the cycle ducked (or flat) and returns
-    // to unity by the end so it loops cleanly in host-sync mode.
+    // Factory shapes.
+    //
+    // Every one of these is loop-safe: the height at phase 1.0 is identical to
+    // the height at phase 0.0, and the last few percent of the cycle is a ramp
+    // back down to it rather than a vertical jump. A drawn sidechain envelope
+    // is cycled like an LFO, so whatever value the shape ends on is the value
+    // it steps away from on the next trigger -- end high and you get a step
+    // discontinuity in gain, which is a click. The short fall at the end is the
+    // same trick VolumeShaper's trigger pre-smoothing applies just before a
+    // transient, and it doubles as the "hold before the next cycle" that gives
+    // four-to-the-floor pumping its shape.
     const PresetDefinition presets[HomeSidechainReceiverAudioProcessor::numPresets] =
     {
-        { "Classic",  2, { { 0.00f, 0.00f, 0.34f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Tight",    3, { { 0.00f, 0.00f, 0.24f }, { 0.55f, 1.00f, 0.50f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Soft",     2, { { 0.00f, 0.28f, 0.44f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Deep",     3, { { 0.00f, 0.00f, 0.50f }, { 0.14f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Gate",     4, { { 0.00f, 0.00f, 0.50f }, { 0.48f, 0.00f, 0.50f }, { 0.50f, 1.00f, 0.50f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Offbeat",  4, { { 0.00f, 1.00f, 0.50f }, { 0.48f, 1.00f, 0.50f }, { 0.50f, 0.00f, 0.32f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Double",   4, { { 0.00f, 0.00f, 0.30f }, { 0.48f, 1.00f, 0.50f }, { 0.50f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Triplet",  6, { { 0.00f, 0.00f, 0.30f }, { 0.32f, 1.00f, 0.50f }, { 0.34f, 0.00f, 0.30f },
-                           { 0.66f, 1.00f, 0.50f }, { 0.68f, 0.00f, 0.30f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Valley",   4, { { 0.00f, 1.00f, 0.40f }, { 0.28f, 0.10f, 0.50f }, { 0.72f, 0.10f, 0.60f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Wave",     3, { { 0.00f, 1.00f, 0.64f }, { 0.50f, 0.00f, 0.36f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Stutter",  8, { { 0.00f, 0.00f, 0.28f }, { 0.24f, 1.00f, 0.50f }, { 0.25f, 0.00f, 0.28f }, { 0.49f, 1.00f, 0.50f },
-                           { 0.50f, 0.00f, 0.28f }, { 0.74f, 1.00f, 0.50f }, { 0.75f, 0.00f, 0.28f }, { 1.00f, 1.00f, 0.50f } } },
-        { "Swell",    2, { { 0.00f, 0.00f, 0.70f }, { 1.00f, 1.00f, 0.50f } } }
+        { "Classic", 3, { { 0.00f, 0.00f, 0.34f }, { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
+        { "Tight",   4, { { 0.00f, 0.00f, 0.20f }, { 0.50f, 1.00f, 0.50f }, { 0.95f, 1.00f, 0.50f },
+                          { 1.00f, 0.00f, 0.50f } } },
+        { "Long",    3, { { 0.00f, 0.00f, 0.50f }, { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
+        { "Deep",    4, { { 0.00f, 0.00f, 0.50f }, { 0.16f, 0.00f, 0.30f }, { 0.95f, 1.00f, 0.50f },
+                          { 1.00f, 0.00f, 0.50f } } },
+        { "Soft",    3, { { 0.00f, 0.30f, 0.42f }, { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.30f, 0.50f } } },
+        { "Gate",    5, { { 0.00f, 0.00f, 0.50f }, { 0.46f, 0.00f, 0.50f }, { 0.52f, 1.00f, 0.50f },
+                          { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
+        { "Double",  5, { { 0.00f, 0.00f, 0.30f }, { 0.44f, 1.00f, 0.50f }, { 0.50f, 0.00f, 0.32f },
+                          { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
+        { "Triplet", 7, { { 0.00f, 0.00f, 0.28f }, { 0.29f, 1.00f, 0.50f }, { 0.34f, 0.00f, 0.28f },
+                          { 0.62f, 1.00f, 0.50f }, { 0.67f, 0.00f, 0.28f }, { 0.95f, 1.00f, 0.50f },
+                          { 1.00f, 0.00f, 0.50f } } }
     };
 
+    // Defaults mirror the Classic preset, including its fall at the end.
     constexpr float defaultNodeX[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
     };
 
     constexpr float defaultNodeY[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
     };
 
@@ -57,7 +67,7 @@ namespace
 
     constexpr bool defaultNodeActive[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        true, true, false, false, false, false, false, false,
+        true, true, true, false, false, false, false, false,
         false, false, false, false, false, false, false, false
     };
 
@@ -138,7 +148,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioPr
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
         "MIX", "Mix", juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f), 1.0f, FloatAttributes{}));
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
-        "SMOOTH", "Smooth", juce::NormalisableRange<float> (0.0f, 40.0f, 0.1f, 0.6f), 1.5f,
+        "SMOOTH", "Smooth", juce::NormalisableRange<float> (0.0f, 40.0f, 0.1f, 0.6f), 4.0f,
         FloatAttributes{}.withLabel ("ms")));
 
     params.push_back (std::make_unique<juce::AudioParameterFloat> (
@@ -323,6 +333,49 @@ void HomeSidechainReceiverAudioProcessor::setNodeActive (int slot, bool active)
     const int i = juce::jlimit (0, maxNodes - 1, slot);
     if (auto* p = apvts.getParameter ("NODE_ON_" + juce::String (i + 1)))
         p->setValueNotifyingHost (active ? 1.0f : 0.0f);
+}
+
+void HomeSidechainReceiverAudioProcessor::setEndpointY (float value)
+{
+    int firstSlot = -1, lastSlot = -1;
+    float firstX = 2.0f, lastX = -1.0f;
+
+    for (int i = 0; i < maxNodes; ++i)
+    {
+        if (! isNodeActive (i))
+            continue;
+
+        const float x = getNodeX (i);
+
+        if (x <= firstX) { firstX = x; firstSlot = i; }
+        if (x >= lastX)  { lastX = x;  lastSlot = i; }
+    }
+
+    if (firstSlot >= 0)
+        setNodeY (firstSlot, value);
+
+    if (lastSlot >= 0 && lastSlot != firstSlot)
+        setNodeY (lastSlot, value);
+}
+
+bool HomeSidechainReceiverAudioProcessor::isEndpoint (int slot) const noexcept
+{
+    if (! isNodeActive (slot))
+        return false;
+
+    float lowest = 2.0f, highest = -1.0f;
+
+    for (int i = 0; i < maxNodes; ++i)
+    {
+        if (! isNodeActive (i))
+            continue;
+
+        lowest = juce::jmin (lowest, getNodeX (i));
+        highest = juce::jmax (highest, getNodeX (i));
+    }
+
+    const float x = getNodeX (slot);
+    return x <= lowest || x >= highest;
 }
 
 int HomeSidechainReceiverAudioProcessor::activeNodeCount() const noexcept

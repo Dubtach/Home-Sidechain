@@ -1,53 +1,21 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include "PluginProcessor.h"
+#include "../Shared/HomeSeriesUI.h"
 
-class HomeSeriesTriggerLookAndFeel : public juce::LookAndFeel_V4
+// =============================================================================
+// Scrolling input waveform with a draggable threshold line. Bins that fired a
+// trigger are marked, so you can see exactly which transient crossed.
+// =============================================================================
+
+class TriggerScope : public juce::Component
 {
 public:
-    HomeSeriesTriggerLookAndFeel();
-    void drawToggleButton (juce::Graphics&, juce::ToggleButton&, bool, bool) override;
-    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool, bool) override;
-    void drawButtonText (juce::Graphics&, juce::TextButton&, bool, bool) override;
-};
-
-class HomeSidechainTriggerLinkSelector : public juce::Component
-{
-public:
-    explicit HomeSidechainTriggerLinkSelector (HomeSidechainTriggerAudioProcessor&);
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-private:
-    HomeSidechainTriggerAudioProcessor& processor;
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerLinkSelector)
-};
-
-class HomeSidechainTriggerGapSlider : public juce::Slider
-{
-public:
-    HomeSidechainTriggerGapSlider();
-    void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
-    bool hitTest (int x, int y) override;
-private:
-    void setValueFromMouseX (float x);
-    float trackStartX() const noexcept;
-    float trackEndX() const noexcept;
-    bool manualMouseTracking = false;
-};
-
-class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                                  private juce::Timer
-{
-public:
-    explicit HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor&);
-    ~HomeSidechainTriggerAudioProcessorEditor() override;
+    explicit TriggerScope (HomeSidechainTriggerAudioProcessor&);
 
     void paint (juce::Graphics&) override;
-    void resized() override;
     void mouseMove (const juce::MouseEvent&) override;
     void mouseExit (const juce::MouseEvent&) override;
     void mouseDown (const juce::MouseEvent&) override;
@@ -57,32 +25,69 @@ public:
 
 private:
     HomeSidechainTriggerAudioProcessor& processor;
-    HomeSeriesTriggerLookAndFeel homeSeriesLaf;
 
-    HomeSidechainTriggerGapSlider cooldown;
-    HomeSidechainTriggerLinkSelector linkSelector;
-    juce::ToggleButton bypass;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> cooldownAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
+    bool dragging = false;
+    bool hovering = false;
 
-    juce::Rectangle<float> graphPlotBounds;
-    bool draggingThreshold = false;
-    bool hoveringThreshold = false;
-    float lastThresholdDragY = 0.0f;
+    juce::Rectangle<float> plotBounds() const noexcept;
+    float dbToY (float db) const noexcept;
+    float yToDb (float y) const noexcept;
+    void setThresholdFromY (float y, bool fine);
+
+    void drawGrid (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawThreshold (juce::Graphics&, juce::Rectangle<float>) const;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TriggerScope)
+};
+
+// =============================================================================
+
+class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                                 private juce::Timer
+{
+public:
+    static constexpr int designWidth = 720;
+    static constexpr int designHeight = 430;
+
+    explicit HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor&);
+    ~HomeSidechainTriggerAudioProcessorEditor() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+private:
+    HomeSidechainTriggerAudioProcessor& processor;
+
+    TriggerScope scope;
+
+    std::array<std::unique_ptr<homeUI::Pill>, homeSidechain::numberOfLinks> linkPills;
+
+    homeUI::Pill testPill { "TEST", homeUI::cyan };
+    homeUI::PowerButton power;
+
+    homeUI::Knob thresholdKnob { "THRESHOLD" };
+    homeUI::Knob cooldownKnob { "COOL DOWN" };
+
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+
+    std::unique_ptr<SliderAttachment> thresholdAttachment, cooldownAttachment;
+    std::unique_ptr<ButtonAttachment> bypassAttachment;
+
+    float inputSmoothed = 0.0f;
+    float triggerSmoothed = 0.0f;
+
+    static juce::Rectangle<float> scopeCard()  { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
+    static juce::Rectangle<float> senseCard()  { return { 500.0f, 76.0f, 200.0f, 202.0f }; }
+    static juce::Rectangle<float> meterCard()  { return { 20.0f, 288.0f, 470.0f, 122.0f }; }
+    static juce::Rectangle<float> sendCard()   { return { 500.0f, 288.0f, 200.0f, 122.0f }; }
 
     void timerCallback() override;
-    void styleBypass();
-    float thresholdForY (float y) const noexcept;
-    float yForDb (float db) const noexcept;
-    void setThresholdFromY (float y, bool fine = false);
-
-    void drawBackground (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawGraphCard (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawCooldownCard (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawStatusPill (juce::Graphics&, juce::Rectangle<float>, const juce::String&, juce::Colour) const;
-    void drawTimeScale (juce::Graphics&, juce::Rectangle<float>) const;
+    void refreshFromParameters();
+    void drawHeader (juce::Graphics&) const;
+    void drawMeters (juce::Graphics&) const;
+    void drawSend (juce::Graphics&) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };

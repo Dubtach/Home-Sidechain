@@ -1,958 +1,409 @@
 #include "PluginEditor.h"
+#include <cmath>
+
+using namespace homeUI;
 
 namespace
 {
-    const juce::Colour bg0       (0xff040609);
-    const juce::Colour bg1       (0xff090d12);
-    const juce::Colour panel     (0xff0c1319);
-    const juce::Colour plotBg    (0xff05090d);
-    const juce::Colour edge      (0xff263640);
-    const juce::Colour grid      (0xff21414e);
-    const juce::Colour white     (0xfff1f6fa);
-    const juce::Colour muted     (0xff8796a3);
-    const juce::Colour cyan      (0xff1ee7ff);
-    const juce::Colour cyanDim   (0xff0fa8be);
-    const juce::Colour red       (0xffff5965);
-    const juce::Colour green     (0xff36e79a);
-    const juce::Colour black     (0xff010204);
+    constexpr float minDb = -48.0f;
+    constexpr float maxDb = 0.0f;
 
-    juce::Font uiFont (float size, bool bold = false)
+    float levelToDb (float linear) noexcept
     {
-        return juce::Font (juce::FontOptions (size).withName ("Helvetica")
-                                                     .withStyle (bold ? "Bold" : "Plain"));
-    }
-
-    void drawPanel (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour accent, float radius)
-    {
-        g.setColour (black.withAlpha (0.70f));
-        g.fillRoundedRectangle (r.translated (0.0f, 2.5f), radius + 1.0f);
-
-        juce::ColourGradient fill (panel.brighter (0.04f), r.getX(), r.getY(),
-                                   bg1, r.getRight(), r.getBottom(), false);
-        g.setGradientFill (fill);
-        g.fillRoundedRectangle (r, radius);
-
-        juce::ColourGradient glow (accent.withAlpha (0.065f), r.getX(), r.getY(),
-                                   juce::Colours::transparentBlack, r.getCentreX(), r.getBottom(), false);
-        g.setGradientFill (glow);
-        g.fillRoundedRectangle (r.reduced (1.0f), radius - 1.0f);
-
-        g.setColour (edge.withAlpha (0.98f));
-        g.drawRoundedRectangle (r, radius, 1.1f);
-        g.setColour (accent.withAlpha (0.48f));
-        g.drawRoundedRectangle (r.reduced (0.8f), radius - 0.8f, 0.8f);
+        return juce::jlimit (minDb, maxDb,
+                             juce::Decibels::gainToDecibels (juce::jmax (linear, 0.0000025f)));
     }
 }
 
-HomeSeriesTriggerLookAndFeel::HomeSeriesTriggerLookAndFeel() = default;
+// =============================================================================
+// TriggerScope
+// =============================================================================
 
-void HomeSeriesTriggerLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
-                                                          const juce::Colour& backgroundColour,
-                                                          bool highlighted, bool down)
-{
-    // Keep the required Button LookAndFeel hooks fully defined even though
-    // the current Trigger UI only uses a custom ToggleButton for bypass.
-    // Delegate to JUCE for any future buttons instead of leaving unresolved
-    // vtable symbols at link time.
-    juce::LookAndFeel_V4::drawButtonBackground (g, button, backgroundColour, highlighted, down);
-}
-
-void HomeSeriesTriggerLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& button,
-                                                    bool highlighted, bool down)
-{
-    juce::LookAndFeel_V4::drawButtonText (g, button, highlighted, down);
-}
-
-void HomeSeriesTriggerLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
-                                                      bool highlighted, bool)
-{
-    if (button.getName() != "BYPASS_SWITCH")
-        return;
-
-    const auto b = button.getLocalBounds().toFloat().reduced (3.0f);
-    const bool bypassed = button.getToggleState();
-    const auto accent = bypassed ? red : cyan;
-    const float size = juce::jmin (b.getWidth(), b.getHeight());
-    const auto iconBox = juce::Rectangle<float> (b.getCentreX() - size * 0.5f,
-                                                   b.getCentreY() - size * 0.5f,
-                                                   size, size);
-
-    g.setColour (black.withAlpha (0.70f));
-    g.fillEllipse (iconBox.translated (0.0f, 2.0f));
-    g.setColour (juce::Colour (0xff0d141a));
-    g.fillEllipse (iconBox);
-    g.setColour (accent.withAlpha (highlighted ? 1.0f : 0.86f));
-    g.drawEllipse (iconBox, 1.5f);
-
-    const float cx = iconBox.getCentreX();
-    const float cy = iconBox.getCentreY();
-    const float r = size * 0.24f;
-    juce::Path arc;
-    arc.addCentredArc (cx, cy, r, r, 0.0f,
-                       juce::MathConstants<float>::pi * 0.22f,
-                       juce::MathConstants<float>::twoPi - juce::MathConstants<float>::pi * 0.22f,
-                       true);
-
-    g.setColour (accent.withAlpha (0.15f));
-    g.strokePath (arc, juce::PathStrokeType (4.5f, juce::PathStrokeType::curved,
-                                             juce::PathStrokeType::rounded));
-    g.setColour (accent);
-    g.strokePath (arc, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved,
-                                             juce::PathStrokeType::rounded));
-    g.setColour (white);
-    g.drawLine (cx, cy - r - 2.0f, cx, cy + 0.5f, 1.8f);
-}
-
-HomeSidechainTriggerLinkSelector::HomeSidechainTriggerLinkSelector (HomeSidechainTriggerAudioProcessor& p)
+TriggerScope::TriggerScope (HomeSidechainTriggerAudioProcessor& p)
     : processor (p)
 {
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
 }
 
-void HomeSidechainTriggerLinkSelector::paint (juce::Graphics& g)
+juce::Rectangle<float> TriggerScope::plotBounds() const noexcept
 {
-    const auto b = getLocalBounds().toFloat();
-    const int active = juce::jlimit (0, 2, processor.getLink());
-
-    // Quiet routing selector: intentionally low-contrast so it reads as a
-    // utility next to Bypass rather than a primary control.
-    const float spacing = 5.0f;
-    const float d = juce::jmin (23.0f, b.getHeight() - 10.0f);
-    const float totalW = d * 3.0f + spacing * 2.0f;
-    const float startX = b.getCentreX() - totalW * 0.5f;
-    const float cy = b.getCentreY();
-
-    for (int i = 0; i < 3; ++i)
-    {
-        const float x = startX + i * (d + spacing);
-        const bool selected = (i == active);
-        const auto c = juce::Rectangle<float> (x, cy - d * 0.5f, d, d);
-
-        g.setColour (black.withAlpha (0.55f));
-        g.fillEllipse (c);
-
-        if (selected)
-        {
-            g.setColour (cyan.withAlpha (0.06f));
-            g.fillEllipse (c.expanded (2.0f));
-        }
-
-        g.setColour (selected ? cyan.withAlpha (0.58f) : white.withAlpha (0.16f));
-        g.drawEllipse (c, selected ? 1.2f : 0.8f);
-
-        g.setFont (uiFont (9.0f, true));
-        g.setColour (selected ? white : white.withAlpha (0.50f));
-        g.drawText (juce::String::charToString ((juce::juce_wchar) ('A' + i)),
-                    c, juce::Justification::centred, true);
-
-        if (selected)
-        {
-            g.setColour (cyan.withAlpha (0.9f));
-            g.fillRoundedRectangle (c.getCentreX() - 3.0f, c.getBottom() + 2.0f, 6.0f, 1.5f, 0.75f);
-        }
-    }
+    return getLocalBounds().toFloat().reduced (8.0f, 8.0f);
 }
 
-void HomeSidechainTriggerLinkSelector::mouseDown (const juce::MouseEvent& e)
+float TriggerScope::dbToY (float db) const noexcept
 {
-    if (!e.mods.isLeftButtonDown())
+    const auto plot = plotBounds();
+    const float normalised = (juce::jlimit (minDb, maxDb, db) - minDb) / (maxDb - minDb);
+    return plot.getBottom() - normalised * plot.getHeight();
+}
+
+float TriggerScope::yToDb (float y) const noexcept
+{
+    const auto plot = plotBounds();
+    const float normalised = juce::jlimit (0.0f, 1.0f, (plot.getBottom() - y) / juce::jmax (1.0f, plot.getHeight()));
+    return minDb + normalised * (maxDb - minDb);
+}
+
+void TriggerScope::setThresholdFromY (float y, bool fine)
+{
+    auto* parameter = processor.apvts.getParameter ("THRESHOLD");
+
+    if (parameter == nullptr)
         return;
 
-    const float segmentW = juce::jmax (1.0f, static_cast<float> (getWidth()) / 3.0f);
-    const int index = juce::jlimit (0, 2, static_cast<int> (std::floor (e.position.x / segmentW)));
+    float target = yToDb (y);
 
-    if (auto* parameter = processor.apvts.getParameter ("LINK"))
-    {
-        const float normalized = parameter->getNormalisableRange().convertTo0to1 (static_cast<float> (index));
-        parameter->setValueNotifyingHost (normalized);
-    }
+    if (fine)
+        target = processor.getThresholdDb() + (target - processor.getThresholdDb()) * 0.25f;
+
+    parameter->setValueNotifyingHost (parameter->convertTo0to1 (juce::jlimit (minDb, maxDb, target)));
     repaint();
 }
 
-HomeSidechainTriggerGapSlider::HomeSidechainTriggerGapSlider()
+void TriggerScope::drawGrid (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    setSliderStyle (juce::Slider::LinearHorizontal);
-    setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    setColour (juce::Slider::backgroundColourId, juce::Colours::transparentBlack);
-    setColour (juce::Slider::trackColourId, juce::Colours::transparentBlack);
-    setWantsKeyboardFocus (false);
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
-}
+    static const float marks[] = { -6.0f, -18.0f, -30.0f, -42.0f };
 
-float HomeSidechainTriggerGapSlider::trackStartX() const noexcept
-{
-    // Leave enough room for the knob/glow at the 50 ms endpoint.
-    return 13.0f;
-}
-
-float HomeSidechainTriggerGapSlider::trackEndX() const noexcept
-{
-    // Keep the track close to, but never under, the right-aligned value.
-    return juce::jmax (trackStartX() + 170.0f, static_cast<float> (getWidth()) - 66.0f);
-}
-
-bool HomeSidechainTriggerGapSlider::hitTest (int x, int y)
-{
-    const float cy = getLocalBounds().getCentreY() - 1.0f;
-    const auto hit = juce::Rectangle<float> (trackStartX() - 5.0f, cy - 9.0f,
-                                              trackEndX() - trackStartX() + 10.0f, 18.0f);
-    return hit.contains (static_cast<float> (x), static_cast<float> (y));
-}
-
-void HomeSidechainTriggerGapSlider::setValueFromMouseX (float x)
-{
-    const float start = trackStartX();
-    const float end = trackEndX();
-    const double denominator = juce::jmax (1.0, static_cast<double> (end - start));
-    const double proportion = juce::jlimit<double> (0.0, 1.0,
-        static_cast<double> (x - start) / denominator);
-
-    // Map through the real parameter range. This keeps mouse position, the
-    // displayed thumb and the skewed Cool Down parameter in perfect agreement.
-    const auto range = getNormalisableRange();
-    setValue (range.convertFrom0to1 (proportion), juce::sendNotificationSync);
-}
-
-void HomeSidechainTriggerGapSlider::mouseDown (const juce::MouseEvent& e)
-{
-    if (! e.mods.isLeftButtonDown() || ! hitTest (e.getMouseDownX(), e.getMouseDownY()))
+    for (auto db : marks)
     {
-        manualMouseTracking = false;
+        const float y = dbToY (db);
+        g.setColour (juce::Colours::white.withAlpha (0.06f));
+        g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
+    }
+
+    // One vertical line per second of the three-second history.
+    const int seconds = juce::roundToInt (HomeSidechainTriggerAudioProcessor::waveformHistorySeconds);
+
+    for (int i = 1; i < seconds; ++i)
+    {
+        const float x = plot.getX() + plot.getWidth() * (static_cast<float> (i) / static_cast<float> (seconds));
+        g.setColour (juce::Colours::white.withAlpha (0.08f));
+        g.drawVerticalLine (juce::roundToInt (x), plot.getY(), plot.getBottom());
+
+        g.setFont (font (7.5f, false));
+        g.setColour (juce::Colours::white.withAlpha (0.25f));
+        g.drawText ("-" + juce::String (seconds - i) + "s",
+                    juce::Rectangle<float> (x + 3.0f, plot.getBottom() - 12.0f, 24.0f, 10.0f),
+                    juce::Justification::centredLeft, false);
+    }
+}
+
+void TriggerScope::drawWaveform (juce::Graphics& g, juce::Rectangle<float> plot) const
+{
+    const int count = processor.getWaveformPointCount();
+
+    if (count <= 1)
         return;
-    }
 
-    manualMouseTracking = true;
-    setValueFromMouseX (e.position.x);
-}
+    const float step = plot.getWidth() / static_cast<float> (count - 1);
+    const float baseline = plot.getBottom();
 
-void HomeSidechainTriggerGapSlider::mouseDrag (const juce::MouseEvent& e)
-{
-    if (manualMouseTracking)
-        setValueFromMouseX (e.position.x);
-}
-
-void HomeSidechainTriggerGapSlider::mouseUp (const juce::MouseEvent& e)
-{
-    if (manualMouseTracking)
+    for (int i = 0; i < count; ++i)
     {
-        setValueFromMouseX (e.position.x);
-        manualMouseTracking = false;
+        const float level = processor.getWaveformPoint (i);
+        const float y = dbToY (levelToDb (level));
+        const float x = plot.getX() + step * static_cast<float> (i);
+        const float height = juce::jmax (1.0f, baseline - y);
+
+        const bool fired = processor.getWaveformTriggered (i);
+        const bool midi = processor.getWaveformMidiInput (i);
+
+        const auto colour = fired ? pink : (midi ? purple : cyan);
+        g.setColour (colour.withAlpha (fired || midi ? 0.95f : 0.55f));
+        g.fillRect (juce::Rectangle<float> (x, y, juce::jmax (1.0f, step * 0.9f), height));
+
+        if (fired)
+        {
+            g.setColour (pink.withAlpha (0.28f));
+            g.fillRect (juce::Rectangle<float> (x - 1.0f, plot.getY(), step + 2.0f, plot.getHeight()));
+        }
     }
-    juce::ignoreUnused (e);
 }
 
-void HomeSidechainTriggerGapSlider::paint (juce::Graphics& g)
+void TriggerScope::drawThreshold (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    const auto b = getLocalBounds().toFloat();
-    const float cy = b.getCentreY() - 1.0f;
-    const float x0 = trackStartX();
-    const float x1 = trackEndX();
-    const float trackH = 6.0f;
-    const float p = static_cast<float> (juce::jlimit (0.0, 1.0, valueToProportionOfLength (getValue())));
-    const float px = x0 + (x1 - x0) * p;
+    const float db = processor.getThresholdDb();
+    const float y = dbToY (db);
+    const bool live = dragging || hovering;
 
-    const auto track = juce::Rectangle<float> (x0, cy - trackH * 0.5f, x1 - x0, trackH);
-    g.setColour (black.withAlpha (0.86f));
-    g.fillRoundedRectangle (track.expanded (1.5f, 1.5f), 5.0f);
-    g.setColour (juce::Colour (0xff11181d));
-    g.fillRoundedRectangle (track, 4.0f);
-    g.setColour (cyan.withAlpha (0.96f));
-    g.fillRoundedRectangle (track.withWidth (juce::jmax (0.0f, px - x0)), 4.0f);
+    g.setColour (green.withAlpha (0.10f));
+    g.fillRect (juce::Rectangle<float> (plot.getX(), plot.getY(), plot.getWidth(), y - plot.getY()));
 
-    for (int i = 0; i <= 20; ++i)
+    g.setColour (green.withAlpha (live ? 1.0f : 0.80f));
+
+    for (float x = plot.getX(); x < plot.getRight(); x += 8.0f)
+        g.drawLine (x, y, juce::jmin (x + 4.5f, plot.getRight()), y, live ? 2.2f : 1.6f);
+
+    const auto badge = juce::Rectangle<float> (plot.getRight() - 54.0f, y - 9.0f, 50.0f, 18.0f);
+    g.setColour (green);
+    g.fillRoundedRectangle (badge, 4.0f);
+    g.setFont (font (9.5f));
+    g.setColour (ink);
+    g.drawText (juce::String (db, 1) + " dB", badge, juce::Justification::centred, false);
+}
+
+void TriggerScope::paint (juce::Graphics& g)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    const auto plot = plotBounds();
+
+    drawWell (g, bounds, 5.0f);
+    drawGrid (g, plot);
+    drawWaveform (g, plot);
+    drawThreshold (g, plot);
+}
+
+void TriggerScope::mouseMove (const juce::MouseEvent& e)
+{
+    const bool near = std::abs (e.position.y - dbToY (processor.getThresholdDb())) <= 7.0f;
+
+    if (near != hovering)
     {
-        const float tx = x0 + (x1 - x0) * static_cast<float> (i) / 20.0f;
-        const float th = (i % 5 == 0) ? 5.0f : 3.0f;
-        g.setColour (white.withAlpha (i % 5 == 0 ? 0.15f : 0.065f));
-        g.drawLine (tx, cy + 9.0f, tx, cy + 9.0f + th, 1.0f);
+        hovering = near;
+        setMouseCursor (near ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
+        repaint();
+    }
+}
+
+void TriggerScope::mouseExit (const juce::MouseEvent&)
+{
+    hovering = false;
+    repaint();
+}
+
+void TriggerScope::mouseDown (const juce::MouseEvent& e)
+{
+    dragging = true;
+    setThresholdFromY (e.position.y, e.mods.isShiftDown());
+}
+
+void TriggerScope::mouseDrag (const juce::MouseEvent& e)
+{
+    if (dragging)
+        setThresholdFromY (e.position.y, e.mods.isShiftDown());
+}
+
+void TriggerScope::mouseUp (const juce::MouseEvent&)
+{
+    dragging = false;
+    repaint();
+}
+
+void TriggerScope::mouseDoubleClick (const juce::MouseEvent&)
+{
+    if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
+        parameter->setValueNotifyingHost (parameter->convertTo0to1 (-18.0f));
+
+    repaint();
+}
+
+// =============================================================================
+// Editor
+// =============================================================================
+
+HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (
+    HomeSidechainTriggerAudioProcessor& p)
+    : juce::AudioProcessorEditor (&p), processor (p), scope (p)
+{
+    addAndMakeVisible (scope);
+
+    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
+    {
+        auto pill = std::make_unique<Pill> (homeSidechain::linkName (i), cyan);
+        pill->setFontSize (9.5f);
+        pill->setCornerRadius (4.0f);
+        pill->onClick = [this, i]
+        {
+            if (auto* parameter = processor.apvts.getParameter ("LINK"))
+                parameter->setValueNotifyingHost (parameter->convertTo0to1 (static_cast<float> (i)));
+
+            refreshFromParameters();
+        };
+        addAndMakeVisible (*pill);
+        linkPills[static_cast<size_t> (i)] = std::move (pill);
     }
 
-    g.setColour (cyan.withAlpha (0.10f));
-    g.fillEllipse (px - 20.0f, cy - 20.0f, 40.0f, 40.0f);
-    g.setColour (black.withAlpha (0.80f));
-    g.fillEllipse (px - 13.0f, cy - 13.0f, 26.0f, 26.0f);
-    g.setColour (cyan);
-    g.drawEllipse (px - 12.0f, cy - 12.0f, 24.0f, 24.0f, 1.7f);
-    g.setColour (white.withAlpha (0.95f));
-    g.fillEllipse (px - 7.5f, cy - 7.5f, 15.0f, 15.0f);
-    g.setColour (juce::Colour (0xffb7edf3).withAlpha (0.7f));
-    g.fillEllipse (px - 4.5f, cy - 4.5f, 9.0f, 9.0f);
+    testPill.setFontSize (9.5f);
+    testPill.onClick = [this] { processor.requestTestTrigger(); };
+    addAndMakeVisible (testPill);
 
-    const auto valueArea = juce::Rectangle<float> (b.getRight() - 62.0f, cy - 10.0f, 58.0f, 20.0f);
-    g.setFont (uiFont (12.5f, true));
-    g.setColour (cyan);
-    g.drawText (juce::String (juce::roundToInt (getValue())) + " ms", valueArea,
-                juce::Justification::right, true);
+    addAndMakeVisible (power);
 
-    g.setFont (uiFont (7.8f));
-    g.setColour (muted.withAlpha (0.72f));
-    g.drawText ("50 ms", static_cast<int> (x0 - 4), static_cast<int> (cy + 14), 36, 10, juce::Justification::left, true);
-    g.drawText ("500 ms", static_cast<int> (x0 + (x1 - x0) * 0.50f - 25), static_cast<int> (cy + 14), 50, 10, juce::Justification::centred, true);
-    g.drawText ("2000 ms", static_cast<int> (x1 - 48), static_cast<int> (cy + 14), 48, 10, juce::Justification::right, true);
+    thresholdKnob.valueText = [] (double value) { return juce::String (value, 1) + "dB"; };
+    cooldownKnob.valueText = [] (double value) { return juce::String (juce::roundToInt (value)) + "ms"; };
+    addAndMakeVisible (thresholdKnob);
+    addAndMakeVisible (cooldownKnob);
+
+    thresholdAttachment = std::make_unique<SliderAttachment> (processor.apvts, "THRESHOLD", thresholdKnob);
+    cooldownAttachment = std::make_unique<SliderAttachment> (processor.apvts, "RETRIGGER", cooldownKnob);
+    bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", power);
+
+    setSize (designWidth, designHeight);
+    refreshFromParameters();
+    startTimerHz (30);
 }
 
 HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEditor()
 {
     stopTimer();
-    setLookAndFeel (nullptr);
-}
-
-HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor& p)
-    : AudioProcessorEditor (&p), processor (p), linkSelector (p)
-{
-    juce::LookAndFeel::getDefaultLookAndFeel().setDefaultSansSerifTypefaceName ("Helvetica");
-    setSize (580, 315);
-    setResizable (false, false);
-    setLookAndFeel (&homeSeriesLaf);
-
-    addAndMakeVisible (cooldown);
-    addAndMakeVisible (linkSelector);
-    addAndMakeVisible (bypass);
-
-    styleBypass();
-
-    cooldownAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (processor.apvts, "RETRIGGER", cooldown);
-    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (processor.apvts, "BYPASS", bypass);
-
-    startTimerHz (24);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::styleBypass()
-{
-    bypass.setClickingTogglesState (true);
-    bypass.setName ("BYPASS_SWITCH");
-    bypass.setColour (juce::ToggleButton::tickColourId, cyan);
-}
-
-float HomeSidechainTriggerAudioProcessorEditor::yForDb (float db) const noexcept
-{
-    constexpr float minDb = -36.0f;
-    constexpr float maxDb = 0.0f;
-    constexpr float floorBand = 0.06f;
-    constexpr float mainBand = 1.0f - floorBand;
-
-    const float clampedDb = juce::jlimit (-60.0f, 3.0f, db);
-    const float height = graphPlotBounds.getHeight();
-
-    // Keep the labelled -36..0 dB range linear and exact. Reserve a small
-    // lower band for quieter audio so the envelope does not get hard-clipped
-    // when the graph is visually focused on the useful trigger range.
-    if (clampedDb < minDb)
-    {
-        const float lowN = juce::jlimit (0.0f, 1.0f,
-            (clampedDb + 60.0f) / 24.0f);
-        return graphPlotBounds.getBottom() - lowN * floorBand * height;
-    }
-
-    const float n = juce::jlimit (0.0f, 1.0f,
-        (clampedDb - minDb) / (maxDb - minDb));
-    return graphPlotBounds.getBottom() - (floorBand + n * mainBand) * height;
-}
-
-float HomeSidechainTriggerAudioProcessorEditor::thresholdForY (float y) const noexcept
-{
-    constexpr float minDb = -36.0f;
-    constexpr float maxDb = 0.0f;
-    constexpr float floorBand = 0.06f;
-    constexpr float mainBand = 1.0f - floorBand;
-
-    const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
-    const float n = juce::jlimit (0.0f, 1.0f,
-        (graphPlotBounds.getBottom() - y) / height);
-
-    if (n <= floorBand)
-    {
-        return -60.0f + (n / floorBand) * (minDb + 60.0f);
-    }
-
-    const float mainN = juce::jlimit (0.0f, 1.0f, (n - floorBand) / mainBand);
-    return minDb + mainN * (maxDb - minDb);
-}
-
-static juce::Rectangle<float> getThresholdBadgeBounds (juce::Rectangle<float> plot, float thresholdY)
-{
-    return { plot.getRight() - 116.0f,
-             juce::jlimit (plot.getY() + 7.0f,
-                           plot.getBottom() - 47.0f,
-                           thresholdY - 23.0f),
-             108.0f, 44.0f };
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::setThresholdFromY (float y, bool fine)
-{
-    if (fine)
-    {
-        const float height = juce::jmax (1.0f, graphPlotBounds.getHeight());
-        const float deltaY = y - lastThresholdDragY;
-        const float deltaDb = - (deltaY / height) * 48.0f * 0.22f;
-        const float currentDb = processor.getThresholdDb();
-        const float db = juce::jlimit (-48.0f, 0.0f, currentDb + deltaDb);
-        if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
-            parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (db));
-        lastThresholdDragY = y;
-        return;
-    }
-
-    const float clampedY = juce::jlimit (graphPlotBounds.getY(), graphPlotBounds.getBottom(), y);
-    const float db = thresholdForY (clampedY);
-    if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
-        parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (db));
-    lastThresholdDragY = clampedY;
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawBackground (juce::Graphics& g, juce::Rectangle<float> area) const
-{
-    juce::ColourGradient bg (bg1, area.getX(), area.getY(), bg0, area.getRight(), area.getBottom(), false);
-    g.setGradientFill (bg);
-    g.fillRect (area);
-
-    juce::ColourGradient cyanGlow (cyan.withAlpha (0.045f), area.getX() + 60.0f, area.getY() + 20.0f,
-                                   juce::Colours::transparentBlack, area.getX() + 280.0f, area.getBottom(), true);
-    g.setGradientFill (cyanGlow);
-    g.fillEllipse (area.getX() - 120.0f, area.getY() - 100.0f, 420.0f, 300.0f);
-
-    juce::ColourGradient magentaGlow (juce::Colour (0xff7d4cff).withAlpha (0.025f), area.getRight() - 80.0f, area.getY() + 35.0f,
-                                      juce::Colours::transparentBlack, area.getRight() - 340.0f, area.getBottom(), true);
-    g.setGradientFill (magentaGlow);
-    g.fillEllipse (area.getRight() - 260.0f, area.getY() - 40.0f, 320.0f, 220.0f);
-
-    // Fine Home-series texture: tiny crosshatch rather than a heavy grid.
-    g.setColour (white.withAlpha (0.0065f));
-    for (float y = area.getY(); y < area.getBottom(); y += 7.0f)
-        g.drawLine (area.getX(), y, area.getRight(), y, 1.0f);
-    for (float x = area.getX(); x < area.getRight(); x += 11.0f)
-        g.drawLine (x, area.getY(), x, area.getBottom(), 1.0f);
-
-    g.setColour (edge.withAlpha (0.98f));
-    g.drawRoundedRectangle (area.reduced (0.5f), 13.0f, 1.0f);
-    g.setColour (white.withAlpha (0.03f));
-    g.drawLine (area.getX() + 16.0f, area.getY() + 1.0f, area.getRight() - 16.0f, area.getY() + 1.0f, 1.0f);
-}
-
-
-void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g, juce::Rectangle<float> area) const
-{
-    const float baseX = area.getX() + 2.0f;
-    const float utilitiesLeft = area.getRight() - 222.0f;
-    const float maxTitleWidth = juce::jmax (220.0f, utilitiesLeft - baseX - 16.0f);
-
-    juce::Font titleFont = uiFont (20.5f, true);
-    const juce::String p1 = "HOME-";
-    const juce::String p2 = "SIDECHAIN";
-    const juce::String p3 = "TRIGGER";
-
-    for (float size = 20.5f; size >= 17.0f; size -= 0.5f)
-    {
-        const auto candidate = uiFont (size, true);
-        const float total = (float) juce::GlyphArrangement::getStringWidthInt (candidate, p1)
-                          + (float) juce::GlyphArrangement::getStringWidthInt (candidate, p2)
-                          + (float) juce::GlyphArrangement::getStringWidthInt (candidate, p3) + 2.0f;
-        if (total <= maxTitleWidth)
-        {
-            titleFont = candidate;
-            break;
-        }
-    }
-
-    float x = baseX;
-    const float titleH = 23.0f;
-    const float p1w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p1);
-    const float p2w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p2);
-    const float p3w = (float) juce::GlyphArrangement::getStringWidthInt (titleFont, p3);
-
-    g.setFont (titleFont);
-    g.setColour (white);
-    g.drawText (p1, juce::Rectangle<float> (x, area.getY(), p1w + 1.0f, titleH), juce::Justification::left, true);
-    x += p1w;
-    g.setColour (cyan);
-    g.drawText (p2, juce::Rectangle<float> (x, area.getY(), p2w + 1.0f, titleH), juce::Justification::left, true);
-    x += p2w;
-    g.setColour (white);
-    g.drawText (p3, juce::Rectangle<float> (x + 1.0f, area.getY(), p3w + 1.0f, titleH), juce::Justification::left, true);
-
-    // Slightly larger, letter-spaced brand line for the Home-series feel.
-    {
-        const auto brandFont = uiFont (8.0f, true);
-        g.setFont (brandFont);
-        g.setColour (muted.withAlpha (0.88f));
-        const juce::String brand = "DUBTACH DSP";
-        float bx = baseX + 1.0f;
-        const float by = area.getY() + 25.0f;
-        constexpr float letterGap = 1.15f;
-        for (int i = 0; i < brand.length(); ++i)
-        {
-            const juce::String ch = brand.substring (i, i + 1);
-            const float cw = static_cast<float> (juce::GlyphArrangement::getStringWidthInt (brandFont, ch));
-            g.drawText (ch, juce::Rectangle<float> (bx, by, cw + 1.0f, 11.0f),
-                        juce::Justification::left, true);
-            bx += cw + letterGap;
-        }
-    }
-
-    g.setColour (edge.withAlpha (0.65f));
-    g.drawLine (utilitiesLeft - 10.0f, area.getY() + 3.0f, utilitiesLeft - 10.0f, area.getBottom() - 3.0f, 1.0f);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawStatusPill (juce::Graphics& g, juce::Rectangle<float> r,
-                                                                const juce::String& text, juce::Colour colour) const
-{
-    g.setColour (black.withAlpha (0.50f));
-    g.fillRoundedRectangle (r.translated (0.0f, 2.0f), r.getHeight() * 0.5f);
-    g.setColour (colour.withAlpha (0.07f));
-    g.fillRoundedRectangle (r, r.getHeight() * 0.5f);
-    g.setColour (colour.withAlpha (0.45f));
-    g.drawRoundedRectangle (r, r.getHeight() * 0.5f, 1.0f);
-    g.setColour (colour);
-    g.fillEllipse (r.getX() + 9.0f, r.getCentreY() - 3.0f, 6.0f, 6.0f);
-    g.setFont (uiFont (7.8f, true));
-    const auto textArea = juce::Rectangle<float> (r.getX() + 21.0f, r.getY() + 2.0f, r.getWidth() - 26.0f, r.getHeight() - 4.0f);
-    g.drawText (text, textArea, juce::Justification::centredLeft, true);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawGraphCard (juce::Graphics& g, juce::Rectangle<float> area) const
-{
-    // Let the graph breathe like the borderless Cool Down section: one dark
-    // integrated scope surface instead of a second framed card around it.
-    g.setColour (plotBg.withAlpha (0.98f));
-    g.fillRoundedRectangle (area, 11.0f);
-    g.setColour (white.withAlpha (0.018f));
-    g.drawRoundedRectangle (area.reduced (0.5f), 11.0f, 0.8f);
-
-    const bool bypassed = processor.apvts.getRawParameterValue ("BYPASS")->load() > 0.5f;
-    const bool triggering = processor.getTriggerMeter() > 0.35f && !bypassed;
-    const auto colour = bypassed ? muted : (triggering ? red : cyan);
-    const auto text = bypassed ? "BYPASSED" : (triggering ? "TRIGGERING" : "READY");
-
-    // The waveform intentionally owns almost the entire section. The status
-    // pill floats above it instead of taking away a permanent header row.
-    drawWaveform (g, { area.getX() + 1.5f, area.getY() + 1.5f,
-                       area.getWidth() - 3.0f, area.getHeight() - 3.0f });
-
-    // Let the existing status pill provide the trigger feedback. It gets a
-    // short brightness boost from the real trigger meter; no extra indicator
-    // is introduced.
-    const float pulse = juce::jlimit (0.0f, 1.0f, processor.getTriggerMeter());
-    drawStatusPill (g, { area.getX() + 12.0f, area.getY() + 10.0f, 92.0f, 22.0f },
-                    text, colour.withAlpha (0.70f + pulse * 0.30f));
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawTimeScale (juce::Graphics& g, juce::Rectangle<float> plot) const
-{
-    constexpr int divisions = 6;
-    const float labelY = plot.getBottom() - 15.0f;
-    g.setFont (uiFont (7.6f));
-
-    for (int i = 0; i <= divisions; ++i)
-    {
-        const float x = plot.getX() + plot.getWidth() * static_cast<float> (i) / static_cast<float> (divisions);
-        const float seconds = -3.0f + 3.0f * static_cast<float> (i) / static_cast<float> (divisions);
-        const juce::String label = (i == divisions) ? "NOW" : juce::String (seconds, 1) + "s";
-        const float w = 40.0f;
-        const float labelX = juce::jlimit (plot.getX(), plot.getRight() - w, x - w * 0.5f);
-        g.setColour (muted.withAlpha (0.68f));
-        g.drawText (label, juce::Rectangle<float> (labelX, labelY, w, 9.0f),
-                    i == divisions ? juce::Justification::right
-                                    : (i == 0 ? juce::Justification::left : juce::Justification::centred), true);
-    }
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawWaveform (juce::Graphics& g, juce::Rectangle<float> area) const
-{
-    // Use almost the entire graph card for the scope. The status indicator is
-    // intentionally overlaid on the scope instead of consuming a separate row.
-    const auto plot = area.reduced (2.5f);
-    const float thresholdDb = processor.getThresholdDb();
-
-    g.setColour (plotBg);
-    g.fillRoundedRectangle (plot, 8.0f);
-    g.setColour (white.withAlpha (0.012f));
-    g.drawRoundedRectangle (plot, 8.0f, 0.75f);
-
-    // Fixed dB scale: the visual line and detector use the same scale.
-    for (int db = 0; db >= -36; db -= 12)
-    {
-        const float y = yForDb (static_cast<float> (db));
-        g.setColour (white.withAlpha (db == 0 ? 0.12f : 0.055f));
-        g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
-        g.setFont (uiFont (7.8f));
-        g.setColour (muted.withAlpha (0.80f));
-        g.drawText (db == 0 ? "0" : juce::String (db),
-                    juce::Rectangle<float> (plot.getX() + 5.0f, y - 5.0f, 24.0f, 10.0f),
-                    juce::Justification::left, true);
-    }
-
-    // Subtle time grid. Keep it visually quiet so the waveform remains the focus.
-    constexpr int divisions = 6;
-    const float dashes[] = { 4.0f, 6.0f };
-    for (int d = 0; d <= divisions; ++d)
-    {
-        const float x = plot.getX() + plot.getWidth() * static_cast<float> (d) / static_cast<float> (divisions);
-        g.setColour (grid.withAlpha (d == divisions ? 0.22f : 0.15f));
-        g.drawDashedLine (juce::Line<float> (x, plot.getY(), x, plot.getBottom()), dashes, 2, 1.0f);
-    }
-
-    const int pointCount = processor.getWaveformPointCount();
-
-    if (pointCount > 1)
-    {
-        juce::Path line;
-        bool started = false;
-
-        // Each waveform bin remembers whether that bin contained the audio
-        // transient that actually caused a trigger. The highlight therefore
-        // stays attached to the waveform for the full visible history instead
-        // of fading with the transient meter. Old highlights disappear only
-        // when their waveform bin naturally scrolls out of the history.
-        juce::Path hotLine;
-        bool hotStarted = false;
-
-        for (int i = 0; i < pointCount; ++i)
-        {
-            const float peak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (i));
-            const float db = homeSidechain::linearToDb (juce::jmax (peak, 0.000001f));
-            const float y = yForDb (db);
-            const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
-                          / static_cast<float> (pointCount - 1);
-
-            if (!started)
-            {
-                line.startNewSubPath (x, y);
-                started = true;
-            }
-            else
-                line.lineTo (x, y);
-
-            const bool hot = processor.getWaveformTriggered (i);
-            if (hot)
-            {
-                // Keep the red section attached to the real waveform. Extend
-                // one point on either side only to make the transient legible
-                // at the current graph scale; there is no fade or timeout.
-                if (!hotStarted)
-                {
-                    const int begin = juce::jmax (0, i - 1);
-                    const float beginPeak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (begin));
-                    const float beginDb = homeSidechain::linearToDb (juce::jmax (beginPeak, 0.000001f));
-                    const float beginY = yForDb (beginDb);
-                    const float beginX = plot.getX() + plot.getWidth() * static_cast<float> (begin)
-                                       / static_cast<float> (pointCount - 1);
-                    hotLine.startNewSubPath (beginX, beginY);
-                    hotStarted = true;
-                }
-                hotLine.lineTo (x, y);
-            }
-            else if (hotStarted)
-            {
-                // Finish this highlighted transient segment and start a fresh
-                // sub-path if another trigger bin appears later in the history.
-                hotLine.startNewSubPath (x, y);
-                hotStarted = false;
-            }
-        }
-
-        // Quiet fill under the normal waveform.
-        juce::Path fill = line;
-        fill.lineTo (plot.getRight(), plot.getBottom());
-        fill.lineTo (plot.getX(), plot.getBottom());
-        fill.closeSubPath();
-        juce::ColourGradient areaFill (cyan.withAlpha (0.15f), plot.getX(), plot.getY(),
-                                       juce::Colours::transparentBlack, plot.getX(), plot.getBottom(), false);
-        g.setGradientFill (areaFill);
-        g.fillPath (fill);
-
-        // Cyan waveform core.
-        g.setColour (cyan.withAlpha (0.12f));
-        g.strokePath (line, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (cyan.withAlpha (0.28f));
-        g.strokePath (line, juce::PathStrokeType (2.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (white.withAlpha (0.96f));
-        g.strokePath (line, juce::PathStrokeType (1.25f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-        // MIDI input gets a deliberately visible, persistent treatment so the
-        // user can immediately tell that the smart trigger is receiving MIDI.
-        // Each MIDI event is drawn as a centered violet event rail with a bright
-        // diamond head and a soft halo. This remains
-        // independent of the audio waveform and survives the cooldown period.
-        for (int i = 0; i < pointCount; ++i)
-        {
-            if (! processor.getWaveformMidiInput (i))
-                continue;
-
-            const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
-                          / static_cast<float> (pointCount - 1);
-            // Keep MIDI events visually centered in the scope rather than
-            // pinned to the bottom edge. This makes MIDI activity immediately
-            // readable even when the incoming signal is silent.
-            const float midY = plot.getCentreY();
-            const float baseY = midY + 18.0f;
-            const float headY = midY - 2.0f;
-
-            g.setColour (juce::Colour (0xFFB96CFF).withAlpha (0.16f));
-            g.drawLine (x, baseY, x, headY, 7.0f);
-
-            g.setColour (juce::Colour (0xFFB96CFF).withAlpha (0.42f));
-            g.drawLine (x, baseY, x, headY, 2.0f);
-
-            juce::Path halo;
-            halo.addEllipse (x - 7.0f, headY - 7.0f, 14.0f, 14.0f);
-            g.setColour (juce::Colour (0xFFB96CFF).withAlpha (0.16f));
-            g.fillPath (halo);
-
-            juce::Path diamond;
-            diamond.startNewSubPath (x, headY - 5.5f);
-            diamond.lineTo (x + 5.5f, headY);
-            diamond.lineTo (x, headY + 5.5f);
-            diamond.lineTo (x - 5.5f, headY);
-            diamond.closeSubPath();
-            g.setColour (juce::Colour (0xFFD9A7FF));
-            g.fillPath (diamond);
-
-            g.setColour (juce::Colour (0xFF8C4DFF));
-            g.drawLine (x, headY + 1.5f, x, baseY - 1.0f, 1.0f);
-        }
-
-        // Red only on the actual transient waveform segments. Stroke the full
-        // path even when the highlighted region ends before the final sample;
-        // the previous implementation only drew while the last region was
-        // still open, which made isolated trigger bins effectively invisible.
-        if (! hotLine.isEmpty())
-        {
-            g.setColour (red.withAlpha (0.22f));
-            g.strokePath (hotLine, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-            g.setColour (red);
-            g.strokePath (hotLine, juce::PathStrokeType (2.4f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-            // Make a single-bin transient visible at this zoom level too.
-            for (int i = 0; i < pointCount; ++i)
-            {
-                if (! processor.getWaveformTriggered (i))
-                    continue;
-
-                const float peak = juce::jlimit (0.0f, 1.0f, processor.getWaveformPoint (i));
-                const float db = homeSidechain::linearToDb (juce::jmax (peak, 0.000001f));
-                const float y = yForDb (db);
-                const float x = plot.getX() + plot.getWidth() * static_cast<float> (i)
-                              / static_cast<float> (pointCount - 1);
-                g.setColour (red.withAlpha (0.95f));
-                g.fillEllipse (x - 2.8f, y - 2.8f, 5.6f, 5.6f);
-            }
-        }
-    }
-
-    // Very subtle NOW playhead and current-level ghost: this adds life to the scope
-    // without introducing another meter or indicator.
-    const float nowX = plot.getRight() - 1.5f;
-    g.setColour (cyan.withAlpha (0.10f));
-    g.fillRect (nowX - 1.0f, plot.getY() + 4.0f, 2.0f, plot.getHeight() - 22.0f);
-
-    const float currentPeak = juce::jlimit (0.0f, 1.0f, processor.getInputLevel());
-    const float currentDb = homeSidechain::linearToDb (juce::jmax (currentPeak, 0.000001f));
-    const float levelY = yForDb (currentDb);
-    if (levelY > plot.getY() && levelY < plot.getBottom())
-    {
-        g.setColour (cyan.withAlpha (0.18f));
-        g.fillRoundedRectangle (plot.getRight() - 70.0f, levelY - 1.0f, 68.0f, 2.0f, 1.0f);
-    }
-
-    // Threshold line and handle use the same y mapping as the detector.
-    const float thresholdY = yForDb (thresholdDb);
-    const float dashW = 9.0f;
-    const float gapW = 6.0f;
-    for (float x = plot.getX(); x < plot.getRight(); x += dashW + gapW)
-    {
-        g.setColour (cyan.withAlpha (hoveringThreshold ? 1.0f : 0.86f));
-        g.drawLine (x, thresholdY, juce::jmin (plot.getRight(), x + dashW), thresholdY,
-                    hoveringThreshold ? 1.9f : 1.5f);
-    }
-
-    const float handleX = plot.getRight() - 1.0f;
-    g.setColour (cyan.withAlpha (hoveringThreshold ? 0.18f : 0.10f));
-    g.fillEllipse (handleX - 11.0f, thresholdY - 11.0f, 22.0f, 22.0f);
-    g.setColour (cyan);
-    g.fillEllipse (handleX - 6.0f, thresholdY - 6.0f, 12.0f, 12.0f);
-    g.setColour (white);
-    g.fillEllipse (handleX - 2.1f, thresholdY - 2.1f, 4.2f, 4.2f);
-
-    // Compact threshold badge, intentionally overlaid inside the graph.
-    const auto badge = getThresholdBadgeBounds (plot, thresholdY);
-    g.setColour (black.withAlpha (0.92f));
-    g.fillRoundedRectangle (badge, 9.0f);
-    g.setColour (edge.withAlpha (0.94f));
-    g.drawRoundedRectangle (badge, 9.0f, 1.0f);
-    g.setFont (uiFont (6.8f, true));
-    g.setColour (muted);
-    g.drawText ("THRESHOLD", badge.withTrimmedLeft (9.0f).withTrimmedRight (9.0f).withTrimmedBottom (28.0f),
-                juce::Justification::left, true);
-    g.setFont (uiFont (11.6f, true));
-    g.setColour (cyan);
-    g.drawText (juce::String (thresholdDb, 1) + " dB",
-                badge.withTrimmedLeft (9.0f).withTrimmedRight (7.0f).withTrimmedTop (16.0f).withTrimmedBottom (6.0f),
-                juce::Justification::left, true);
-
-    // Timeline is kept entirely inside the graph card.
-    g.setFont (uiFont (7.3f));
-    g.setColour (muted.withAlpha (0.68f));
-    const float baselineY = plot.getBottom() - 12.0f;
-    g.drawText ("PAST", plot.getX() + 6.0f, baselineY, 30.0f, 9.0f, juce::Justification::left, true);
-    g.drawText ("NOW", plot.getRight() - 34.0f, baselineY, 30.0f, 9.0f, juce::Justification::right, true);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawCooldownCard (juce::Graphics& g, juce::Rectangle<float> area) const
-{
-    // Borderless integrated control row. The text stack, slider centerline,
-    // and value readout share the same vertical rhythm.
-    const float centerY = area.getCentreY() + 0.5f;
-    const float textX = area.getX() + 2.0f;
-    const float textW = 124.0f;
-
-    g.setFont (uiFont (14.0f, true));
-    g.setColour (cyan.withAlpha (0.96f));
-    g.drawText ("COOL DOWN",
-                juce::Rectangle<float> (textX, centerY - 8.5f, textW, 17.0f),
-                juce::Justification::left, true);
-
-    g.setFont (uiFont (8.3f));
-    g.setColour (muted.withAlpha (0.84f));
-    g.drawText ("TIME BETWEEN TRIGGERS",
-                juce::Rectangle<float> (textX, centerY + 5.5f, textW + 14.0f, 10.0f),
-                juce::Justification::left, true);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
-{
-    const auto frame = getLocalBounds().toFloat().reduced (4.0f);
-    drawBackground (g, frame);
-
-    const auto header = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 13.0f,
-                                                 frame.getWidth() - 36.0f, 48.0f);
-    drawHeader (g, header);
-
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 62.0f,
-                                                frame.getWidth() - 36.0f, 176.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 7.0f,
-                                                       frame.getWidth() - 36.0f, 40.0f);
-
-    drawGraphCard (g, graph);
-    drawCooldownCard (g, cooldownCard);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    const auto frame = getLocalBounds().toFloat().reduced (4.0f);
-    const auto graph = juce::Rectangle<float> (frame.getX() + 18.0f, frame.getY() + 62.0f,
-                                                frame.getWidth() - 36.0f, 176.0f);
-    const auto cooldownCard = juce::Rectangle<float> (frame.getX() + 18.0f, graph.getBottom() + 7.0f,
-                                                       frame.getWidth() - 36.0f, 40.0f);
+    int x = 320;
 
-    // Keep the header controls aligned to the same right edge as the graph
-    // and Cool Down cards below. The bypass icon sits just after the A/B/C
-    // selector with the overall group ending exactly at the card edge.
-    const int headerBypassWidth = 34;
-    const int headerGap = 5;
-    const int headerLinkWidth = 104;
-    const int rightEdge = juce::roundToInt (frame.getRight() - 18.0f);
-    bypass.setBounds (rightEdge - headerBypassWidth,
-                      juce::roundToInt (frame.getY() + 10.0f), headerBypassWidth, 42);
-    linkSelector.setBounds (rightEdge - headerBypassWidth - headerGap - headerLinkWidth,
-                            juce::roundToInt (frame.getY() + 10.0f), headerLinkWidth, 42);
-
-    // The slider component only covers the actual control row. The surrounding
-    // Cool Down card remains purely visual/non-interactive.
-    const int sliderX = juce::roundToInt (cooldownCard.getX() + 122.0f);
-    const int sliderY = juce::roundToInt (cooldownCard.getY() + 1.0f);
-    const int sliderW = juce::jmax (250, juce::roundToInt (cooldownCard.getRight() - 8.0f - sliderX));
-    const int sliderH = juce::roundToInt (cooldownCard.getHeight() - 2.0f);
-    cooldown.setBounds (sliderX, sliderY, sliderW, sliderH);
-
-    graphPlotBounds = { graph.getX() + 7.0f, graph.getY() + 7.0f,
-                        graph.getWidth() - 14.0f, graph.getHeight() - 14.0f };
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
-{
-    const float thresholdY = yForDb (processor.getThresholdDb());
-    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
-                                                   graphPlotBounds.getWidth(), 18.0f);
-    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
-    const bool over = hitArea.contains (e.position) || badge.contains (e.position);
-    if (over != hoveringThreshold)
+    for (auto& pill : linkPills)
     {
-        hoveringThreshold = over;
-        setMouseCursor (over ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
-        repaint();
+        pill->setBounds (x, 30, 20, 20);
+        x += 23;
     }
+
+    testPill.setBounds (582, 29, 44, 22);
+    power.setBounds (678, 27, 26, 26);
+
+    scope.setBounds (scopeCard().reduced (12.0f, 0.0f)
+                                .withTrimmedTop (26.0f)
+                                .withTrimmedBottom (10.0f).toNearestInt());
+
+    const auto sense = senseCard().toNearestInt();
+    thresholdKnob.setBounds (sense.getX() + 32, sense.getY() + 28, 136, 82);
+    cooldownKnob.setBounds (sense.getX() + 32, sense.getY() + 114, 136, 80);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::mouseExit (const juce::MouseEvent&)
+void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g) const
 {
-    hoveringThreshold = false;
-    if (!draggingThreshold)
-        setMouseCursor (juce::MouseCursor::NormalCursor);
+    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
+
+    g.setFont (font (8.5f));
+    g.setColour (cyan.withAlpha (0.75f));
+    g.drawText ("TRIGGER", juce::Rectangle<float> (202.0f, 22.0f, 80.0f, 13.0f),
+                juce::Justification::centredLeft, false);
+
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    g.drawText ("NOTE " + juce::MidiMessage::getMidiNoteName (
+                    homeSidechain::midiNoteForLink (processor.getLink()), true, true, 3),
+                juce::Rectangle<float> (202.0f, 37.0f, 80.0f, 12.0f),
+                juce::Justification::centredLeft, false);
+
+    g.setColour (juce::Colours::white.withAlpha (0.45f));
+    g.drawText ("LINK", juce::Rectangle<float> (286.0f, 33.0f, 34.0f, 14.0f),
+                juce::Justification::centredLeft, false);
+
+    drawLamp (g, juce::Rectangle<float> (512.0f, 33.0f, 64.0f, 14.0f), "SENDING", green,
+              triggerSmoothed, false);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
+void HomeSidechainTriggerAudioProcessorEditor::drawMeters (juce::Graphics& g) const
 {
-    if (!e.mods.isLeftButtonDown())
-        return;
+    const auto card = meterCard();
 
-    const float thresholdY = yForDb (processor.getThresholdDb());
-    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 9.0f,
-                                                   graphPlotBounds.getWidth(), 18.0f);
-    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
-    if (hitArea.contains (e.position) || badge.contains (e.position))
+    auto well = juce::Rectangle<float> (card.getX() + 14.0f, card.getY() + 30.0f,
+                                        card.getWidth() - 28.0f, 30.0f);
+    drawWell (g, well, 4.0f);
+
+    const float threshold = (processor.getThresholdDb() - minDb) / (maxDb - minDb);
+    const float level = (levelToDb (inputSmoothed) - minDb) / (maxDb - minDb);
+    auto bar = well.reduced (4.0f, 5.0f);
+
+    juce::ColourGradient meter (cyan, bar.getX(), bar.getY(),
+                                pink, bar.getRight(), bar.getY(), false);
+    g.setGradientFill (meter);
+    g.fillRoundedRectangle (bar.withWidth (juce::jmax (2.0f, bar.getWidth() * juce::jlimit (0.0f, 1.0f, level))), 3.0f);
+
+    const float markX = bar.getX() + bar.getWidth() * juce::jlimit (0.0f, 1.0f, threshold);
+    g.setColour (green);
+    g.drawLine (markX, well.getY() + 2.0f, markX, well.getBottom() - 2.0f, 2.0f);
+
+    drawCardText (g, "INPUT", juce::Rectangle<float> (card.getX() + 14.0f, card.getY() + 62.0f, 60.0f, 12.0f),
+                  8.5f, juce::Justification::centredLeft, 0.7f);
+    drawCardText (g, "THRESHOLD", juce::Rectangle<float> (markX - 40.0f, card.getY() + 62.0f, 80.0f, 12.0f),
+                  8.5f, juce::Justification::centred, 0.7f);
+
+    const auto stat = [&] (const juce::String& label, const juce::String& value, float cx)
     {
-        draggingThreshold = true;
-        hoveringThreshold = true;
-        const bool grabbedBadge = badge.contains (e.position);
-        lastThresholdDragY = e.position.y;
-        setMouseCursor (juce::MouseCursor::UpDownResizeCursor);
+        drawCardText (g, value, juce::Rectangle<float> (cx - 50.0f, card.getBottom() - 42.0f, 100.0f, 18.0f), 15.0f);
+        drawCardText (g, label, juce::Rectangle<float> (cx - 50.0f, card.getBottom() - 24.0f, 100.0f, 12.0f),
+                      8.0f, juce::Justification::centred, 0.65f);
+    };
 
-        // Clicking the badge selects it without changing the threshold.
-        // Dragging the badge then moves the threshold vertically just like
-        // dragging the threshold line itself.
-        if (! grabbedBadge)
-            setThresholdFromY (e.position.y, e.mods.isShiftDown());
-
-        repaint();
-    }
+    stat ("TRIGGERS SENT", juce::String (processor.homeLinkCount.load (std::memory_order_relaxed)),
+          card.getX() + 110.0f);
+    stat ("DROPPED", juce::String (processor.getHomeLinkDroppedCount()), card.getX() + 250.0f);
+    stat ("COOL DOWN", juce::String (juce::roundToInt (
+              processor.apvts.getRawParameterValue ("RETRIGGER")->load())) + " ms",
+          card.getX() + 380.0f);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::mouseDrag (const juce::MouseEvent& e)
+void HomeSidechainTriggerAudioProcessorEditor::drawSend (juce::Graphics& g) const
 {
-    if (draggingThreshold)
+    const auto card = sendCard();
+
+    auto lamp = juce::Rectangle<float> (card.getCentreX() - 26.0f, card.getY() + 34.0f, 52.0f, 52.0f);
+    const float activity = juce::jlimit (0.0f, 1.0f, triggerSmoothed);
+
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.fillEllipse (lamp);
+
+    if (activity > 0.02f)
     {
-        setThresholdFromY (e.position.y, e.mods.isShiftDown());
-        return;
+        g.setColour (juce::Colours::white.withAlpha (activity * 0.35f));
+        g.fillEllipse (lamp.expanded (activity * 10.0f));
     }
+
+    g.setColour (juce::Colours::white.withAlpha (0.25f + activity * 0.75f));
+    g.fillEllipse (lamp.reduced (10.0f));
+    g.setColour (juce::Colours::black.withAlpha (0.4f));
+    g.drawEllipse (lamp, 2.0f);
+
+    drawCardText (g, "LINK " + homeSidechain::linkName (processor.getLink()),
+                  juce::Rectangle<float> (card.getX(), card.getBottom() - 32.0f, card.getWidth(), 16.0f), 12.0f);
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::mouseUp (const juce::MouseEvent&)
+void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    draggingThreshold = false;
-    setMouseCursor (hoveringThreshold ? juce::MouseCursor::UpDownResizeCursor
-                                      : juce::MouseCursor::NormalCursor);
+    g.fillAll (chassis);
+
+    g.setColour (face);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f);
+    g.setColour (faceEdge);
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f, 1.5f);
+
+    drawHeader (g);
+
+    drawCard (g, scopeCard(), cyan);
+    drawCard (g, senseCard(), pink);
+    drawCard (g, meterCard(), purple);
+    drawCard (g, sendCard(), green);
+
+    drawCardTitle (g, "INPUT", scopeCard());
+    drawCardTitle (g, "SENSITIVITY", senseCard());
+    drawCardTitle (g, "ACTIVITY", meterCard());
+    drawCardTitle (g, "SENDING", sendCard());
+
+    drawCardText (g, "DRAG THE LINE", juce::Rectangle<float> (scopeCard().getRight() - 106.0f,
+                                                             scopeCard().getY() + 7.0f, 94.0f, 15.0f),
+                  8.5f, juce::Justification::centredRight, 0.55f);
+
+    drawMeters (g);
+    drawSend (g);
+
 }
 
-void HomeSidechainTriggerAudioProcessorEditor::mouseDoubleClick (const juce::MouseEvent& e)
+void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()
 {
-    const float thresholdY = yForDb (processor.getThresholdDb());
-    const auto hitArea = juce::Rectangle<float> (graphPlotBounds.getX(), thresholdY - 10.0f,
-                                                   graphPlotBounds.getWidth(), 20.0f);
-    const auto badge = getThresholdBadgeBounds (graphPlotBounds, thresholdY);
+    const int link = processor.getLink();
 
-    if (hitArea.contains (e.position) || badge.contains (e.position))
-    {
-        if (auto* parameter = processor.apvts.getParameter ("THRESHOLD"))
-        {
-            const float resetDb = -18.0f;
-            parameter->setValueNotifyingHost (parameter->getNormalisableRange().convertTo0to1 (resetDb));
-        }
-        repaint();
-    }
+    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
+        linkPills[static_cast<size_t> (i)]->setToggleState (i == link, juce::dontSendNotification);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
 {
-    linkSelector.repaint();
-    repaint();
+    inputSmoothed = juce::jmax (processor.getInputLevel(), inputSmoothed * 0.72f);
+    triggerSmoothed = juce::jmax (processor.getTriggerMeter(), triggerSmoothed * 0.68f);
+
+    refreshFromParameters();
+    scope.repaint();
+    repaint (juce::Rectangle<int> (10, 10, 700, 62));
+    repaint (meterCard().toNearestInt());
+    repaint (sendCard().toNearestInt());
 }

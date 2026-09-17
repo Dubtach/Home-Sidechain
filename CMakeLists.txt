@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(HomeSidechain VERSION 44.0.0 LANGUAGES C CXX)
+project(HomeSidechain VERSION 45.0.0 LANGUAGES C CXX)
 
 set(COMPANY_NAME "Dubtach")
 set(FORMATS Standalone AU VST3 AUv3)
@@ -30,6 +30,7 @@ juce_generate_juce_header(HomeSidechainTrigger)
 target_sources(HomeSidechainTrigger PRIVATE
     source/Shared/SidechainCommon.h
     source/Shared/HomeLink.h
+    source/Shared/HomeSeriesUI.h
     source/Trigger/PluginProcessor.h
     source/Trigger/PluginProcessor.cpp
     source/Trigger/PluginEditor.h
@@ -68,6 +69,7 @@ juce_generate_juce_header(HomeSidechainReceiver)
 target_sources(HomeSidechainReceiver PRIVATE
     source/Shared/SidechainCommon.h
     source/Shared/HomeLink.h
+    source/Shared/HomeSeriesUI.h
     source/Receiver/PluginProcessor.h
     source/Receiver/PluginProcessor.cpp
     source/Receiver/PluginEditor.h

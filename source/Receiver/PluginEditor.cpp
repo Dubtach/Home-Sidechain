@@ -2,163 +2,33 @@
 #include <algorithm>
 #include <cmath>
 
+using namespace homeUI;
+
 namespace
 {
-    const juce::Colour bg0       (0xff05070a);
-    const juce::Colour bg1       (0xff0a0f15);
-    const juce::Colour panelCol  (0xff0d141b);
-    const juce::Colour plotBg    (0xff05090d);
-    const juce::Colour edgeCol   (0xff223039);
-    const juce::Colour gridCol   (0xff1b3542);
-    const juce::Colour textHi    (0xfff1f6fa);
-    const juce::Colour textLo    (0xff7d8c99);
-    const juce::Colour cyan      (0xff1ee7ff);
-    const juce::Colour violet    (0xffb08cff);
-    const juce::Colour green     (0xff36e79a);
-    const juce::Colour red       (0xffff5965);
-    const juce::Colour shadow    (0xff000000);
-
-    juce::Font uiFont (float size, bool bold = false)
+    juce::String percentText (double value)
     {
-        return juce::Font (juce::FontOptions (size).withName ("Helvetica")
-                                                   .withStyle (bold ? "Bold" : "Plain"));
+        return juce::String (juce::roundToInt (value * 100.0)) + "%";
     }
 
-    void fillCard (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour accent, float radius)
+    juce::String hertzText (double value)
     {
-        g.setColour (shadow.withAlpha (0.55f));
-        g.fillRoundedRectangle (r.translated (0.0f, 2.0f), radius + 1.0f);
-
-        juce::ColourGradient fill (panelCol.brighter (0.05f), r.getX(), r.getY(),
-                                   bg1, r.getRight(), r.getBottom(), false);
-        g.setGradientFill (fill);
-        g.fillRoundedRectangle (r, radius);
-
-        juce::ColourGradient glow (accent.withAlpha (0.055f), r.getCentreX(), r.getY(),
-                                   juce::Colours::transparentBlack, r.getCentreX(), r.getBottom(), false);
-        g.setGradientFill (glow);
-        g.fillRoundedRectangle (r.reduced (1.0f), radius - 1.0f);
-
-        g.setColour (edgeCol);
-        g.drawRoundedRectangle (r, radius, 1.0f);
+        return value >= 1000.0 ? juce::String (value / 1000.0, 1) + "k"
+                               : juce::String (juce::roundToInt (value)) + "Hz";
     }
 
-    juce::String gainToText (float gain)
+    juce::String msText (double value)
+    {
+        return juce::String (value < 10.0 ? juce::String (value, 1) : juce::String (juce::roundToInt (value))) + "ms";
+    }
+
+    juce::String gainText (float gain)
     {
         if (gain <= 0.0009f)
             return "-inf";
 
-        return juce::String (juce::Decibels::gainToDecibels (gain), 1) + " dB";
+        return juce::String (juce::Decibels::gainToDecibels (gain), 1) + "dB";
     }
-}
-
-// =============================================================================
-// ReceiverPill
-// =============================================================================
-
-ReceiverPill::ReceiverPill (const juce::String& text, juce::Colour accentColour)
-    : juce::Button (text), accent (accentColour)
-{
-    setButtonText (text);
-    setClickingTogglesState (false);
-}
-
-void ReceiverPill::setAccent (juce::Colour newAccent)
-{
-    accent = newAccent;
-    repaint();
-}
-
-void ReceiverPill::paintButton (juce::Graphics& g, bool isMouseOver, bool isMouseDown)
-{
-    const auto r = getLocalBounds().toFloat().reduced (0.6f);
-    const float radius = juce::jmin (r.getHeight() * 0.34f, 9.0f);
-    const bool on = getToggleState();
-
-    g.setColour (on ? (filled ? accent : accent.withAlpha (0.14f))
-                    : juce::Colour (0xff0f161d));
-    g.fillRoundedRectangle (r, radius);
-
-    if (isMouseOver || isMouseDown)
-    {
-        g.setColour (juce::Colours::white.withAlpha (isMouseDown ? 0.10f : 0.05f));
-        g.fillRoundedRectangle (r, radius);
-    }
-
-    g.setColour (on ? accent.withAlpha (0.90f) : edgeCol);
-    g.drawRoundedRectangle (r, radius, on ? 1.2f : 1.0f);
-
-    g.setFont (uiFont (fontSize, on));
-    g.setColour (on ? (filled ? bg0 : accent) : textLo);
-    g.drawText (getButtonText(), getLocalBounds(), juce::Justification::centred, false);
-}
-
-// =============================================================================
-// ReceiverKnob
-// =============================================================================
-
-ReceiverKnob::ReceiverKnob (const juce::String& captionText, juce::Colour accentColour)
-    : caption (captionText), accent (accentColour)
-{
-    setSliderStyle (juce::Slider::RotaryVerticalDrag);
-    setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-    setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
-                         juce::MathConstants<float>::pi * 2.75f, true);
-    setVelocityBasedMode (false);
-    setDoubleClickReturnValue (false, 0.0);
-    setName (captionText);
-}
-
-void ReceiverKnob::paint (juce::Graphics& g)
-{
-    auto area = getLocalBounds().toFloat();
-    auto captionRow = area.removeFromTop (12.0f);
-    auto valueRow = area.removeFromBottom (13.0f);
-
-    g.setFont (uiFont (8.6f, false));
-    g.setColour (textLo);
-    g.drawText (caption.toUpperCase(), captionRow, juce::Justification::centred, false);
-
-    const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.44f;
-    const float cx = area.getCentreX();
-    const float cy = area.getCentreY();
-    const float a0 = juce::MathConstants<float>::pi * 1.25f;
-    const float a1 = juce::MathConstants<float>::pi * 2.75f;
-    const auto proportion = static_cast<float> (valueToProportionOfLength (getValue()));
-    const float angle = a0 + juce::jlimit (0.0f, 1.0f, proportion) * (a1 - a0);
-
-    g.setColour (juce::Colour (0xff0b1117));
-    g.fillEllipse (cx - radius - 3.0f, cy - radius - 3.0f, (radius + 3.0f) * 2.0f, (radius + 3.0f) * 2.0f);
-
-    juce::Path background;
-    background.addCentredArc (cx, cy, radius, radius, 0.0f, a0, a1, true);
-    g.setColour (gridCol);
-    g.strokePath (background, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved,
-                                                    juce::PathStrokeType::rounded));
-
-    if (angle > a0 + 0.001f)
-    {
-        juce::Path filled;
-        filled.addCentredArc (cx, cy, radius, radius, 0.0f, a0, angle, true);
-
-        g.setColour (accent.withAlpha (0.22f));
-        g.strokePath (filled, juce::PathStrokeType (8.0f, juce::PathStrokeType::curved,
-                                                    juce::PathStrokeType::rounded));
-        g.setColour (accent);
-        g.strokePath (filled, juce::PathStrokeType (3.0f, juce::PathStrokeType::curved,
-                                                    juce::PathStrokeType::rounded));
-    }
-
-    const float sinA = std::sin (angle);
-    const float cosA = std::cos (angle);
-    g.setColour (textHi);
-    g.drawLine (cx + sinA * radius * 0.30f, cy - cosA * radius * 0.30f,
-                cx + sinA * radius * 0.86f, cy - cosA * radius * 0.86f, 2.0f);
-
-    g.setFont (uiFont (9.4f, true));
-    g.setColour (textHi);
-    g.drawText (valueText != nullptr ? valueText (getValue()) : juce::String (getValue(), 2),
-                valueRow, juce::Justification::centred, false);
 }
 
 // =============================================================================
@@ -168,7 +38,6 @@ void ReceiverKnob::paint (juce::Graphics& g)
 ReceiverCurveEditor::ReceiverCurveEditor (HomeSidechainReceiverAudioProcessor& p)
     : processor (p)
 {
-    setWantsKeyboardFocus (false);
 }
 
 void ReceiverCurveEditor::setGridDivisions (int divisions) noexcept
@@ -184,7 +53,7 @@ void ReceiverCurveEditor::setGridDivisions (int divisions) noexcept
 
 juce::Rectangle<float> ReceiverCurveEditor::plotBounds() const noexcept
 {
-    return getLocalBounds().toFloat().reduced (14.0f, 16.0f);
+    return getLocalBounds().toFloat().reduced (10.0f, 12.0f);
 }
 
 float ReceiverCurveEditor::phaseToX (float phase) const noexcept
@@ -220,11 +89,19 @@ float ReceiverCurveEditor::snapPhase (float phase, bool fine) const noexcept
     return juce::jlimit (0.0f, 1.0f, std::round (phase * steps) / steps);
 }
 
-int ReceiverCurveEditor::buildSorted (std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes>& out) const
+float ReceiverCurveEditor::snapValue (float value, bool fine) const noexcept
+{
+    if (! snapEnabled || fine)
+        return juce::jlimit (0.0f, 1.0f, value);
+
+    return juce::jlimit (0.0f, 1.0f, std::round (value * 20.0f) / 20.0f);
+}
+
+int ReceiverCurveEditor::buildSorted (std::array<SortedNode, maxNodes>& out) const
 {
     int count = 0;
 
-    for (int slot = 0; slot < HomeSidechainReceiverAudioProcessor::maxNodes; ++slot)
+    for (int slot = 0; slot < maxNodes; ++slot)
     {
         if (! processor.isNodeActive (slot))
             continue;
@@ -244,25 +121,22 @@ int ReceiverCurveEditor::buildSorted (std::array<SortedNode, HomeSidechainReceiv
 
 juce::Point<float> ReceiverCurveEditor::handlePosition (const SortedNode& a, const SortedNode& b) const noexcept
 {
-    const float midPhase = (a.x + b.x) * 0.5f;
     const float t = receiverCurve::applyTension (0.5f, a.tension);
-    const float value = a.y + (b.y - a.y) * t;
-
-    return { phaseToX (midPhase), valueToY (value) };
+    return { phaseToX ((a.x + b.x) * 0.5f), valueToY (a.y + (b.y - a.y) * t) };
 }
 
 int ReceiverCurveEditor::nodeAt (juce::Point<float> position) const
 {
-    std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes> nodes;
+    std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
 
     for (int i = 0; i < count; ++i)
     {
-        const juce::Point<float> point (phaseToX (nodes[static_cast<size_t> (i)].x),
-                                        valueToY (nodes[static_cast<size_t> (i)].y));
+        const auto& node = nodes[static_cast<size_t> (i)];
+        const juce::Point<float> point (phaseToX (node.x), valueToY (node.y));
 
         if (point.getDistanceFrom (position) <= 10.0f)
-            return nodes[static_cast<size_t> (i)].slot;
+            return node.slot;
     }
 
     return -1;
@@ -270,7 +144,7 @@ int ReceiverCurveEditor::nodeAt (juce::Point<float> position) const
 
 int ReceiverCurveEditor::segmentHandleAt (juce::Point<float> position) const
 {
-    std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes> nodes;
+    std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
 
     for (int i = 0; i < count - 1; ++i)
@@ -290,14 +164,14 @@ int ReceiverCurveEditor::segmentHandleAt (juce::Point<float> position) const
 
 bool ReceiverCurveEditor::canDeleteNode (int slot) const
 {
-    std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes> nodes;
+    std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
 
-    if (count <= 2)
+    if (count <= 3)
         return false;
 
-    // The points at each end anchor the cycle; removing one would leave the
-    // shape starting or finishing part way through the bar.
+    // The two outer points are the loop seam. Deleting one would leave the
+    // cycle ending somewhere other than where it starts, which clicks.
     return nodes[0].slot != slot && nodes[static_cast<size_t> (count - 1)].slot != slot;
 }
 
@@ -306,30 +180,18 @@ void ReceiverCurveEditor::drawGrid (juce::Graphics& g, juce::Rectangle<float> pl
     for (int i = 1; i < 4; ++i)
     {
         const float y = plot.getY() + plot.getHeight() * (static_cast<float> (i) / 4.0f);
-        g.setColour (gridCol.withAlpha (i == 2 ? 0.55f : 0.30f));
+        g.setColour (juce::Colours::white.withAlpha (i == 2 ? 0.13f : 0.06f));
         g.drawHorizontalLine (juce::roundToInt (y), plot.getX(), plot.getRight());
     }
 
     for (int i = 0; i <= gridDivisions; ++i)
     {
-        const float x = plot.getX() + plot.getWidth() * (static_cast<float> (i) / static_cast<float> (gridDivisions));
+        const float x = plot.getX() + plot.getWidth()
+                        * (static_cast<float> (i) / static_cast<float> (gridDivisions));
         const bool strong = (i % 4) == 0;
 
-        g.setColour (gridCol.withAlpha (strong ? 0.70f : 0.26f));
+        g.setColour (juce::Colours::white.withAlpha (strong ? 0.16f : 0.06f));
         g.drawVerticalLine (juce::roundToInt (x), plot.getY(), plot.getBottom());
-    }
-
-    g.setFont (uiFont (7.6f));
-    g.setColour (gridCol.brighter (0.35f));
-
-    static const char* labels[] = { "0", "-6", "-12", "-24" };
-    static const float levels[] = { 1.0f, 0.5f, 0.25f, 0.06f };
-
-    for (int i = 0; i < 4; ++i)
-    {
-        const float y = valueToY (levels[i]);
-        g.drawText (labels[i], juce::Rectangle<float> (plot.getX() + 3.0f, y + 1.0f, 26.0f, 10.0f),
-                    juce::Justification::centredLeft, false);
     }
 }
 
@@ -352,21 +214,21 @@ void ReceiverCurveEditor::drawCurve (juce::Graphics& g, juce::Rectangle<float> p
             curve.lineTo (x, y);
     }
 
-    juce::Path filled (curve);
-    filled.lineTo (plot.getRight(), plot.getBottom());
-    filled.lineTo (plot.getX(), plot.getBottom());
-    filled.closeSubPath();
+    juce::Path body (curve);
+    body.lineTo (plot.getRight(), plot.getBottom());
+    body.lineTo (plot.getX(), plot.getBottom());
+    body.closeSubPath();
 
-    juce::ColourGradient fill (cyan.withAlpha (0.26f), plot.getCentreX(), plot.getY(),
-                               cyan.withAlpha (0.02f), plot.getCentreX(), plot.getBottom(), false);
+    juce::ColourGradient fill (cyan.withAlpha (0.42f), plot.getCentreX(), plot.getY(),
+                               cyan.withAlpha (0.04f), plot.getCentreX(), plot.getBottom(), false);
     g.setGradientFill (fill);
-    g.fillPath (filled);
+    g.fillPath (body);
 
-    g.setColour (cyan.withAlpha (0.16f));
+    g.setColour (cyan.withAlpha (0.20f));
     g.strokePath (curve, juce::PathStrokeType (7.0f, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
-    g.setColour (cyan);
-    g.strokePath (curve, juce::PathStrokeType (2.2f, juce::PathStrokeType::curved,
+    g.setColour (juce::Colours::white);
+    g.strokePath (curve, juce::PathStrokeType (2.0f, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 }
 
@@ -381,24 +243,33 @@ void ReceiverCurveEditor::drawPlayhead (juce::Graphics& g, juce::Rectangle<float
     const float x = phaseToX (phase);
     const float y = valueToY (snapshot.valueAt (phase));
 
-    g.setColour (juce::Colours::white.withAlpha (0.10f));
+    g.setColour (juce::Colours::black.withAlpha (0.28f));
     g.fillRect (juce::Rectangle<float> (plot.getX(), plot.getY(), x - plot.getX(), plot.getHeight()));
 
-    g.setColour (juce::Colours::white.withAlpha (0.55f));
-    g.drawLine (x, plot.getY(), x, plot.getBottom(), 1.0f);
+    g.setColour (green.withAlpha (0.85f));
+    g.drawLine (x, plot.getY(), x, plot.getBottom(), 1.2f);
 
-    g.setColour (juce::Colours::white.withAlpha (0.20f));
+    g.setColour (green.withAlpha (0.30f));
     g.fillEllipse (x - 7.0f, y - 7.0f, 14.0f, 14.0f);
-    g.setColour (juce::Colours::white);
-    g.fillEllipse (x - 3.0f, y - 3.0f, 6.0f, 6.0f);
+    g.setColour (green);
+    g.fillEllipse (x - 3.5f, y - 3.5f, 7.0f, 7.0f);
 }
 
 void ReceiverCurveEditor::drawNodes (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    juce::ignoreUnused (plot);
-
-    std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes> nodes;
+    std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
+
+    // The seam line: both outer points always share a height, so showing that
+    // height across the whole cycle makes the rule visible rather than magic.
+    if (count >= 2)
+    {
+        const float seamY = valueToY (nodes[0].y);
+        g.setColour (purple.withAlpha (0.45f));
+
+        for (float x = plot.getX(); x < plot.getRight(); x += 7.0f)
+            g.drawLine (x, seamY, juce::jmin (x + 3.5f, plot.getRight()), seamY, 1.0f);
+    }
 
     for (int i = 0; i < count - 1; ++i)
     {
@@ -410,35 +281,39 @@ void ReceiverCurveEditor::drawNodes (juce::Graphics& g, juce::Rectangle<float> p
 
         const auto point = handlePosition (a, b);
         const bool active = (a.slot == hoveredSegment) || (a.slot == draggedSegment);
-        const float size = active ? 5.0f : 3.6f;
+        const float size = active ? 5.0f : 3.4f;
 
         juce::Path diamond;
         diamond.addQuadrilateral (point.x, point.y - size, point.x + size, point.y,
                                   point.x, point.y + size, point.x - size, point.y);
 
-        g.setColour (active ? violet : violet.withAlpha (0.62f));
+        g.setColour (active ? purple : purple.withAlpha (0.75f));
         g.fillPath (diamond);
+        g.setColour (juce::Colours::white.withAlpha (active ? 0.9f : 0.45f));
+        g.strokePath (diamond, juce::PathStrokeType (1.0f));
     }
 
     for (int i = 0; i < count; ++i)
     {
         const auto& node = nodes[static_cast<size_t> (i)];
+        const bool seam = (i == 0) || (i == count - 1);
         const float x = phaseToX (node.x);
         const float y = valueToY (node.y);
         const bool active = (node.slot == hoveredSlot) || (node.slot == draggedSlot);
         const float radius = active ? 6.5f : 4.6f;
+        const auto colour = seam ? purple : cyan;
 
         if (active)
         {
-            g.setColour (cyan.withAlpha (0.22f));
+            g.setColour (colour.withAlpha (0.30f));
             g.fillEllipse (x - radius - 5.0f, y - radius - 5.0f,
                            (radius + 5.0f) * 2.0f, (radius + 5.0f) * 2.0f);
         }
 
-        g.setColour (plotBg);
+        g.setColour (chassis);
         g.fillEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f);
-        g.setColour (cyan);
-        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 1.8f);
+        g.setColour (seam ? purple : juce::Colours::white);
+        g.drawEllipse (x - radius, y - radius, radius * 2.0f, radius * 2.0f, 2.0f);
     }
 }
 
@@ -447,21 +322,16 @@ void ReceiverCurveEditor::paint (juce::Graphics& g)
     const auto bounds = getLocalBounds().toFloat();
     const auto plot = plotBounds();
 
-    g.setColour (plotBg);
-    g.fillRoundedRectangle (bounds, 8.0f);
-
+    drawWell (g, bounds, 5.0f);
     drawGrid (g, plot);
     drawCurve (g, plot);
     drawPlayhead (g, plot);
     drawNodes (g, plot);
 
-    g.setColour (edgeCol);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
-
-    g.setFont (uiFont (8.2f));
-    g.setColour (textLo.withAlpha (0.75f));
-    g.drawText (gainToText (processor.currentGainForUI.load (std::memory_order_relaxed)),
-                juce::Rectangle<float> (plot.getRight() - 70.0f, plot.getY() - 14.0f, 70.0f, 12.0f),
+    g.setFont (font (8.5f));
+    g.setColour (juce::Colours::white.withAlpha (0.45f));
+    g.drawText (gainText (processor.currentGainForUI.load (std::memory_order_relaxed)),
+                juce::Rectangle<float> (bounds.getRight() - 62.0f, bounds.getY() + 3.0f, 56.0f, 11.0f),
                 juce::Justification::centredRight, false);
 }
 
@@ -515,13 +385,10 @@ void ReceiverCurveEditor::mouseDown (const juce::MouseEvent& e)
     if (segment >= 0)
     {
         if (e.mods.isPopupMenu() || e.mods.isAltDown())
-        {
             processor.setTension (segment, 0.5f);
-            repaint();
-            return;
-        }
+        else
+            draggedSegment = segment;
 
-        draggedSegment = segment;
         repaint();
     }
 }
@@ -530,7 +397,7 @@ void ReceiverCurveEditor::mouseDrag (const juce::MouseEvent& e)
 {
     const bool fine = e.mods.isShiftDown();
 
-    std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes> nodes;
+    std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
 
     if (draggedSlot >= 0)
@@ -549,16 +416,18 @@ void ReceiverCurveEditor::mouseDrag (const juce::MouseEvent& e)
         if (index < 0)
             return;
 
-        float value = yToValue (e.position.y);
+        const float value = snapValue (yToValue (e.position.y), fine);
 
-        if (snapEnabled && ! fine)
-            value = std::round (value * 20.0f) / 20.0f;
-
-        processor.setNodeY (draggedSlot, value);
-
-        // The first and last nodes anchor the cycle, so only their height moves.
-        if (index > 0 && index < count - 1)
+        if (index == 0 || index == count - 1)
         {
+            // Dragging either end of the loop seam moves both, so the cycle
+            // always finishes at the height it starts from.
+            processor.setEndpointY (value);
+        }
+        else
+        {
+            processor.setNodeY (draggedSlot, value);
+
             const float low = nodes[static_cast<size_t> (index - 1)].x + 0.004f;
             const float high = nodes[static_cast<size_t> (index + 1)].x - 0.004f;
             const float phase = snapPhase (xToPhase (e.position.x), fine);
@@ -627,29 +496,24 @@ void ReceiverCurveEditor::mouseDoubleClick (const juce::MouseEvent& e)
     }
 
     const float phase = juce::jlimit (0.01f, 0.99f, snapPhase (xToPhase (e.position.x), e.mods.isShiftDown()));
-    float value = yToValue (e.position.y);
-
-    if (snapEnabled && ! e.mods.isShiftDown())
-        value = std::round (value * 20.0f) / 20.0f;
-
-    processor.addNode (phase, value);
+    processor.addNode (phase, snapValue (yToValue (e.position.y), e.mods.isShiftDown()));
     repaint();
 }
 
 // =============================================================================
-// ReceiverPresetStrip
+// ReceiverShapeStrip
 // =============================================================================
 
-ReceiverPresetStrip::ReceiverPresetStrip() = default;
-
-juce::Rectangle<float> ReceiverPresetStrip::cellBounds (int index) const noexcept
+juce::Rectangle<float> ReceiverShapeStrip::cellBounds (int index) const noexcept
 {
-    const float width = static_cast<float> (getWidth()) / static_cast<float> (HomeSidechainReceiverAudioProcessor::numPresets);
+    const float width = static_cast<float> (getWidth())
+                        / static_cast<float> (HomeSidechainReceiverAudioProcessor::numPresets);
+
     return juce::Rectangle<float> (width * static_cast<float> (index), 0.0f,
-                                   width, static_cast<float> (getHeight())).reduced (3.0f, 1.0f);
+                                   width, static_cast<float> (getHeight())).reduced (3.0f, 0.0f);
 }
 
-int ReceiverPresetStrip::cellAt (juce::Point<float> position) const noexcept
+int ReceiverShapeStrip::cellAt (juce::Point<float> position) const noexcept
 {
     for (int i = 0; i < HomeSidechainReceiverAudioProcessor::numPresets; ++i)
         if (cellBounds (i).contains (position))
@@ -658,7 +522,7 @@ int ReceiverPresetStrip::cellAt (juce::Point<float> position) const noexcept
     return -1;
 }
 
-void ReceiverPresetStrip::setSelected (int index)
+void ReceiverShapeStrip::setSelected (int index)
 {
     const int clamped = juce::jlimit (0, HomeSidechainReceiverAudioProcessor::numPresets - 1, index);
 
@@ -669,30 +533,30 @@ void ReceiverPresetStrip::setSelected (int index)
     }
 }
 
-void ReceiverPresetStrip::paint (juce::Graphics& g)
+void ReceiverShapeStrip::paint (juce::Graphics& g)
 {
     for (int i = 0; i < HomeSidechainReceiverAudioProcessor::numPresets; ++i)
     {
         const auto cell = cellBounds (i);
         const bool isSelected = i == selected;
-        const bool isHovered = i == hovered;
 
-        g.setColour (isSelected ? cyan.withAlpha (0.10f) : juce::Colour (0xff0b1117));
+        g.setColour (juce::Colours::black.withAlpha (isSelected ? 0.55f : 0.34f));
         g.fillRoundedRectangle (cell, 5.0f);
 
-        if (isHovered && ! isSelected)
+        if (i == hovered && ! isSelected)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.045f));
+            g.setColour (juce::Colours::white.withAlpha (0.08f));
             g.fillRoundedRectangle (cell, 5.0f);
         }
 
-        g.setColour (isSelected ? cyan.withAlpha (0.80f) : edgeCol);
-        g.drawRoundedRectangle (cell, 5.0f, 1.0f);
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.18f));
+        g.drawRoundedRectangle (cell, 5.0f, isSelected ? 1.6f : 1.0f);
 
-        auto plot = cell.reduced (6.0f, 5.0f);
-        plot.removeFromBottom (10.0f);
+        auto plot = cell.reduced (7.0f, 6.0f);
+        auto nameRow = plot.removeFromBottom (11.0f);
 
         const auto snapshot = HomeSidechainReceiverAudioProcessor::presetSnapshot (i);
+
         juce::Path curve;
         const int steps = juce::jmax (8, juce::roundToInt (plot.getWidth()));
 
@@ -708,19 +572,18 @@ void ReceiverPresetStrip::paint (juce::Graphics& g)
                 curve.lineTo (x, y);
         }
 
-        g.setColour (isSelected ? cyan : textLo.withAlpha (0.75f));
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
         g.strokePath (curve, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
-        g.setFont (uiFont (7.6f, isSelected));
-        g.setColour (isSelected ? cyan : textLo);
-        g.drawText (HomeSidechainReceiverAudioProcessor::presetName (i),
-                    cell.withTop (cell.getBottom() - 12.0f),
+        g.setFont (font (8.0f, isSelected));
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
+        g.drawText (HomeSidechainReceiverAudioProcessor::presetName (i), nameRow,
                     juce::Justification::centred, false);
     }
 }
 
-void ReceiverPresetStrip::mouseMove (const juce::MouseEvent& e)
+void ReceiverShapeStrip::mouseMove (const juce::MouseEvent& e)
 {
     const int cell = cellAt (e.position);
 
@@ -731,13 +594,13 @@ void ReceiverPresetStrip::mouseMove (const juce::MouseEvent& e)
     }
 }
 
-void ReceiverPresetStrip::mouseExit (const juce::MouseEvent&)
+void ReceiverShapeStrip::mouseExit (const juce::MouseEvent&)
 {
     hovered = -1;
     repaint();
 }
 
-void ReceiverPresetStrip::mouseDown (const juce::MouseEvent& e)
+void ReceiverShapeStrip::mouseDown (const juce::MouseEvent& e)
 {
     const int cell = cellAt (e.position);
 
@@ -751,16 +614,117 @@ void ReceiverPresetStrip::mouseDown (const juce::MouseEvent& e)
 }
 
 // =============================================================================
-// ReceiverPanel
+// ReceiverSettingsPanel
 // =============================================================================
 
-ReceiverPanel::ReceiverPanel (HomeSidechainReceiverAudioProcessor& p)
-    : processor (p), curveEditor (p)
+ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcessor& p)
+    : processor (p)
+{
+    smoothKnob.valueText = msText;
+    lengthKnob.valueText = msText;
+    lowCutKnob.valueText = hertzText;
+    highCutKnob.valueText = hertzText;
+
+    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob, &lengthKnob })
+        addAndMakeVisible (*knob);
+
+    const char* names[] = { "LINK", "MIDI", "BOTH" };
+
+    for (int i = 0; i < 3; ++i)
+    {
+        auto pill = std::make_unique<Pill> (names[i], green);
+        pill->setFontSize (9.5f);
+        pill->onClick = [this, i] { processor.setSource (i); refresh(); };
+        addAndMakeVisible (*pill);
+        sourcePills[static_cast<size_t> (i)] = std::move (pill);
+    }
+
+    closePill.setFontSize (9.5f);
+    closePill.onClick = [this] { setVisible (false); };
+    addAndMakeVisible (closePill);
+
+    smoothAttachment = std::make_unique<SliderAttachment> (processor.apvts, "SMOOTH", smoothKnob);
+    lowCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LOW_CUT", lowCutKnob);
+    highCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "HIGH_CUT", highCutKnob);
+    lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
+}
+
+void ReceiverSettingsPanel::resized()
+{
+    auto card = cardBounds().toNearestInt();
+    auto inner = card.reduced (18, 16);
+    inner.removeFromTop (22);
+
+    auto knobRow = inner.removeFromTop (96);
+    const int knobWidth = (knobRow.getWidth() - 24) / 4;
+
+    for (auto* knob : { &smoothKnob, &lengthKnob, &lowCutKnob, &highCutKnob })
+    {
+        knob->setBounds (knobRow.removeFromLeft (knobWidth));
+        knobRow.removeFromLeft (8);
+    }
+
+    inner.removeFromTop (14);
+    auto row = inner.removeFromTop (26);
+    row.removeFromLeft (76);
+
+    for (auto& pill : sourcePills)
+    {
+        pill->setBounds (row.removeFromLeft (64));
+        row.removeFromLeft (6);
+    }
+
+    closePill.setBounds (card.getRight() - 82, card.getBottom() - 38, 64, 24);
+}
+
+void ReceiverSettingsPanel::paint (juce::Graphics& g)
+{
+    g.fillAll (chassis.withAlpha (0.82f));
+
+    const auto card = cardBounds();
+    drawCard (g, card, cyan);
+    drawCardTitle (g, "ADVANCED", card);
+
+    drawCardText (g, "TRIGGER FROM",
+                  juce::Rectangle<float> (card.getX() + 18.0f, card.getY() + 148.0f, 76.0f, 26.0f),
+                  9.5f, juce::Justification::centredLeft);
+
+    drawCardText (g, "Low cut and high cut set the band that ducks. Everything outside it passes through.",
+                  juce::Rectangle<float> (card.getX() + 18.0f, card.getBottom() - 40.0f,
+                                          card.getWidth() - 110.0f, 28.0f),
+                  9.0f, juce::Justification::centredLeft, 0.65f);
+}
+
+void ReceiverSettingsPanel::mouseDown (const juce::MouseEvent& e)
+{
+    if (! cardBounds().contains (e.position))
+        setVisible (false);
+}
+
+void ReceiverSettingsPanel::refresh()
+{
+    const int source = processor.getSource();
+
+    for (int i = 0; i < 3; ++i)
+        sourcePills[static_cast<size_t> (i)]->setToggleState (i == source, juce::dontSendNotification);
+
+    const bool freeLength = processor.getRunMode() == 0 && ! processor.isSynced();
+    lengthKnob.setEnabled (freeLength);
+    lengthKnob.setAlpha (freeLength ? 1.0f : 0.4f);
+}
+
+// =============================================================================
+// Editor
+// =============================================================================
+
+HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (
+    HomeSidechainReceiverAudioProcessor& p)
+    : juce::AudioProcessorEditor (&p), processor (p), curveEditor (p), settingsPanel (p)
 {
     addAndMakeVisible (curveEditor);
-    addAndMakeVisible (presetStrip);
+    addAndMakeVisible (shapeStrip);
 
-    presetStrip.onSelect = [this] (int index)
+    shapeStrip.onSelect = [this] (int index)
     {
         processor.applyPreset (index);
         curveEditor.repaint();
@@ -768,8 +732,9 @@ ReceiverPanel::ReceiverPanel (HomeSidechainReceiverAudioProcessor& p)
 
     for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
     {
-        auto pill = std::make_unique<ReceiverPill> (homeSidechain::linkName (i), cyan);
-        pill->setFontSize (10.0f);
+        auto pill = std::make_unique<Pill> (homeSidechain::linkName (i), cyan);
+        pill->setFontSize (9.5f);
+        pill->setCornerRadius (4.0f);
         pill->onClick = [this, i] { processor.setLink (i); refreshFromParameters(); };
         addAndMakeVisible (*pill);
         linkPills[static_cast<size_t> (i)] = std::move (pill);
@@ -779,44 +744,29 @@ ReceiverPanel::ReceiverPanel (HomeSidechainReceiverAudioProcessor& p)
 
     for (int i = 0; i < HomeSidechainReceiverAudioProcessor::numRates; ++i)
     {
-        auto pill = std::make_unique<ReceiverPill> (rates[i], cyan);
-        pill->setFontSize (9.4f);
+        auto pill = std::make_unique<Pill> (rates[i], green);
+        pill->setFontSize (9.0f);
         pill->onClick = [this, i] { processor.setRate (i); refreshFromParameters(); };
         addAndMakeVisible (*pill);
         ratePills[static_cast<size_t> (i)] = std::move (pill);
     }
 
-    const char* runNames[] = { "Trigger", "Host sync" };
+    const char* runNames[] = { "TRIG", "HOST" };
 
     for (int i = 0; i < 2; ++i)
     {
-        auto pill = std::make_unique<ReceiverPill> (runNames[i], violet);
-        pill->setFontSize (9.6f);
+        auto pill = std::make_unique<Pill> (runNames[i], green);
+        pill->setFontSize (9.5f);
         pill->onClick = [this, i] { processor.setRunMode (i); refreshFromParameters(); };
         addAndMakeVisible (*pill);
         runPills[static_cast<size_t> (i)] = std::move (pill);
     }
 
-    const char* sourceNames[] = { "Link", "MIDI", "Both" };
-
-    for (int i = 0; i < 3; ++i)
-    {
-        auto pill = std::make_unique<ReceiverPill> (sourceNames[i], green);
-        pill->setFontSize (9.0f);
-        pill->onClick = [this, i] { processor.setSource (i); refreshFromParameters(); };
-        addAndMakeVisible (*pill);
-        sourcePills[static_cast<size_t> (i)] = std::move (pill);
-    }
-
-    bypassPill.setClickingTogglesState (true);
-    bypassPill.setFontSize (9.6f);
-    addAndMakeVisible (bypassPill);
-
     syncPill.setClickingTogglesState (true);
-    syncPill.setFontSize (9.2f);
+    syncPill.setFontSize (9.0f);
     addAndMakeVisible (syncPill);
 
-    snapPill.setFontSize (9.2f);
+    snapPill.setFontSize (9.0f);
     snapPill.setToggleState (curveEditor.isSnapEnabled(), juce::dontSendNotification);
     snapPill.onClick = [this]
     {
@@ -826,261 +776,169 @@ ReceiverPanel::ReceiverPanel (HomeSidechainReceiverAudioProcessor& p)
     };
     addAndMakeVisible (snapPill);
 
-    testPill.setFontSize (9.6f);
+    testPill.setFontSize (9.5f);
     testPill.onClick = [this] { processor.requestTestTrigger(); };
     addAndMakeVisible (testPill);
 
-    resetPill.setFontSize (9.2f);
+    advPill.setFontSize (9.5f);
+    advPill.onClick = [this]
+    {
+        settingsPanel.refresh();
+        settingsPanel.setVisible (! settingsPanel.isVisible());
+    };
+    addAndMakeVisible (advPill);
+
+    resetPill.setFontSize (8.5f);
     resetPill.onClick = [this]
     {
         processor.resetCurve();
-        presetStrip.setSelected (0);
+        shapeStrip.setSelected (0);
         curveEditor.repaint();
     };
     addAndMakeVisible (resetPill);
 
-    const auto percent = [] (double value)
-    {
-        return juce::String (juce::roundToInt (value * 100.0)) + "%";
-    };
+    addAndMakeVisible (power);
 
-    const auto hertz = [] (double value)
-    {
-        return value >= 1000.0 ? juce::String (value / 1000.0, 1) + "k"
-                               : juce::String (juce::roundToInt (value)) + " Hz";
-    };
-
-    depthKnob.valueText = percent;
-    mixKnob.valueText = percent;
-    smoothKnob.valueText = [] (double value) { return juce::String (value, 1) + " ms"; };
-    lengthKnob.valueText = [] (double value) { return juce::String (juce::roundToInt (value)) + " ms"; };
-    lowCutKnob.valueText = hertz;
-    highCutKnob.valueText = hertz;
-
-    addKnob (depthKnob);
-    addKnob (mixKnob);
-    addKnob (smoothKnob);
-    addKnob (lengthKnob);
-    addKnob (lowCutKnob);
-    addKnob (highCutKnob);
+    depthKnob.valueText = percentText;
+    mixKnob.valueText = percentText;
+    addAndMakeVisible (depthKnob);
+    addAndMakeVisible (mixKnob);
 
     depthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "DEPTH", depthKnob);
     mixAttachment = std::make_unique<SliderAttachment> (processor.apvts, "MIX", mixKnob);
-    smoothAttachment = std::make_unique<SliderAttachment> (processor.apvts, "SMOOTH", smoothKnob);
-    lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
-    lowCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LOW_CUT", lowCutKnob);
-    highCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "HIGH_CUT", highCutKnob);
-    bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", bypassPill);
+    bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", power);
     syncAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "SYNC", syncPill);
+
+    addChildComponent (settingsPanel);
 
     setSize (designWidth, designHeight);
     refreshFromParameters();
     startTimerHz (30);
 }
 
-ReceiverPanel::~ReceiverPanel()
+HomeSidechainReceiverAudioProcessorEditor::~HomeSidechainReceiverAudioProcessorEditor()
 {
     stopTimer();
 }
 
-void ReceiverPanel::addKnob (ReceiverKnob& knob)
+void HomeSidechainReceiverAudioProcessorEditor::resized()
 {
-    addAndMakeVisible (knob);
-}
-
-void ReceiverPanel::resized()
-{
-    auto area = getLocalBounds();
-
-    headerArea = area.removeFromTop (64);
-    footerArea = area.removeFromBottom (156);
-    presetArea = area.removeFromTop (58);
-    graphArea = area.reduced (18, 4).withTrimmedBottom (12);
-
-    curveEditor.setBounds (graphArea);
+    settingsPanel.setBounds (getLocalBounds());
 
     // ---- header ----
-    const int headerCentre = headerArea.getCentreY();
-    int x = 344;
+    int x = 320;
 
     for (auto& pill : linkPills)
     {
-        pill->setBounds (x, headerCentre - 11, 28, 22);
-        x += 32;
+        pill->setBounds (x, 30, 20, 20);
+        x += 23;
     }
 
-    testPill.setBounds (786, headerCentre - 13, 64, 26);
-    bypassPill.setBounds (860, headerCentre - 13, 62, 26);
+    testPill.setBounds (582, 29, 44, 22);
+    advPill.setBounds (630, 29, 40, 22);
+    power.setBounds (678, 27, 26, 26);
 
-    // ---- preset strip ----
-    presetStrip.setBounds (18, presetArea.getY() + 5, 838, presetArea.getHeight() - 10);
-    resetPill.setBounds (868, presetArea.getCentreY() - 12, 54, 24);
+    // ---- graph card ----
+    const auto graph = graphCard();
+    curveEditor.setBounds (graph.reduced (12.0f, 0.0f)
+                                .withTrimmedTop (26.0f)
+                                .withTrimmedBottom (10.0f).toNearestInt());
 
-    // ---- footer cards ----
-    const int cardY = footerArea.getY() + 8;
-    const int cardHeight = footerArea.getHeight() - 16;
+    // ---- output card ----
+    const auto output = outputCard().toNearestInt();
+    depthKnob.setBounds (output.getX() + 32, output.getY() + 28, 136, 82);
+    mixKnob.setBounds (output.getX() + 32, output.getY() + 114, 136, 80);
 
-    auto timingCard = juce::Rectangle<int> (18, cardY, 388, cardHeight);
-    auto levelCard = juce::Rectangle<int> (418, cardY, 264, cardHeight);
-    auto filterCard = juce::Rectangle<int> (694, cardY, 228, cardHeight);
+    // ---- shape card ----
+    const auto shapes = shapeCard().toNearestInt();
+    shapeStrip.setBounds (shapes.getX() + 10, shapes.getY() + 28, shapes.getWidth() - 74, 84);
+    resetPill.setBounds (shapes.getRight() - 58, shapes.getCentreY() + 4, 48, 22);
 
+    // ---- timing card ----
+    auto timing = timingCard().toNearestInt().reduced (12, 10);
+    timing.removeFromTop (16);
+
+    auto runRow = timing.removeFromTop (22);
+    runPills[0]->setBounds (runRow.removeFromLeft (40));
+    runRow.removeFromLeft (5);
+    runPills[1]->setBounds (runRow.removeFromLeft (40));
+    runRow.removeFromLeft (5);
+    syncPill.setBounds (runRow.removeFromLeft (40));
+    runRow.removeFromLeft (5);
+    snapPill.setBounds (runRow.removeFromLeft (40));
+
+    timing.removeFromTop (8);
+    auto rateRowTop = timing.removeFromTop (22);
+    timing.removeFromTop (5);
+    auto rateRowBottom = timing.removeFromTop (22);
+
+    for (int i = 0; i < 6; ++i)
     {
-        auto inner = timingCard.reduced (14, 10);
-        inner.removeFromTop (16);
-
-        auto lengthColumn = inner.removeFromRight (74);
-        lengthKnob.setBounds (lengthColumn.removeFromTop (94));
-        inner.removeFromRight (12);
-
-        auto row = inner.removeFromTop (26);
-        runPills[0]->setBounds (row.removeFromLeft (76));
-        row.removeFromLeft (6);
-        runPills[1]->setBounds (row.removeFromLeft (76));
-        row.removeFromLeft (10);
-        syncPill.setBounds (row.removeFromLeft (48));
-        row.removeFromLeft (6);
-        snapPill.setBounds (row.removeFromLeft (48));
-
-        inner.removeFromTop (12);
-        auto rateRow = inner.removeFromTop (26);
-        const int rateWidth = (rateRow.getWidth() - 25) / 6;
-
-        for (auto& pill : ratePills)
-        {
-            pill->setBounds (rateRow.removeFromLeft (rateWidth));
-            rateRow.removeFromLeft (5);
-        }
-    }
-
-    {
-        auto inner = levelCard.reduced (14, 10);
-        inner.removeFromTop (16);
-
-        const int knobWidth = (inner.getWidth() - 16) / 3;
-        depthKnob.setBounds (inner.removeFromLeft (knobWidth));
-        inner.removeFromLeft (8);
-        mixKnob.setBounds (inner.removeFromLeft (knobWidth));
-        inner.removeFromLeft (8);
-        smoothKnob.setBounds (inner.removeFromLeft (knobWidth));
-    }
-
-    {
-        auto inner = filterCard.reduced (14, 10);
-        inner.removeFromTop (16);
-
-        auto sourceRow = inner.removeFromBottom (24);
-        const int sourceWidth = (sourceRow.getWidth() - 12) / 3;
-
-        for (auto& pill : sourcePills)
-        {
-            pill->setBounds (sourceRow.removeFromLeft (sourceWidth));
-            sourceRow.removeFromLeft (6);
-        }
-
-        inner.removeFromBottom (8);
-
-        const int knobWidth = (inner.getWidth() - 12) / 2;
-        lowCutKnob.setBounds (inner.removeFromLeft (knobWidth));
-        inner.removeFromLeft (12);
-        highCutKnob.setBounds (inner.removeFromLeft (knobWidth));
+        auto& row = i < 3 ? rateRowTop : rateRowBottom;
+        ratePills[static_cast<size_t> (i)]->setBounds (row.removeFromLeft (54));
+        row.removeFromLeft (5);
     }
 }
 
-void ReceiverPanel::drawCard (juce::Graphics& g, juce::Rectangle<float> r,
-                              const juce::String& title, juce::Colour accent) const
+void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) const
 {
-    fillCard (g, r, accent, 10.0f);
+    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
 
-    g.setFont (uiFont (8.4f, true));
-    g.setColour (accent.withAlpha (0.85f));
-    g.drawText (title.toUpperCase(),
-                r.withTrimmedLeft (14.0f).withTrimmedTop (9.0f).withHeight (12.0f),
-                juce::Justification::topLeft, false);
-}
+    g.setFont (font (8.5f));
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    g.setColour (cyan.withAlpha (0.75f));
+    g.drawText ("RECEIVER", juce::Rectangle<float> (202.0f, 22.0f, 80.0f, 13.0f),
+                juce::Justification::centredLeft, false);
 
-void ReceiverPanel::drawStatusLamp (juce::Graphics& g, juce::Rectangle<float> r,
-                                    const juce::String& label, juce::Colour colour,
-                                    float activity, bool connected) const
-{
-    const float alpha = juce::jlimit (0.16f, 1.0f, connected ? 0.5f + activity * 0.5f : 0.16f + activity * 0.6f);
-    const auto lamp = juce::Rectangle<float> (r.getX(), r.getCentreY() - 3.5f, 7.0f, 7.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    g.drawText (juce::String (processor.hostBpmForUI.load (std::memory_order_relaxed), 1) + " BPM",
+                juce::Rectangle<float> (202.0f, 37.0f, 80.0f, 12.0f),
+                juce::Justification::centredLeft, false);
 
-    if (alpha > 0.5f)
-    {
-        g.setColour (colour.withAlpha ((alpha - 0.5f) * 0.6f));
-        g.fillEllipse (lamp.expanded (4.0f));
-    }
-
-    g.setColour (colour.withAlpha (alpha));
-    g.fillEllipse (lamp);
-
-    g.setFont (uiFont (8.4f));
-    g.setColour (textLo);
-    g.drawText (label, r.withTrimmedLeft (13.0f), juce::Justification::centredLeft, false);
-}
-
-void ReceiverPanel::drawHeader (juce::Graphics& g, juce::Rectangle<float> r) const
-{
-    g.setFont (uiFont (17.0f, true));
-    g.setColour (textHi);
-    g.drawText ("Home-Sidechain", r.withTrimmedLeft (20.0f).withWidth (180.0f).withTrimmedBottom (14.0f),
-                juce::Justification::bottomLeft, false);
-
-    g.setFont (uiFont (9.0f, false));
-    g.setColour (cyan.withAlpha (0.85f));
-    g.drawText ("Receiver", r.withTrimmedLeft (20.0f).withWidth (180.0f).withTrimmedTop (34.0f),
-                juce::Justification::topLeft, false);
-
-    g.setFont (uiFont (8.4f));
-    g.setColour (textLo.withAlpha (0.8f));
-    g.drawText ("Link", juce::Rectangle<float> (306.0f, r.getCentreY() - 6.0f, 34.0f, 12.0f),
+    g.setColour (juce::Colours::white.withAlpha (0.45f));
+    g.drawText ("LINK", juce::Rectangle<float> (286.0f, 33.0f, 34.0f, 14.0f),
                 juce::Justification::centredLeft, false);
 
     const bool connected = processor.homeLinkConnected.load (std::memory_order_relaxed);
-    const float linkActivity = processor.homeLinkActivity.load (std::memory_order_relaxed);
-    const float midiActivity = processor.midiActivity.load (std::memory_order_relaxed);
 
-    drawStatusLamp (g, juce::Rectangle<float> (614.0f, r.getCentreY() - 8.0f, 78.0f, 16.0f),
-                    connected ? "Linked" : "No link", connected ? green : red, linkActivity, connected);
-    drawStatusLamp (g, juce::Rectangle<float> (700.0f, r.getCentreY() - 8.0f, 70.0f, 16.0f),
-                    "MIDI", violet, midiActivity, false);
-
-    g.setFont (uiFont (8.2f));
-    g.setColour (textLo.withAlpha (0.55f));
-    g.drawText (juce::String (processor.hostBpmForUI.load (std::memory_order_relaxed), 1) + " BPM",
-                juce::Rectangle<float> (208.0f, r.getCentreY() - 6.0f, 90.0f, 12.0f),
-                juce::Justification::centredRight, false);
-
-    g.setColour (edgeCol.withAlpha (0.8f));
-    g.drawHorizontalLine (juce::roundToInt (r.getBottom()) - 1, r.getX() + 18.0f, r.getRight() - 18.0f);
+    drawLamp (g, juce::Rectangle<float> (512.0f, 33.0f, 64.0f, 14.0f),
+              connected ? "LINKED" : "NO LINK", connected ? green : warn,
+              processor.homeLinkActivity.load (std::memory_order_relaxed), connected);
 }
 
-void ReceiverPanel::paint (juce::Graphics& g)
+void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    const auto bounds = getLocalBounds().toFloat();
+    g.fillAll (chassis);
 
-    juce::ColourGradient chassis (bg1, bounds.getCentreX(), bounds.getY(),
-                                  bg0, bounds.getCentreX(), bounds.getBottom(), false);
-    g.setGradientFill (chassis);
-    g.fillRect (bounds);
+    g.setColour (face);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f);
+    g.setColour (faceEdge);
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f, 1.5f);
 
-    drawHeader (g, headerArea.toFloat());
+    drawHeader (g);
 
-    const int cardY = footerArea.getY() + 8;
-    const int cardHeight = footerArea.getHeight() - 16;
+    const auto graph = graphCard();
+    const auto output = outputCard();
+    const auto shapes = shapeCard();
+    const auto timing = timingCard();
 
-    drawCard (g, juce::Rectangle<int> (18, cardY, 388, cardHeight).toFloat(), "Timing", cyan);
-    drawCard (g, juce::Rectangle<int> (418, cardY, 264, cardHeight).toFloat(), "Amount", cyan);
-    drawCard (g, juce::Rectangle<int> (694, cardY, 228, cardHeight).toFloat(), "Sidechain band", green);
+    drawCard (g, graph, cyan);
+    drawCard (g, output, pink);
+    drawCard (g, shapes, purple);
+    drawCard (g, timing, green);
 
-    g.setFont (uiFont (8.2f));
-    g.setColour (textLo.withAlpha (0.6f));
-    g.drawText ("Drag points  ·  double-click to add or remove  ·  drag a diamond to bend",
-                juce::Rectangle<int> (18, footerArea.getY() - 14, 838, 12).toFloat(),
-                juce::Justification::centredLeft, false);
+    drawCardTitle (g, "SHAPE", graph);
+    drawCardTitle (g, "OUTPUT", output);
+    drawCardTitle (g, "SHAPES", shapes);
+    drawCardTitle (g, "TIMING", timing);
+
+    // The seam rule, stated where it matters rather than buried in a manual.
+    drawCardText (g, "ENDS LOCKED", juce::Rectangle<float> (graph.getRight() - 96.0f, graph.getY() + 7.0f,
+                                                            84.0f, 15.0f),
+                  8.5f, juce::Justification::centredRight, 0.55f);
 }
 
-void ReceiverPanel::refreshFromParameters()
+void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
 {
     const int link = processor.getLink();
 
@@ -1097,65 +955,27 @@ void ReceiverPanel::refreshFromParameters()
     for (int i = 0; i < 2; ++i)
         runPills[static_cast<size_t> (i)]->setToggleState (i == run, juce::dontSendNotification);
 
-    const int source = processor.getSource();
-
-    for (int i = 0; i < 3; ++i)
-        sourcePills[static_cast<size_t> (i)]->setToggleState (i == source, juce::dontSendNotification);
-
-    // Host sync owns the cycle length, so the free-length control steps aside.
-    const bool freeLength = run == 0 && ! processor.isSynced();
-    lengthKnob.setEnabled (freeLength);
-    lengthKnob.setAlpha (freeLength ? 1.0f : 0.35f);
     syncPill.setEnabled (run == 0);
-    syncPill.setAlpha (run == 0 ? 1.0f : 0.35f);
+    syncPill.setAlpha (run == 0 ? 1.0f : 0.4f);
+
+    const bool ratesUsable = run == 1 || processor.isSynced();
 
     for (auto& pill : ratePills)
     {
-        const bool usable = run == 1 || processor.isSynced();
-        pill->setEnabled (usable);
-        pill->setAlpha (usable ? 1.0f : 0.35f);
+        pill->setEnabled (ratesUsable);
+        pill->setAlpha (ratesUsable ? 1.0f : 0.4f);
     }
 
     curveEditor.setGridDivisions (processor.gridDivisions());
 }
 
-void ReceiverPanel::timerCallback()
+void HomeSidechainReceiverAudioProcessorEditor::timerCallback()
 {
     refreshFromParameters();
+
+    if (settingsPanel.isVisible())
+        settingsPanel.refresh();
+
     curveEditor.repaint();
-    repaint (headerArea);
-}
-
-// =============================================================================
-// HomeSidechainReceiverAudioProcessorEditor
-// =============================================================================
-
-HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (
-    HomeSidechainReceiverAudioProcessor& p)
-    : juce::AudioProcessorEditor (&p), panel (p)
-{
-    addAndMakeVisible (panel);
-
-    setResizable (true, true);
-    setResizeLimits (ReceiverPanel::designWidth * 3 / 4, ReceiverPanel::designHeight * 3 / 4,
-                     ReceiverPanel::designWidth * 3 / 2, ReceiverPanel::designHeight * 3 / 2);
-
-    if (auto* constrainer = getConstrainer())
-        constrainer->setFixedAspectRatio (static_cast<double> (ReceiverPanel::designWidth)
-                                          / static_cast<double> (ReceiverPanel::designHeight));
-
-    setSize (ReceiverPanel::designWidth, ReceiverPanel::designHeight);
-}
-
-void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
-{
-    g.fillAll (bg0);
-}
-
-void HomeSidechainReceiverAudioProcessorEditor::resized()
-{
-    panel.setBounds (0, 0, ReceiverPanel::designWidth, ReceiverPanel::designHeight);
-
-    const auto scale = static_cast<float> (getWidth()) / static_cast<float> (ReceiverPanel::designWidth);
-    panel.setTransform (juce::AffineTransform::scale (scale));
+    repaint (juce::Rectangle<int> (10, 10, 700, 62));
 }

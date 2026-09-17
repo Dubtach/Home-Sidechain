@@ -116,7 +116,7 @@ class HomeSidechainReceiverAudioProcessor : public juce::AudioProcessor
 public:
     static constexpr int maxNodes = receiverCurve::maxNodes;
     static constexpr int numRates = 6;
-    static constexpr int numPresets = 12;
+    static constexpr int numPresets = 8;
 
     HomeSidechainReceiverAudioProcessor();
     ~HomeSidechainReceiverAudioProcessor() override = default;
@@ -202,6 +202,11 @@ public:
     void setNodeY (int slot, float value);
     void setTension (int slot, float value);
     void setNodeActive (int slot, bool active);
+
+    // The first and last points are the loop seam. They always carry the same
+    // height, so the cycle can repeat without a step in gain.
+    void setEndpointY (float value);
+    bool isEndpoint (int slot) const noexcept;
     int activeNodeCount() const noexcept;
     int addNode (float x, float y);
     void removeNode (int slot);

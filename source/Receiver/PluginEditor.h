@@ -4,49 +4,10 @@
 #include <array>
 #include <functional>
 #include "PluginProcessor.h"
+#include "../Shared/HomeSeriesUI.h"
 
 // =============================================================================
-// Small, self-painting controls. Each one draws itself rather than going
-// through a LookAndFeel, which keeps the styling next to the thing it styles.
-// =============================================================================
-
-class ReceiverPill : public juce::Button
-{
-public:
-    ReceiverPill (const juce::String& text, juce::Colour accentColour);
-
-    void paintButton (juce::Graphics&, bool isMouseOver, bool isMouseDown) override;
-
-    void setAccent (juce::Colour newAccent);
-    void setFontSize (float size) noexcept { fontSize = size; }
-    void setFilled (bool shouldFill) noexcept { filled = shouldFill; }
-
-private:
-    juce::Colour accent;
-    float fontSize = 11.0f;
-    bool filled = false;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverPill)
-};
-
-class ReceiverKnob : public juce::Slider
-{
-public:
-    ReceiverKnob (const juce::String& captionText, juce::Colour accentColour);
-
-    void paint (juce::Graphics&) override;
-
-    std::function<juce::String (double)> valueText;
-
-private:
-    juce::String caption;
-    juce::Colour accent;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverKnob)
-};
-
-// =============================================================================
-// The curve editor is the plugin. Everything else is secondary to it.
+// The shaper graph. This is the plugin; everything else supports it.
 // =============================================================================
 
 class ReceiverCurveEditor : public juce::Component
@@ -75,6 +36,8 @@ private:
         float tension = 0.5f;
     };
 
+    static constexpr int maxNodes = HomeSidechainReceiverAudioProcessor::maxNodes;
+
     HomeSidechainReceiverAudioProcessor& processor;
 
     int gridDivisions = 4;
@@ -85,19 +48,20 @@ private:
     int hoveredSlot = -1;
     int hoveredSegment = -1;
 
-    int buildSorted (std::array<SortedNode, HomeSidechainReceiverAudioProcessor::maxNodes>&) const;
+    int buildSorted (std::array<SortedNode, maxNodes>&) const;
 
     juce::Rectangle<float> plotBounds() const noexcept;
-    float phaseToX (float phase) const noexcept;
-    float valueToY (float value) const noexcept;
-    float xToPhase (float x) const noexcept;
-    float yToValue (float y) const noexcept;
-    float snapPhase (float phase, bool fine) const noexcept;
+    float phaseToX (float) const noexcept;
+    float valueToY (float) const noexcept;
+    float xToPhase (float) const noexcept;
+    float yToValue (float) const noexcept;
+    float snapPhase (float, bool fine) const noexcept;
+    float snapValue (float, bool fine) const noexcept;
 
     int nodeAt (juce::Point<float>) const;
     int segmentHandleAt (juce::Point<float>) const;
     bool canDeleteNode (int slot) const;
-    juce::Point<float> handlePosition (const SortedNode& a, const SortedNode& b) const noexcept;
+    juce::Point<float> handlePosition (const SortedNode&, const SortedNode&) const noexcept;
 
     void drawGrid (juce::Graphics&, juce::Rectangle<float>) const;
     void drawCurve (juce::Graphics&, juce::Rectangle<float>) const;
@@ -107,10 +71,12 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverCurveEditor)
 };
 
-class ReceiverPresetStrip : public juce::Component
+// =============================================================================
+
+class ReceiverShapeStrip : public juce::Component
 {
 public:
-    ReceiverPresetStrip();
+    ReceiverShapeStrip() = default;
 
     void paint (juce::Graphics&) override;
     void mouseMove (const juce::MouseEvent&) override;
@@ -118,7 +84,6 @@ public:
     void mouseDown (const juce::MouseEvent&) override;
 
     void setSelected (int index);
-    int getSelected() const noexcept { return selected; }
 
     std::function<void (int)> onSelect;
 
@@ -126,26 +91,58 @@ private:
     int selected = 0;
     int hovered = -1;
 
-    juce::Rectangle<float> cellBounds (int index) const noexcept;
+    juce::Rectangle<float> cellBounds (int) const noexcept;
     int cellAt (juce::Point<float>) const noexcept;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverPresetStrip)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShapeStrip)
 };
 
 // =============================================================================
-// The whole interface lives in one fixed-size panel that the editor scales, so
-// the window can be resized without reflowing every control.
+// Advanced controls live behind the ADV button, the way Home-Disto hides its
+// settings, so the front face stays down to what you touch while writing.
 // =============================================================================
 
-class ReceiverPanel : public juce::Component,
-                      private juce::Timer
+class ReceiverSettingsPanel : public juce::Component
 {
 public:
-    static constexpr int designWidth = 940;
-    static constexpr int designHeight = 620;
+    explicit ReceiverSettingsPanel (HomeSidechainReceiverAudioProcessor&);
 
-    explicit ReceiverPanel (HomeSidechainReceiverAudioProcessor&);
-    ~ReceiverPanel() override;
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void mouseDown (const juce::MouseEvent&) override;
+
+    void refresh();
+
+private:
+    HomeSidechainReceiverAudioProcessor& processor;
+
+    homeUI::Knob smoothKnob { "SMOOTH" };
+    homeUI::Knob lowCutKnob { "LOW CUT" };
+    homeUI::Knob highCutKnob { "HIGH CUT" };
+    homeUI::Knob lengthKnob { "LENGTH" };
+
+    std::array<std::unique_ptr<homeUI::Pill>, 3> sourcePills;
+    homeUI::Pill closePill { "CLOSE", homeUI::warn };
+
+    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    std::unique_ptr<SliderAttachment> smoothAttachment, lowCutAttachment, highCutAttachment, lengthAttachment;
+
+    static juce::Rectangle<float> cardBounds() noexcept { return { 110.0f, 96.0f, 500.0f, 240.0f }; }
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverSettingsPanel)
+};
+
+// =============================================================================
+
+class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                                  private juce::Timer
+{
+public:
+    static constexpr int designWidth = 720;
+    static constexpr int designHeight = 430;
+
+    explicit HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor&);
+    ~HomeSidechainReceiverAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -154,64 +151,37 @@ private:
     HomeSidechainReceiverAudioProcessor& processor;
 
     ReceiverCurveEditor curveEditor;
-    ReceiverPresetStrip presetStrip;
+    ReceiverShapeStrip shapeStrip;
+    ReceiverSettingsPanel settingsPanel;
 
-    std::array<std::unique_ptr<ReceiverPill>, homeSidechain::numberOfLinks> linkPills;
-    std::array<std::unique_ptr<ReceiverPill>, HomeSidechainReceiverAudioProcessor::numRates> ratePills;
-    std::array<std::unique_ptr<ReceiverPill>, 2> runPills;
-    std::array<std::unique_ptr<ReceiverPill>, 3> sourcePills;
+    std::array<std::unique_ptr<homeUI::Pill>, homeSidechain::numberOfLinks> linkPills;
+    std::array<std::unique_ptr<homeUI::Pill>, HomeSidechainReceiverAudioProcessor::numRates> ratePills;
+    std::array<std::unique_ptr<homeUI::Pill>, 2> runPills;
 
-    ReceiverPill bypassPill { "Bypass", juce::Colour (0xffff5965) };
-    ReceiverPill syncPill { "Sync", juce::Colour (0xff36e79a) };
-    ReceiverPill snapPill { "Snap", juce::Colour (0xffb08cff) };
-    ReceiverPill testPill { "Test", juce::Colour (0xff1ee7ff) };
-    ReceiverPill resetPill { "Reset", juce::Colour (0xff8796a3) };
+    homeUI::Pill syncPill { "SYNC", homeUI::green };
+    homeUI::Pill snapPill { "SNAP", homeUI::green };
+    homeUI::Pill testPill { "TEST", homeUI::cyan };
+    homeUI::Pill advPill { "ADV", homeUI::cyan };
+    homeUI::Pill resetPill { "RESET", homeUI::purple };
+    homeUI::PowerButton power;
 
-    ReceiverKnob depthKnob { "Depth", juce::Colour (0xff1ee7ff) };
-    ReceiverKnob mixKnob { "Mix", juce::Colour (0xff1ee7ff) };
-    ReceiverKnob smoothKnob { "Smooth", juce::Colour (0xffb08cff) };
-    ReceiverKnob lowCutKnob { "Low cut", juce::Colour (0xff36e79a) };
-    ReceiverKnob highCutKnob { "High cut", juce::Colour (0xff36e79a) };
-    ReceiverKnob lengthKnob { "Length", juce::Colour (0xffb08cff) };
+    homeUI::Knob depthKnob { "DEPTH" };
+    homeUI::Knob mixKnob { "MIX" };
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-    std::unique_ptr<SliderAttachment> depthAttachment;
-    std::unique_ptr<SliderAttachment> mixAttachment;
-    std::unique_ptr<SliderAttachment> smoothAttachment;
-    std::unique_ptr<SliderAttachment> lowCutAttachment;
-    std::unique_ptr<SliderAttachment> highCutAttachment;
-    std::unique_ptr<SliderAttachment> lengthAttachment;
-    std::unique_ptr<ButtonAttachment> bypassAttachment;
-    std::unique_ptr<ButtonAttachment> syncAttachment;
+    std::unique_ptr<SliderAttachment> depthAttachment, mixAttachment;
+    std::unique_ptr<ButtonAttachment> bypassAttachment, syncAttachment;
 
-    juce::Rectangle<int> headerArea, presetArea, graphArea, footerArea;
+    static juce::Rectangle<float> graphCard()  { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
+    static juce::Rectangle<float> outputCard() { return { 500.0f, 76.0f, 200.0f, 202.0f }; }
+    static juce::Rectangle<float> shapeCard()  { return { 20.0f, 288.0f, 470.0f, 122.0f }; }
+    static juce::Rectangle<float> timingCard() { return { 500.0f, 288.0f, 200.0f, 122.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
-    void addKnob (ReceiverKnob&);
-
-    void drawHeader (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawCard (juce::Graphics&, juce::Rectangle<float>, const juce::String& title,
-                   juce::Colour accent) const;
-    void drawStatusLamp (juce::Graphics&, juce::Rectangle<float>, const juce::String&,
-                         juce::Colour, float activity, bool connected) const;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverPanel)
-};
-
-class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEditor
-{
-public:
-    explicit HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor&);
-    ~HomeSidechainReceiverAudioProcessorEditor() override = default;
-
-    void paint (juce::Graphics&) override;
-    void resized() override;
-
-private:
-    ReceiverPanel panel;
+    void drawHeader (juce::Graphics&) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainReceiverAudioProcessorEditor)
 };
