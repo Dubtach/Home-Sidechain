@@ -154,12 +154,13 @@ void TriggerScope::paint (juce::Graphics& g)
 
 void TriggerScope::mouseMove (const juce::MouseEvent& e)
 {
-    const bool near = std::abs (e.position.y - dbToY (processor.getThresholdDb())) <= 7.0f;
+    // Not "near": windows.h defines that as an empty macro.
+    const bool overLine = std::abs (e.position.y - dbToY (processor.getThresholdDb())) <= 7.0f;
 
-    if (near != hovering)
+    if (overLine != hovering)
     {
-        hovering = near;
-        setMouseCursor (near ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
+        hovering = overLine;
+        setMouseCursor (overLine ? juce::MouseCursor::UpDownResizeCursor : juce::MouseCursor::NormalCursor);
         repaint();
     }
 }

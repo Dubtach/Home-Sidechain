@@ -7,7 +7,21 @@
 #include <cstring>
 
 #if JUCE_WINDOWS
+ #ifndef WIN32_LEAN_AND_MEAN
+  #define WIN32_LEAN_AND_MEAN 1
+ #endif
+ #ifndef NOMINMAX
+  #define NOMINMAX 1
+ #endif
  #include <windows.h>
+
+ // windef.h still defines these 16-bit-era keywords as empty macros, and this
+ // header is pulled into every translation unit in both plugins. Left in place
+ // they silently delete any local called near/far/small, which shows up as a
+ // baffling "no variable declared before '='" a long way from the cause.
+ #undef near
+ #undef far
+ #undef small
 #elif JUCE_MAC || JUCE_LINUX
  #include <unistd.h>
 #endif
