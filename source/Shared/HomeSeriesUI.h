@@ -239,6 +239,74 @@ namespace homeUI
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Pill)
     };
 
+    // A checkbox-style toggle, for a single on/off modifier -- matches
+    // Home-Disto's own "OUTPUT [x] AUTO" convention. Deliberately a
+    // different shape from Pill: Pill is for picking one of several
+    // mutually-exclusive options (TRIG vs HOST, A vs B vs C...), Checkbox is
+    // for a single independent on/off setting (Sync, Always Snap...).
+    // Putting both concepts in identically-shaped pills was what made it
+    // hard to tell, at a glance, which control did which kind of thing.
+    class Checkbox : public juce::Button
+    {
+    public:
+        explicit Checkbox (const juce::String& label, juce::Colour accentColour = green)
+            : juce::Button (label), accent (accentColour)
+        {
+            setButtonText (label);
+            setClickingTogglesState (false);
+        }
+
+        void setAccent (juce::Colour c) { accent = c; repaint(); }
+        void setFontSize (float s) noexcept { fontSize = s; }
+
+        void paintButton (juce::Graphics& g, bool over, bool down) override
+        {
+            const auto bounds = getLocalBounds().toFloat();
+            const float boxSize = juce::jmin (15.0f, bounds.getHeight());
+            const auto box = juce::Rectangle<float> (bounds.getX(), bounds.getCentreY() - boxSize * 0.5f,
+                                                      boxSize, boxSize);
+            const bool on = getToggleState();
+            const bool enabled = isEnabled();
+
+            g.setColour (juce::Colours::black.withAlpha (enabled ? 0.45f : 0.25f));
+            g.fillRoundedRectangle (box, 3.0f);
+
+            if (on)
+            {
+                g.setColour (accent.withAlpha (enabled ? 1.0f : 0.45f));
+                g.fillRoundedRectangle (box.reduced (2.2f), 2.0f);
+
+                juce::Path check;
+                check.startNewSubPath (box.getX() + 3.4f, box.getCentreY() + 0.5f);
+                check.lineTo (box.getX() + box.getWidth() * 0.42f, box.getBottom() - 3.2f);
+                check.lineTo (box.getRight() - 3.0f, box.getY() + 3.4f);
+                g.setColour (enabled ? ink : ink.withAlpha (0.6f));
+                g.strokePath (check, juce::PathStrokeType (1.7f, juce::PathStrokeType::curved,
+                                                           juce::PathStrokeType::rounded));
+            }
+
+            g.setColour (juce::Colours::white.withAlpha (enabled ? (on ? 0.35f : 0.30f) : 0.14f));
+            g.drawRoundedRectangle (box, 3.0f, 1.1f);
+
+            if ((over || down) && enabled)
+            {
+                g.setColour (juce::Colours::white.withAlpha (down ? 0.14f : 0.07f));
+                g.fillRoundedRectangle (box.expanded (2.0f), 4.0f);
+            }
+
+            g.setFont (font (fontSize, on));
+            g.setColour (! enabled ? juce::Colours::black.withAlpha (0.30f) : ink.withAlpha (on ? 1.0f : 0.72f));
+            g.drawText (getButtonText(), bounds.withTrimmedLeft (boxSize + 7.0f),
+                        juce::Justification::centredLeft, false);
+        }
+
+    private:
+        juce::Colour accent;
+        float fontSize = 9.5f;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Checkbox)
+    };
+
     // Round power switch, top right, exactly like Home-Disto's.
     class PowerButton : public juce::Button
     {

@@ -544,33 +544,22 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
         const auto cell = cellBounds (i);
         const bool isSelected = i == selected;
 
-        // Same rule as every Pill in this plugin: selected is a bright fill
-        // with dark text, unselected is a dark chip with light text. These
-        // cells used to invert that (darker = selected), which made it hard
-        // to tell at a glance which control state meant "active" anywhere
-        // else in the plugin.
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        g.fillRoundedRectangle (cell.translated (0.0f, 1.0f), 5.0f);
+        // Selected reads as a darker, richer chip with a bright white curve
+        // and border -- the "spotlighted" look, rather than matching the
+        // white-fill Pill convention used for buttons elsewhere. This is a
+        // thumbnail preview, not a button, so it gets its own visual
+        // language on purpose.
+        g.setColour (juce::Colours::black.withAlpha (isSelected ? 0.55f : 0.34f));
+        g.fillRoundedRectangle (cell, 5.0f);
 
-        if (isSelected)
+        if (i == hovered && ! isSelected)
         {
-            g.setColour (juce::Colours::white);
+            g.setColour (juce::Colours::white.withAlpha (0.08f));
             g.fillRoundedRectangle (cell, 5.0f);
         }
-        else
-        {
-            g.setColour (juce::Colours::black.withAlpha (0.34f));
-            g.fillRoundedRectangle (cell, 5.0f);
 
-            if (i == hovered)
-            {
-                g.setColour (juce::Colours::white.withAlpha (0.08f));
-                g.fillRoundedRectangle (cell, 5.0f);
-            }
-        }
-
-        g.setColour (isSelected ? purple.withAlpha (0.55f) : juce::Colours::white.withAlpha (0.16f));
-        g.drawRoundedRectangle (cell, 5.0f, isSelected ? 1.4f : 1.0f);
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.18f));
+        g.drawRoundedRectangle (cell, 5.0f, isSelected ? 1.6f : 1.0f);
 
         auto plot = cell.reduced (7.0f, 6.0f);
         auto nameRow = plot.removeFromBottom (11.0f);
@@ -592,12 +581,12 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
                 curve.lineTo (x, y);
         }
 
-        g.setColour (isSelected ? ink : juce::Colours::white.withAlpha (0.55f));
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
         g.strokePath (curve, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
         g.setFont (font (8.0f, isSelected));
-        g.setColour (isSelected ? ink : juce::Colours::white.withAlpha (0.55f));
+        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
         g.drawText (HomeSidechainReceiverAudioProcessor::presetName (i), nameRow,
                     juce::Justification::centred, false);
     }
@@ -655,16 +644,6 @@ juce::String ReceiverRateSelector::categoryName (int rateIndex)
         return "DOTTED";
 
     return "GROOVE";
-}
-
-juce::Colour ReceiverRateSelector::categoryColour (int rateIndex)
-{
-    const auto category = categoryName (rateIndex);
-
-    if (category == "STRAIGHT") return cyan;
-    if (category == "TRIPLET")  return purple;
-    if (category == "DOTTED")   return green;
-    return pink;
 }
 
 ReceiverRateSelector::ReceiverRateSelector (HomeSidechainReceiverAudioProcessor& p)
@@ -736,7 +715,12 @@ void ReceiverRateSelector::mouseDown (const juce::MouseEvent& e)
 void ReceiverRateSelector::setUsable (bool shouldBeUsable)
 {
     usable = shouldBeUsable;
-    setAlpha (usable ? 1.0f : 0.4f);
+
+    // A firmly reduced alpha with the border removed entirely in paint()
+    // reads as "not applicable right now" rather than just a fainter version
+    // of the normal look -- that similarity was part of what made this card
+    // hard to read at a glance.
+    setAlpha (usable ? 1.0f : 0.30f);
     prevPill.setEnabled (usable);
     nextPill.setEnabled (usable);
     repaint();
@@ -756,13 +740,17 @@ void ReceiverRateSelector::paint (juce::Graphics& g)
 {
     const auto rate = processor.getRate();
     const auto names = HomeSidechainReceiverAudioProcessor::rateNames();
-    const auto colour = categoryColour (rate);
 
     auto area = labelArea.toFloat();
 
+    // One accent throughout -- green, matching the Timing card itself --
+    // instead of a different colour per rate category. The category system
+    // stayed useful for grouping the menu, but colour-coding it here meant
+    // this readout could show cyan, purple or pink inside a green card,
+    // which read as unrelated to everything else in Timing.
     g.setColour (juce::Colours::black.withAlpha (0.45f));
     g.fillRoundedRectangle (area, 6.0f);
-    g.setColour (colour.withAlpha (0.55f));
+    g.setColour (green.withAlpha (usable ? 0.55f : 0.0f));
     g.drawRoundedRectangle (area, 6.0f, 1.2f);
 
     auto textArea = area.reduced (2.0f, 4.0f);
@@ -774,7 +762,7 @@ void ReceiverRateSelector::paint (juce::Graphics& g)
                 textArea, juce::Justification::centred, false);
 
     g.setFont (font (7.5f));
-    g.setColour (colour.withAlpha (0.85f));
+    g.setColour (green.withAlpha (0.75f));
     g.drawText (categoryName (rate), categoryRow, juce::Justification::centred, false);
 }
 
@@ -861,7 +849,7 @@ void ReceiverSettingsPanel::resized()
 
     inner.removeFromTop (settingsGap);
     auto snapRow = inner.removeFromTop (settingsRowHeight);
-    alwaysSnapPill.setBounds (snapRow.removeFromRight (56));
+    alwaysSnapPill.setBounds (snapRow.removeFromLeft (160));
 
     closePill.setBounds (card.getRight() - 82, card.getBottom() - 38, 64, 24);
 }
@@ -880,17 +868,14 @@ void ReceiverSettingsPanel::paint (juce::Graphics& g)
     y += settingsGap;
     const float sourceRowY = y;
     y += settingsRowHeight + settingsGap;
-    const float snapRowY = y;
     y += settingsRowHeight;
 
     drawCardText (g, "TRIGGER FROM",
                   juce::Rectangle<float> (card.getX() + 18.0f, sourceRowY, 96.0f, settingsRowHeight),
                   9.5f, juce::Justification::centredLeft);
 
-    drawCardText (g, "ALWAYS SNAP TO GRID",
-                  juce::Rectangle<float> (card.getX() + 18.0f, snapRowY, 220.0f, settingsRowHeight),
-                  9.5f, juce::Justification::centredLeft);
-
+    // The checkbox carries its own "Always snap to grid" label now, so
+    // there's no separate caption competing with it for the same line.
     drawCardText (g, "Off by default -- drag freely, or hold Shift to snap any drag to the grid.",
                   juce::Rectangle<float> (card.getX() + 18.0f, y + 2.0f, card.getWidth() - 36.0f, 16.0f),
                   8.0f, juce::Justification::topLeft, 0.6f);
@@ -1033,18 +1018,21 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
                                 .withTrimmedTop (26.0f)
                                 .withTrimmedBottom (10.0f).toNearestInt());
 
-    // ---- timing card (shorter now that Shape no longer forces the row to
-    //      be tall) ----
+    // ---- timing card ----
     auto timing = timingCard().toNearestInt().reduced (14, 12);
     timing.removeFromTop (18);
 
+    // TRIG/HOST are a mutually-exclusive pair (Pill); Sync is an independent
+    // on/off modifier (Checkbox) and gets a visual gap plus a divider line
+    // (drawn in paint()) so it doesn't read as a third option in that pair.
     auto runRow = timing.removeFromTop (24);
-    const int runWidth = (runRow.getWidth() - 10) / 3;
-    runPills[0]->setBounds (runRow.removeFromLeft (runWidth));
+    runPills[0]->setBounds (runRow.removeFromLeft (48));
     runRow.removeFromLeft (5);
-    runPills[1]->setBounds (runRow.removeFromLeft (runWidth));
-    runRow.removeFromLeft (5);
-    syncPill.setBounds (runRow.removeFromLeft (runWidth));
+    runPills[1]->setBounds (runRow.removeFromLeft (48));
+    runRow.removeFromLeft (11);
+    syncDividerX = runRow.getX();
+    runRow.removeFromLeft (9);
+    syncPill.setBounds (runRow);
 
     timing.removeFromTop (12);
 
@@ -1057,19 +1045,19 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     lengthKnob.setBounds (timing.getCentreX() - lengthKnobWidth / 2, timing.getY(),
                           lengthKnobWidth, timing.getHeight());
 
-    // ---- shape card (shorter than before; reset icon sits in the corner
-    //      like the corner icons on Home-Disto's EQ card, so the strip
-    //      itself can use the full card width) ----
+    // ---- shape card ----
     const auto shapes = shapeCard().toNearestInt();
     shapeStrip.setBounds (shapes.getX() + 10, shapes.getY() + 28,
                           shapes.getWidth() - 20, shapes.getHeight() - 38);
     resetIcon.setBounds (shapes.getRight() - 30, shapes.getY() + 4, 18, 18);
 
-    // ---- output card (now the same size and row as Shape; two knobs side
-    //      by side, shorter to fit the shorter card) ----
+    // ---- output card (restored to its previous size; sits directly under
+    //      the now-shorter Timing card instead of matching Shape's row.
+    //      Knobs stay side by side, per the earlier request -- only the
+    //      squished size is being undone here) ----
     const auto output = outputCard().toNearestInt();
-    depthKnob.setBounds (output.getX() + 16, output.getY() + 26, 80, 64);
-    mixKnob.setBounds (output.getRight() - 96, output.getY() + 26, 80, 64);
+    depthKnob.setBounds (output.getX() + 20, output.getY() + 40, 78, 74);
+    mixKnob.setBounds (output.getRight() - 98, output.getY() + 40, 78, 74);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) const
@@ -1103,9 +1091,9 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (chassis);
 
     g.setColour (face);
-    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f);
     g.setColour (faceEdge);
-    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f, 1.5f);
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f, 1.5f);
 
     drawHeader (g);
 
@@ -1123,6 +1111,16 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     drawCardTitle (g, "OUTPUT", output);
     drawCardTitle (g, "SHAPES", shapes);
     drawCardTitle (g, "TIMING", timing);
+
+    // Marks Sync as a different kind of control from TRIG/HOST -- a
+    // modifier, not a third mode -- rather than relying on the checkbox
+    // shape alone to carry that distinction.
+    {
+        const float dividerX = static_cast<float> (syncDividerX);
+        const float top = timing.getY() + 30.0f;
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.drawLine (dividerX, top, dividerX, top + 20.0f, 1.0f);
+    }
 
     // The seam rule, stated where it matters rather than buried in a manual.
     drawCardText (g, "ENDS LOCKED", juce::Rectangle<float> (graph.getRight() - 96.0f, graph.getY() + 7.0f,

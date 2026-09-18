@@ -136,7 +136,6 @@ private:
     void openMenu();
 
     static juce::String categoryName (int rateIndex);
-    static juce::Colour categoryColour (int rateIndex);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverRateSelector)
 };
@@ -166,7 +165,7 @@ private:
     homeUI::Knob highCutKnob { "HIGH CUT" };
 
     std::array<std::unique_ptr<homeUI::Pill>, 3> sourcePills;
-    homeUI::Pill alwaysSnapPill { "SNAP", homeUI::green };
+    homeUI::Checkbox alwaysSnapPill { "Always snap to grid", homeUI::green };
     homeUI::Pill closePill { "CLOSE", homeUI::warn };
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -184,7 +183,7 @@ class HomeSidechainReceiverAudioProcessorEditor : public juce::AudioProcessorEdi
 {
 public:
     static constexpr int designWidth = 720;
-    static constexpr int designHeight = 430;
+    static constexpr int designHeight = 416;
 
     explicit HomeSidechainReceiverAudioProcessorEditor (HomeSidechainReceiverAudioProcessor&);
     ~HomeSidechainReceiverAudioProcessorEditor() override;
@@ -203,7 +202,7 @@ private:
     std::array<std::unique_ptr<homeUI::Pill>, homeSidechain::numberOfLinks> linkPills;
     std::array<std::unique_ptr<homeUI::Pill>, 2> runPills;
 
-    homeUI::Pill syncPill { "SYNC", homeUI::green };
+    homeUI::Checkbox syncPill { "Sync", homeUI::green };
     homeUI::Pill testPill { "TEST", homeUI::cyan };
     homeUI::Pill advPill { "ADV", homeUI::cyan };
     homeUI::ResetButton resetIcon;
@@ -223,13 +222,18 @@ private:
     std::unique_ptr<SliderAttachment> depthAttachment, mixAttachment, lengthAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment, syncAttachment;
 
-    // The graph keeps its slot. Output now matches Shape's size and row
-    // exactly (both short), and Timing is shorter too now that Shape no
-    // longer needs the full column height to look right.
+    // X position of the divider line drawn between the TRIG/HOST pair and
+    // the Sync checkbox, so Sync doesn't read as a third mode option.
+    int syncDividerX = 0;
+
+    // Graph and Shape keep their slots (Shape's shorter height stays --
+    // that's the one you said you liked). Timing is shorter than the
+    // original, and Output is back to its original 200x122 size, moved up
+    // to sit directly under Timing instead of down in Shape's row.
     static juce::Rectangle<float> graphCard()   { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
     static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 170.0f }; }
     static juce::Rectangle<float> shapeCard()   { return { 20.0f, 288.0f, 470.0f, 100.0f }; }
-    static juce::Rectangle<float> outputCard()  { return { 500.0f, 288.0f, 200.0f, 100.0f }; }
+    static juce::Rectangle<float> outputCard()  { return { 500.0f, 258.0f, 200.0f, 122.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
