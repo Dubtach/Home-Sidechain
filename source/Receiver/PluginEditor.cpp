@@ -80,18 +80,20 @@ float ReceiverCurveEditor::yToValue (float y) const noexcept
     return juce::jlimit (0.0f, 1.0f, (plot.getBottom() - y) / juce::jmax (1.0f, plot.getHeight()));
 }
 
-float ReceiverCurveEditor::snapPhase (float phase, bool fine) const noexcept
+float ReceiverCurveEditor::snapPhase (float phase, bool shiftHeld) const noexcept
 {
-    if (! snapEnabled || fine)
+    // Shift forces a snap for that drag even when Always Snap (in Advanced)
+    // is off -- it's an on-demand grid-lock, not a fine-control override.
+    if (! (snapEnabled || shiftHeld))
         return juce::jlimit (0.0f, 1.0f, phase);
 
     const auto steps = static_cast<float> (gridDivisions * 2);
     return juce::jlimit (0.0f, 1.0f, std::round (phase * steps) / steps);
 }
 
-float ReceiverCurveEditor::snapValue (float value, bool fine) const noexcept
+float ReceiverCurveEditor::snapValue (float value, bool shiftHeld) const noexcept
 {
-    if (! snapEnabled || fine)
+    if (! (snapEnabled || shiftHeld))
         return juce::jlimit (0.0f, 1.0f, value);
 
     return juce::jlimit (0.0f, 1.0f, std::round (value * 20.0f) / 20.0f);
@@ -395,7 +397,9 @@ void ReceiverCurveEditor::mouseDown (const juce::MouseEvent& e)
 
 void ReceiverCurveEditor::mouseDrag (const juce::MouseEvent& e)
 {
-    const bool fine = e.mods.isShiftDown();
+    // Shift forces a snap for this drag regardless of the Always Snap
+    // setting -- see snapPhase()/snapValue().
+    const bool shiftHeld = e.mods.isShiftDown();
 
     std::array<SortedNode, maxNodes> nodes;
     const int count = buildSorted (nodes);
@@ -416,7 +420,7 @@ void ReceiverCurveEditor::mouseDrag (const juce::MouseEvent& e)
         if (index < 0)
             return;
 
-        const float value = snapValue (yToValue (e.position.y), fine);
+        const float value = snapValue (yToValue (e.position.y), shiftHeld);
 
         if (index == 0 || index == count - 1)
         {
@@ -430,7 +434,7 @@ void ReceiverCurveEditor::mouseDrag (const juce::MouseEvent& e)
 
             const float low = nodes[static_cast<size_t> (index - 1)].x + 0.004f;
             const float high = nodes[static_cast<size_t> (index + 1)].x - 0.004f;
-            const float phase = snapPhase (xToPhase (e.position.x), fine);
+            const float phase = snapPhase (xToPhase (e.position.x), shiftHeld);
 
             processor.setNodeX (draggedSlot, juce::jlimit (juce::jmin (low, high),
                                                            juce::jmax (low, high), phase));
@@ -540,17 +544,33 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
         const auto cell = cellBounds (i);
         const bool isSelected = i == selected;
 
-        g.setColour (juce::Colours::black.withAlpha (isSelected ? 0.55f : 0.34f));
-        g.fillRoundedRectangle (cell, 5.0f);
+        // Same rule as every Pill in this plugin: selected is a bright fill
+        // with dark text, unselected is a dark chip with light text. These
+        // cells used to invert that (darker = selected), which made it hard
+        // to tell at a glance which control state meant "active" anywhere
+        // else in the plugin.
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        g.fillRoundedRectangle (cell.translated (0.0f, 1.0f), 5.0f);
 
-        if (i == hovered && ! isSelected)
+        if (isSelected)
         {
-            g.setColour (juce::Colours::white.withAlpha (0.08f));
+            g.setColour (juce::Colours::white);
             g.fillRoundedRectangle (cell, 5.0f);
         }
+        else
+        {
+            g.setColour (juce::Colours::black.withAlpha (0.34f));
+            g.fillRoundedRectangle (cell, 5.0f);
 
-        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.18f));
-        g.drawRoundedRectangle (cell, 5.0f, isSelected ? 1.6f : 1.0f);
+            if (i == hovered)
+            {
+                g.setColour (juce::Colours::white.withAlpha (0.08f));
+                g.fillRoundedRectangle (cell, 5.0f);
+            }
+        }
+
+        g.setColour (isSelected ? purple.withAlpha (0.55f) : juce::Colours::white.withAlpha (0.16f));
+        g.drawRoundedRectangle (cell, 5.0f, isSelected ? 1.4f : 1.0f);
 
         auto plot = cell.reduced (7.0f, 6.0f);
         auto nameRow = plot.removeFromBottom (11.0f);
@@ -572,12 +592,12 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
                 curve.lineTo (x, y);
         }
 
-        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
+        g.setColour (isSelected ? ink : juce::Colours::white.withAlpha (0.55f));
         g.strokePath (curve, juce::PathStrokeType (1.6f, juce::PathStrokeType::curved,
                                                    juce::PathStrokeType::rounded));
 
         g.setFont (font (8.0f, isSelected));
-        g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
+        g.setColour (isSelected ? ink : juce::Colours::white.withAlpha (0.55f));
         g.drawText (HomeSidechainReceiverAudioProcessor::presetName (i), nameRow,
                     juce::Justification::centred, false);
     }
@@ -767,11 +787,10 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
     : processor (p), curveEditor (editor)
 {
     smoothKnob.valueText = msText;
-    lengthKnob.valueText = msText;
     lowCutKnob.valueText = hertzText;
     highCutKnob.valueText = hertzText;
 
-    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob, &lengthKnob })
+    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob })
         addAndMakeVisible (*knob);
 
     const char* names[] = { "LINK", "MIDI", "BOTH" };
@@ -802,7 +821,6 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
     smoothAttachment = std::make_unique<SliderAttachment> (processor.apvts, "SMOOTH", smoothKnob);
     lowCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LOW_CUT", lowCutKnob);
     highCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "HIGH_CUT", highCutKnob);
-    lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
 }
 
 namespace
@@ -822,9 +840,10 @@ void ReceiverSettingsPanel::resized()
     inner.removeFromTop (settingsTitleGap);
 
     auto knobRow = inner.removeFromTop (settingsKnobRowHeight);
-    const int knobWidth = (knobRow.getWidth() - 24) / 4;
+    knobRow = knobRow.reduced (40, 0); // three knobs read better with room to breathe now that Length isn't a fourth
+    const int knobWidth = (knobRow.getWidth() - 16) / 3;
 
-    for (auto* knob : { &smoothKnob, &lengthKnob, &lowCutKnob, &highCutKnob })
+    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob })
     {
         knob->setBounds (knobRow.removeFromLeft (knobWidth));
         knobRow.removeFromLeft (8);
@@ -872,7 +891,7 @@ void ReceiverSettingsPanel::paint (juce::Graphics& g)
                   juce::Rectangle<float> (card.getX() + 18.0f, snapRowY, 220.0f, settingsRowHeight),
                   9.5f, juce::Justification::centredLeft);
 
-    drawCardText (g, "Off by default -- drag freely, hold Shift for fine control when it's on.",
+    drawCardText (g, "Off by default -- drag freely, or hold Shift to snap any drag to the grid.",
                   juce::Rectangle<float> (card.getX() + 18.0f, y + 2.0f, card.getWidth() - 36.0f, 16.0f),
                   8.0f, juce::Justification::topLeft, 0.6f);
 
@@ -894,10 +913,6 @@ void ReceiverSettingsPanel::refresh()
 
     for (int i = 0; i < 3; ++i)
         sourcePills[static_cast<size_t> (i)]->setToggleState (i == source, juce::dontSendNotification);
-
-    const bool freeLength = processor.getRunMode() == 0 && ! processor.isSynced();
-    lengthKnob.setEnabled (freeLength);
-    lengthKnob.setAlpha (freeLength ? 1.0f : 0.4f);
 
     alwaysSnapPill.setToggleState (curveEditor.isSnapEnabled(), juce::dontSendNotification);
 }
@@ -974,8 +989,12 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     addAndMakeVisible (depthKnob);
     addAndMakeVisible (mixKnob);
 
+    lengthKnob.valueText = msText;
+    addAndMakeVisible (lengthKnob);
+
     depthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "DEPTH", depthKnob);
     mixAttachment = std::make_unique<SliderAttachment> (processor.apvts, "MIX", mixKnob);
+    lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
     bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", power);
     syncAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "SYNC", syncPill);
 
@@ -1014,7 +1033,8 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
                                 .withTrimmedTop (26.0f)
                                 .withTrimmedBottom (10.0f).toNearestInt());
 
-    // ---- timing card (moved up into the graph-height slot) ----
+    // ---- timing card (shorter now that Shape no longer forces the row to
+    //      be tall) ----
     auto timing = timingCard().toNearestInt().reduced (14, 12);
     timing.removeFromTop (18);
 
@@ -1027,7 +1047,15 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     syncPill.setBounds (runRow.removeFromLeft (runWidth));
 
     timing.removeFromTop (12);
-    rateSelector.setBounds (timing.removeFromTop (juce::jmin (86, timing.getHeight())));
+
+    // Rate selector and Length knob share the same slot -- only one is
+    // visible at a time, depending on whether Sync is on (see
+    // refreshFromParameters()).
+    rateSelector.setBounds (timing);
+
+    const int lengthKnobWidth = 100;
+    lengthKnob.setBounds (timing.getCentreX() - lengthKnobWidth / 2, timing.getY(),
+                          lengthKnobWidth, timing.getHeight());
 
     // ---- shape card (shorter than before; reset icon sits in the corner
     //      like the corner icons on Home-Disto's EQ card, so the strip
@@ -1037,10 +1065,11 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
                           shapes.getWidth() - 20, shapes.getHeight() - 38);
     resetIcon.setBounds (shapes.getRight() - 30, shapes.getY() + 4, 18, 18);
 
-    // ---- output card (moved down; two knobs side by side) ----
+    // ---- output card (now the same size and row as Shape; two knobs side
+    //      by side, shorter to fit the shorter card) ----
     const auto output = outputCard().toNearestInt();
-    depthKnob.setBounds (output.getX() + 16, output.getY() + 28, 80, 82);
-    mixKnob.setBounds (output.getRight() - 96, output.getY() + 28, 80, 82);
+    depthKnob.setBounds (output.getX() + 16, output.getY() + 26, 80, 64);
+    mixKnob.setBounds (output.getRight() - 96, output.getY() + 26, 80, 64);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) const
@@ -1116,8 +1145,13 @@ void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
     syncPill.setEnabled (run == 0);
     syncPill.setAlpha (run == 0 ? 1.0f : 0.4f);
 
-    const bool ratesUsable = run == 1 || processor.isSynced();
-    rateSelector.setUsable (ratesUsable);
+    // Length only means anything with Sync off in Trigger mode -- otherwise
+    // the rate drives the cycle. Rather than bury Length in Advanced, it
+    // swaps in for the rate selector right in the timing card.
+    const bool freeLength = run == 0 && ! processor.isSynced();
+    rateSelector.setVisible (! freeLength);
+    rateSelector.setUsable (! freeLength);
+    lengthKnob.setVisible (freeLength);
 
     curveEditor.setGridDivisions (processor.gridDivisions());
 }

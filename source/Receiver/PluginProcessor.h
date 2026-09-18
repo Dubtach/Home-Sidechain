@@ -115,7 +115,7 @@ class HomeSidechainReceiverAudioProcessor : public juce::AudioProcessor
 {
 public:
     static constexpr int maxNodes = receiverCurve::maxNodes;
-    static constexpr int numPresets = 8;
+    static constexpr int numPresets = 7;
 
     // Rate table layout. Straight values come first (and keep the same
     // indices v45 used, so a v45 session still opens on the right rate),

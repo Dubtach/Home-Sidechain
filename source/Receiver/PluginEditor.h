@@ -43,8 +43,8 @@ private:
     int gridDivisions = 4;
 
     // Off by default: dragging is free-hand unless the person turns on
-    // "Always snap" in the advanced panel. Holding Shift while dragging still
-    // gives fine (unsnapped) control either way.
+    // "Always snap" in the advanced panel. Holding Shift snaps a drag to the
+    // grid on demand, whichever state Always Snap is in.
     bool snapEnabled = false;
 
     int draggedSlot = -1;
@@ -59,8 +59,8 @@ private:
     float valueToY (float) const noexcept;
     float xToPhase (float) const noexcept;
     float yToValue (float) const noexcept;
-    float snapPhase (float, bool fine) const noexcept;
-    float snapValue (float, bool fine) const noexcept;
+    float snapPhase (float, bool shiftHeld) const noexcept;
+    float snapValue (float, bool shiftHeld) const noexcept;
 
     int nodeAt (juce::Point<float>) const;
     int segmentHandleAt (juce::Point<float>) const;
@@ -164,14 +164,13 @@ private:
     homeUI::Knob smoothKnob { "SMOOTH" };
     homeUI::Knob lowCutKnob { "LOW CUT" };
     homeUI::Knob highCutKnob { "HIGH CUT" };
-    homeUI::Knob lengthKnob { "LENGTH" };
 
     std::array<std::unique_ptr<homeUI::Pill>, 3> sourcePills;
     homeUI::Pill alwaysSnapPill { "SNAP", homeUI::green };
     homeUI::Pill closePill { "CLOSE", homeUI::warn };
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<SliderAttachment> smoothAttachment, lowCutAttachment, highCutAttachment, lengthAttachment;
+    std::unique_ptr<SliderAttachment> smoothAttachment, lowCutAttachment, highCutAttachment;
 
     static juce::Rectangle<float> cardBounds() noexcept { return { 110.0f, 76.0f, 500.0f, 270.0f }; }
 
@@ -213,20 +212,24 @@ private:
     homeUI::Knob depthKnob { "DEPTH" };
     homeUI::Knob mixKnob { "MIX" };
 
+    // Lives in the timing card, not Advanced: it only means anything when
+    // Sync is off, so it swaps in for the rate selector right where the rate
+    // selector would otherwise be, rather than being buried a click away.
+    homeUI::Knob lengthKnob { "LENGTH" };
+
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
-    std::unique_ptr<SliderAttachment> depthAttachment, mixAttachment;
+    std::unique_ptr<SliderAttachment> depthAttachment, mixAttachment, lengthAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment, syncAttachment;
 
-    // The graph keeps its slot. Timing moved up into the slot Output used to
-    // hold, Output moved down into the slot Timing used to hold, and Shape
-    // is shorter than before -- its thumbnails were reading as tall skinny
-    // strips rather than little curves.
+    // The graph keeps its slot. Output now matches Shape's size and row
+    // exactly (both short), and Timing is shorter too now that Shape no
+    // longer needs the full column height to look right.
     static juce::Rectangle<float> graphCard()   { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
-    static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 202.0f }; }
+    static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 170.0f }; }
     static juce::Rectangle<float> shapeCard()   { return { 20.0f, 288.0f, 470.0f, 100.0f }; }
-    static juce::Rectangle<float> outputCard()  { return { 500.0f, 288.0f, 200.0f, 122.0f }; }
+    static juce::Rectangle<float> outputCard()  { return { 500.0f, 288.0f, 200.0f, 100.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
