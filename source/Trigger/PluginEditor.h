@@ -37,6 +37,7 @@ private:
     void drawGrid (juce::Graphics&, juce::Rectangle<float>) const;
     void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
     void drawThreshold (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawLegend (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TriggerScope)
 };

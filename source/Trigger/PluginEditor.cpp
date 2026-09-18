@@ -111,6 +111,22 @@ void TriggerScope::drawWaveform (juce::Graphics& g, juce::Rectangle<float> plot)
         g.setColour (colour.withAlpha (fired || midi ? 0.95f : 0.55f));
         g.fillRect (juce::Rectangle<float> (x, y, juce::jmax (1.0f, step * 0.9f), height));
 
+        // A MIDI note carries no audio amplitude, so the bar above this
+        // point can be a single pixel even though a trigger really fired --
+        // that's what made incoming MIDI invisible on the scope. The
+        // full-height tint and the flag at the top don't depend on level,
+        // so a MIDI trigger is always visible here even on silent audio.
+        if (midi)
+        {
+            g.setColour (purple.withAlpha (0.22f));
+            g.fillRect (juce::Rectangle<float> (x - 1.0f, plot.getY(), step + 2.0f, plot.getHeight()));
+
+            juce::Path flag;
+            flag.addTriangle (x, plot.getY(), x + 6.0f, plot.getY(), x, plot.getY() + 8.0f);
+            g.setColour (purple);
+            g.fillPath (flag);
+        }
+
         if (fired)
         {
             g.setColour (pink.withAlpha (0.28f));
@@ -141,6 +157,29 @@ void TriggerScope::drawThreshold (juce::Graphics& g, juce::Rectangle<float> plot
     g.drawText (juce::String (db, 1) + " dB", badge, juce::Justification::centred, false);
 }
 
+void TriggerScope::drawLegend (juce::Graphics& g, juce::Rectangle<float> plot) const
+{
+    const auto dot = [&g] (juce::Point<float> centre, juce::Colour colour)
+    {
+        g.setColour (colour);
+        g.fillEllipse (centre.x - 3.0f, centre.y - 3.0f, 6.0f, 6.0f);
+    };
+
+    const float y = plot.getY() + 7.0f;
+    float x = plot.getRight() - 108.0f;
+
+    dot ({ x, y }, cyan);
+    g.setFont (font (7.5f, false));
+    g.setColour (juce::Colours::white.withAlpha (0.5f));
+    g.drawText ("AUDIO", juce::Rectangle<float> (x + 6.0f, y - 5.0f, 40.0f, 10.0f),
+                juce::Justification::centredLeft, false);
+
+    x += 54.0f;
+    dot ({ x, y }, purple);
+    g.drawText ("MIDI", juce::Rectangle<float> (x + 6.0f, y - 5.0f, 36.0f, 10.0f),
+                juce::Justification::centredLeft, false);
+}
+
 void TriggerScope::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
@@ -150,6 +189,7 @@ void TriggerScope::paint (juce::Graphics& g)
     drawGrid (g, plot);
     drawWaveform (g, plot);
     drawThreshold (g, plot);
+    drawLegend (g, plot);
 }
 
 void TriggerScope::mouseMove (const juce::MouseEvent& e)
