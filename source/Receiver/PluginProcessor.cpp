@@ -94,12 +94,41 @@ HomeSidechainReceiverAudioProcessor::HomeSidechainReceiverAudioProcessor()
 
 juce::StringArray HomeSidechainReceiverAudioProcessor::rateNames()
 {
-    return { "1/16", "1/8", "1/4", "1/2", "1/1", "2/1" };
+    return
+    {
+        // Straight (indices 0-5, unchanged from earlier versions so an old
+        // session still opens on the right rate).
+        "1/16", "1/8", "1/4", "1/2", "1/1", "2/1",
+        // Triplet: 3 in the time of 2, i.e. straight duration * 2/3.
+        "1/16T", "1/8T", "1/4T", "1/2T", "1/1T",
+        // Dotted: straight duration * 1.5.
+        "1/16.", "1/8.", "1/4.", "1/2.", "1/1.",
+        // Poly-groove: the bar split into N equal pulses. Some of these land
+        // on the same duration as a triplet above (a bar in 3 is the same
+        // length as a half-note triplet) -- that's musically correct, not a
+        // bug, and having both makes the grouping obvious in the menu.
+        "1/3", "1/5", "1/6", "1/7", "1/9", "1/12"
+    };
 }
 
 double HomeSidechainReceiverAudioProcessor::beatsForRate (int rate) noexcept
 {
-    static constexpr double beats[numRates] = { 0.25, 0.5, 1.0, 2.0, 4.0, 8.0 };
+    // One bar in 4/4 is 4 quarter-note beats; that's the reference "1/1"
+    // duration everything else, including the poly-groove entries, divides.
+    static constexpr double barBeats = 4.0;
+
+    static constexpr double beats[numRates] =
+    {
+        // Straight
+        0.25, 0.5, 1.0, 2.0, 4.0, 8.0,
+        // Triplet (straight * 2/3)
+        0.25 * 2.0 / 3.0, 0.5 * 2.0 / 3.0, 1.0 * 2.0 / 3.0, 2.0 * 2.0 / 3.0, 4.0 * 2.0 / 3.0,
+        // Dotted (straight * 1.5)
+        0.25 * 1.5, 0.5 * 1.5, 1.0 * 1.5, 2.0 * 1.5, 4.0 * 1.5,
+        // Poly-groove (bar / N)
+        barBeats / 3.0, barBeats / 5.0, barBeats / 6.0, barBeats / 7.0, barBeats / 9.0, barBeats / 12.0
+    };
+
     return beats[juce::jlimit (0, numRates - 1, rate)];
 }
 

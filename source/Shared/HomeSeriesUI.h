@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <functional>
+#include <cmath>
 
 // =============================================================================
 // Home series look.
@@ -271,6 +272,59 @@ namespace homeUI
         }
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PowerButton)
+    };
+
+    // Small circular icon button: a refresh/reset glyph, no text. Same read
+    // as the reset icon on Home-Disto's EQ card -- a button you recognise by
+    // shape rather than by reading a label.
+    class ResetButton : public juce::Button
+    {
+    public:
+        ResetButton() : juce::Button ("Reset") {}
+
+        void setAccent (juce::Colour c) { accent = c; repaint(); }
+
+        void paintButton (juce::Graphics& g, bool over, bool down) override
+        {
+            const auto r = getLocalBounds().toFloat().reduced (1.0f);
+
+            g.setColour (juce::Colours::black.withAlpha (down ? 0.60f : (over ? 0.50f : 0.38f)));
+            g.fillEllipse (r);
+            g.setColour (accent.withAlpha (over ? 0.85f : 0.55f));
+            g.drawEllipse (r, 1.2f);
+
+            const auto cx = r.getCentreX();
+            const auto cy = r.getCentreY();
+            const float radius = r.getWidth() * 0.26f;
+
+            // A circular arrow, ~300 degrees of a ring with an arrowhead at
+            // the open end -- the universal "reset / start over" glyph.
+            const float startAngle = juce::MathConstants<float>::pi * 0.15f;
+            const float endAngle = juce::MathConstants<float>::pi * 1.65f;
+
+            juce::Path arc;
+            arc.addCentredArc (cx, cy, radius, radius, 0.0f, startAngle, endAngle, true);
+            g.setColour (accent);
+            g.strokePath (arc, juce::PathStrokeType (1.8f, juce::PathStrokeType::curved,
+                                                     juce::PathStrokeType::rounded));
+
+            const auto tip = juce::Point<float> (cx + std::sin (endAngle) * radius,
+                                                 cy - std::cos (endAngle) * radius);
+            const float headAngle = endAngle + juce::MathConstants<float>::pi * 0.5f;
+            const auto back = juce::Point<float> (tip.x - std::sin (endAngle) * 4.5f,
+                                                  tip.y + std::cos (endAngle) * 4.5f);
+
+            juce::Path head;
+            head.addTriangle (tip.x + std::sin (headAngle) * 3.4f, tip.y - std::cos (headAngle) * 3.4f,
+                              tip.x - std::sin (headAngle) * 3.4f, tip.y + std::cos (headAngle) * 3.4f,
+                              back.x, back.y);
+            g.fillPath (head);
+        }
+
+    private:
+        juce::Colour accent = purple;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ResetButton)
     };
 
     // Black knob body, tick ring, white arc and pointer. Caption and value are

@@ -614,11 +614,157 @@ void ReceiverShapeStrip::mouseDown (const juce::MouseEvent& e)
 }
 
 // =============================================================================
+// ReceiverRateSelector
+// =============================================================================
+
+juce::String ReceiverRateSelector::categoryName (int rateIndex)
+{
+    using P = HomeSidechainReceiverAudioProcessor;
+
+    if (rateIndex < P::numStraightRates)
+        return "STRAIGHT";
+
+    rateIndex -= P::numStraightRates;
+
+    if (rateIndex < P::numTripletRates)
+        return "TRIPLET";
+
+    rateIndex -= P::numTripletRates;
+
+    if (rateIndex < P::numDottedRates)
+        return "DOTTED";
+
+    return "GROOVE";
+}
+
+juce::Colour ReceiverRateSelector::categoryColour (int rateIndex)
+{
+    const auto category = categoryName (rateIndex);
+
+    if (category == "STRAIGHT") return cyan;
+    if (category == "TRIPLET")  return purple;
+    if (category == "DOTTED")   return green;
+    return pink;
+}
+
+ReceiverRateSelector::ReceiverRateSelector (HomeSidechainReceiverAudioProcessor& p)
+    : processor (p)
+{
+    prevPill.setFontSize (11.0f);
+    prevPill.onClick = [this] { step (-1); };
+    addAndMakeVisible (prevPill);
+
+    nextPill.setFontSize (11.0f);
+    nextPill.onClick = [this] { step (1); };
+    addAndMakeVisible (nextPill);
+}
+
+void ReceiverRateSelector::step (int delta)
+{
+    const int count = HomeSidechainReceiverAudioProcessor::numRates;
+    const int next = (processor.getRate() + delta + count) % count;
+    processor.setRate (next);
+    repaint();
+}
+
+void ReceiverRateSelector::openMenu()
+{
+    using P = HomeSidechainReceiverAudioProcessor;
+
+    const auto names = P::rateNames();
+    const int current = processor.getRate();
+
+    juce::PopupMenu menu;
+    juce::PopupMenu straight, triplet, dotted, groove;
+
+    int index = 0;
+
+    for (int i = 0; i < P::numStraightRates; ++i, ++index)
+        straight.addItem (index + 1, names[index], true, index == current);
+
+    for (int i = 0; i < P::numTripletRates; ++i, ++index)
+        triplet.addItem (index + 1, names[index], true, index == current);
+
+    for (int i = 0; i < P::numDottedRates; ++i, ++index)
+        dotted.addItem (index + 1, names[index], true, index == current);
+
+    for (int i = 0; i < P::numGrooveRates; ++i, ++index)
+        groove.addItem (index + 1, names[index], true, index == current);
+
+    menu.addSubMenu ("Straight", straight);
+    menu.addSubMenu ("Triplet", triplet);
+    menu.addSubMenu ("Dotted", dotted);
+    menu.addSubMenu ("Groove / poly", groove);
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (*this),
+                        [this] (int result)
+                        {
+                            if (result > 0)
+                            {
+                                processor.setRate (result - 1);
+                                repaint();
+                            }
+                        });
+}
+
+void ReceiverRateSelector::mouseDown (const juce::MouseEvent& e)
+{
+    if (usable && labelArea.contains (e.getPosition()))
+        openMenu();
+}
+
+void ReceiverRateSelector::setUsable (bool shouldBeUsable)
+{
+    usable = shouldBeUsable;
+    setAlpha (usable ? 1.0f : 0.4f);
+    prevPill.setEnabled (usable);
+    nextPill.setEnabled (usable);
+    repaint();
+}
+
+void ReceiverRateSelector::resized()
+{
+    auto area = getLocalBounds();
+    prevPill.setBounds (area.removeFromLeft (30));
+    nextPill.setBounds (area.removeFromRight (30));
+    area.removeFromLeft (4);
+    area.removeFromRight (4);
+    labelArea = area;
+}
+
+void ReceiverRateSelector::paint (juce::Graphics& g)
+{
+    const auto rate = processor.getRate();
+    const auto names = HomeSidechainReceiverAudioProcessor::rateNames();
+    const auto colour = categoryColour (rate);
+
+    auto area = labelArea.toFloat();
+
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.fillRoundedRectangle (area, 6.0f);
+    g.setColour (colour.withAlpha (0.55f));
+    g.drawRoundedRectangle (area, 6.0f, 1.2f);
+
+    auto textArea = area.reduced (2.0f, 4.0f);
+    auto categoryRow = textArea.removeFromBottom (11.0f);
+
+    g.setFont (font (20.0f, true));
+    g.setColour (juce::Colours::white);
+    g.drawText (rate >= 0 && rate < names.size() ? names[rate] : juce::String(),
+                textArea, juce::Justification::centred, false);
+
+    g.setFont (font (7.5f));
+    g.setColour (colour.withAlpha (0.85f));
+    g.drawText (categoryName (rate), categoryRow, juce::Justification::centred, false);
+}
+
+// =============================================================================
 // ReceiverSettingsPanel
 // =============================================================================
 
-ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcessor& p)
-    : processor (p)
+ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcessor& p,
+                                              ReceiverCurveEditor& editor)
+    : processor (p), curveEditor (editor)
 {
     smoothKnob.valueText = msText;
     lengthKnob.valueText = msText;
@@ -639,6 +785,16 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
         sourcePills[static_cast<size_t> (i)] = std::move (pill);
     }
 
+    alwaysSnapPill.setFontSize (9.5f);
+    alwaysSnapPill.setToggleState (curveEditor.isSnapEnabled(), juce::dontSendNotification);
+    alwaysSnapPill.onClick = [this]
+    {
+        const bool snap = ! curveEditor.isSnapEnabled();
+        curveEditor.setSnapEnabled (snap);
+        alwaysSnapPill.setToggleState (snap, juce::dontSendNotification);
+    };
+    addAndMakeVisible (alwaysSnapPill);
+
     closePill.setFontSize (9.5f);
     closePill.onClick = [this] { setVisible (false); };
     addAndMakeVisible (closePill);
@@ -649,13 +805,23 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
     lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
 }
 
+namespace
+{
+    // Shared between resized() and paint() so the two can't drift apart.
+    constexpr int settingsTopPad = 16;
+    constexpr int settingsTitleGap = 22;
+    constexpr int settingsKnobRowHeight = 90;
+    constexpr int settingsGap = 10;
+    constexpr int settingsRowHeight = 26;
+}
+
 void ReceiverSettingsPanel::resized()
 {
     auto card = cardBounds().toNearestInt();
-    auto inner = card.reduced (18, 16);
-    inner.removeFromTop (22);
+    auto inner = card.reduced (18, settingsTopPad);
+    inner.removeFromTop (settingsTitleGap);
 
-    auto knobRow = inner.removeFromTop (96);
+    auto knobRow = inner.removeFromTop (settingsKnobRowHeight);
     const int knobWidth = (knobRow.getWidth() - 24) / 4;
 
     for (auto* knob : { &smoothKnob, &lengthKnob, &lowCutKnob, &highCutKnob })
@@ -664,15 +830,19 @@ void ReceiverSettingsPanel::resized()
         knobRow.removeFromLeft (8);
     }
 
-    inner.removeFromTop (14);
-    auto row = inner.removeFromTop (26);
-    row.removeFromLeft (76);
+    inner.removeFromTop (settingsGap);
+    auto sourceRow = inner.removeFromTop (settingsRowHeight);
+    sourceRow.removeFromLeft (96);
 
     for (auto& pill : sourcePills)
     {
-        pill->setBounds (row.removeFromLeft (64));
-        row.removeFromLeft (6);
+        pill->setBounds (sourceRow.removeFromLeft (64));
+        sourceRow.removeFromLeft (6);
     }
+
+    inner.removeFromTop (settingsGap);
+    auto snapRow = inner.removeFromTop (settingsRowHeight);
+    alwaysSnapPill.setBounds (snapRow.removeFromRight (56));
 
     closePill.setBounds (card.getRight() - 82, card.getBottom() - 38, 64, 24);
 }
@@ -685,9 +855,26 @@ void ReceiverSettingsPanel::paint (juce::Graphics& g)
     drawCard (g, card, cyan);
     drawCardTitle (g, "ADVANCED", card);
 
+    // Mirrors resized()'s row math exactly, so labels always land on the
+    // controls they describe.
+    float y = card.getY() + settingsTopPad + settingsTitleGap + settingsKnobRowHeight;
+    y += settingsGap;
+    const float sourceRowY = y;
+    y += settingsRowHeight + settingsGap;
+    const float snapRowY = y;
+    y += settingsRowHeight;
+
     drawCardText (g, "TRIGGER FROM",
-                  juce::Rectangle<float> (card.getX() + 18.0f, card.getY() + 148.0f, 76.0f, 26.0f),
+                  juce::Rectangle<float> (card.getX() + 18.0f, sourceRowY, 96.0f, settingsRowHeight),
                   9.5f, juce::Justification::centredLeft);
+
+    drawCardText (g, "ALWAYS SNAP TO GRID",
+                  juce::Rectangle<float> (card.getX() + 18.0f, snapRowY, 220.0f, settingsRowHeight),
+                  9.5f, juce::Justification::centredLeft);
+
+    drawCardText (g, "Off by default -- drag freely, hold Shift for fine control when it's on.",
+                  juce::Rectangle<float> (card.getX() + 18.0f, y + 2.0f, card.getWidth() - 36.0f, 16.0f),
+                  8.0f, juce::Justification::topLeft, 0.6f);
 
     drawCardText (g, "Low cut and high cut set the band that ducks. Everything outside it passes through.",
                   juce::Rectangle<float> (card.getX() + 18.0f, card.getBottom() - 40.0f,
@@ -711,6 +898,8 @@ void ReceiverSettingsPanel::refresh()
     const bool freeLength = processor.getRunMode() == 0 && ! processor.isSynced();
     lengthKnob.setEnabled (freeLength);
     lengthKnob.setAlpha (freeLength ? 1.0f : 0.4f);
+
+    alwaysSnapPill.setToggleState (curveEditor.isSnapEnabled(), juce::dontSendNotification);
 }
 
 // =============================================================================
@@ -719,10 +908,12 @@ void ReceiverSettingsPanel::refresh()
 
 HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (
     HomeSidechainReceiverAudioProcessor& p)
-    : juce::AudioProcessorEditor (&p), processor (p), curveEditor (p), settingsPanel (p)
+    : juce::AudioProcessorEditor (&p), processor (p), curveEditor (p), rateSelector (p),
+      settingsPanel (p, curveEditor)
 {
     addAndMakeVisible (curveEditor);
     addAndMakeVisible (shapeStrip);
+    addAndMakeVisible (rateSelector);
 
     shapeStrip.onSelect = [this] (int index)
     {
@@ -740,17 +931,6 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
         linkPills[static_cast<size_t> (i)] = std::move (pill);
     }
 
-    const auto rates = HomeSidechainReceiverAudioProcessor::rateNames();
-
-    for (int i = 0; i < HomeSidechainReceiverAudioProcessor::numRates; ++i)
-    {
-        auto pill = std::make_unique<Pill> (rates[i], green);
-        pill->setFontSize (9.0f);
-        pill->onClick = [this, i] { processor.setRate (i); refreshFromParameters(); };
-        addAndMakeVisible (*pill);
-        ratePills[static_cast<size_t> (i)] = std::move (pill);
-    }
-
     const char* runNames[] = { "TRIG", "HOST" };
 
     for (int i = 0; i < 2; ++i)
@@ -766,16 +946,6 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     syncPill.setFontSize (9.0f);
     addAndMakeVisible (syncPill);
 
-    snapPill.setFontSize (9.0f);
-    snapPill.setToggleState (curveEditor.isSnapEnabled(), juce::dontSendNotification);
-    snapPill.onClick = [this]
-    {
-        const bool snap = ! curveEditor.isSnapEnabled();
-        curveEditor.setSnapEnabled (snap);
-        snapPill.setToggleState (snap, juce::dontSendNotification);
-    };
-    addAndMakeVisible (snapPill);
-
     testPill.setFontSize (9.5f);
     testPill.onClick = [this] { processor.requestTestTrigger(); };
     addAndMakeVisible (testPill);
@@ -788,14 +958,14 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     };
     addAndMakeVisible (advPill);
 
-    resetPill.setFontSize (8.5f);
-    resetPill.onClick = [this]
+    resetIcon.setAccent (purple);
+    resetIcon.onClick = [this]
     {
         processor.resetCurve();
         shapeStrip.setSelected (0);
         curveEditor.repaint();
     };
-    addAndMakeVisible (resetPill);
+    addAndMakeVisible (resetIcon);
 
     addAndMakeVisible (power);
 
@@ -844,40 +1014,33 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
                                 .withTrimmedTop (26.0f)
                                 .withTrimmedBottom (10.0f).toNearestInt());
 
-    // ---- output card ----
-    const auto output = outputCard().toNearestInt();
-    depthKnob.setBounds (output.getX() + 32, output.getY() + 28, 136, 82);
-    mixKnob.setBounds (output.getX() + 32, output.getY() + 114, 136, 80);
+    // ---- timing card (moved up into the graph-height slot) ----
+    auto timing = timingCard().toNearestInt().reduced (14, 12);
+    timing.removeFromTop (18);
 
-    // ---- shape card ----
+    auto runRow = timing.removeFromTop (24);
+    const int runWidth = (runRow.getWidth() - 10) / 3;
+    runPills[0]->setBounds (runRow.removeFromLeft (runWidth));
+    runRow.removeFromLeft (5);
+    runPills[1]->setBounds (runRow.removeFromLeft (runWidth));
+    runRow.removeFromLeft (5);
+    syncPill.setBounds (runRow.removeFromLeft (runWidth));
+
+    timing.removeFromTop (12);
+    rateSelector.setBounds (timing.removeFromTop (juce::jmin (86, timing.getHeight())));
+
+    // ---- shape card (shorter than before; reset icon sits in the corner
+    //      like the corner icons on Home-Disto's EQ card, so the strip
+    //      itself can use the full card width) ----
     const auto shapes = shapeCard().toNearestInt();
-    shapeStrip.setBounds (shapes.getX() + 10, shapes.getY() + 28, shapes.getWidth() - 74, 84);
-    resetPill.setBounds (shapes.getRight() - 58, shapes.getCentreY() + 4, 48, 22);
+    shapeStrip.setBounds (shapes.getX() + 10, shapes.getY() + 28,
+                          shapes.getWidth() - 20, shapes.getHeight() - 38);
+    resetIcon.setBounds (shapes.getRight() - 30, shapes.getY() + 4, 18, 18);
 
-    // ---- timing card ----
-    auto timing = timingCard().toNearestInt().reduced (12, 10);
-    timing.removeFromTop (16);
-
-    auto runRow = timing.removeFromTop (22);
-    runPills[0]->setBounds (runRow.removeFromLeft (40));
-    runRow.removeFromLeft (5);
-    runPills[1]->setBounds (runRow.removeFromLeft (40));
-    runRow.removeFromLeft (5);
-    syncPill.setBounds (runRow.removeFromLeft (40));
-    runRow.removeFromLeft (5);
-    snapPill.setBounds (runRow.removeFromLeft (40));
-
-    timing.removeFromTop (8);
-    auto rateRowTop = timing.removeFromTop (22);
-    timing.removeFromTop (5);
-    auto rateRowBottom = timing.removeFromTop (22);
-
-    for (int i = 0; i < 6; ++i)
-    {
-        auto& row = i < 3 ? rateRowTop : rateRowBottom;
-        ratePills[static_cast<size_t> (i)]->setBounds (row.removeFromLeft (54));
-        row.removeFromLeft (5);
-    }
+    // ---- output card (moved down; two knobs side by side) ----
+    const auto output = outputCard().toNearestInt();
+    depthKnob.setBounds (output.getX() + 16, output.getY() + 28, 80, 82);
+    mixKnob.setBounds (output.getRight() - 96, output.getY() + 28, 80, 82);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) const
@@ -945,11 +1108,6 @@ void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
     for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
         linkPills[static_cast<size_t> (i)]->setToggleState (i == link, juce::dontSendNotification);
 
-    const int rate = processor.getRate();
-
-    for (int i = 0; i < HomeSidechainReceiverAudioProcessor::numRates; ++i)
-        ratePills[static_cast<size_t> (i)]->setToggleState (i == rate, juce::dontSendNotification);
-
     const int run = processor.getRunMode();
 
     for (int i = 0; i < 2; ++i)
@@ -959,12 +1117,7 @@ void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
     syncPill.setAlpha (run == 0 ? 1.0f : 0.4f);
 
     const bool ratesUsable = run == 1 || processor.isSynced();
-
-    for (auto& pill : ratePills)
-    {
-        pill->setEnabled (ratesUsable);
-        pill->setAlpha (ratesUsable ? 1.0f : 0.4f);
-    }
+    rateSelector.setUsable (ratesUsable);
 
     curveEditor.setGridDivisions (processor.gridDivisions());
 }
@@ -972,6 +1125,7 @@ void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
 void HomeSidechainReceiverAudioProcessorEditor::timerCallback()
 {
     refreshFromParameters();
+    rateSelector.refresh();
 
     if (settingsPanel.isVisible())
         settingsPanel.refresh();

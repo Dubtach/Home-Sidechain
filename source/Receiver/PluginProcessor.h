@@ -115,8 +115,18 @@ class HomeSidechainReceiverAudioProcessor : public juce::AudioProcessor
 {
 public:
     static constexpr int maxNodes = receiverCurve::maxNodes;
-    static constexpr int numRates = 6;
     static constexpr int numPresets = 8;
+
+    // Rate table layout. Straight values come first (and keep the same
+    // indices v45 used, so a v45 session still opens on the right rate),
+    // then triplet, dotted, and poly-groove subdivisions. The UI's rate
+    // selector uses these counts to build its categorised menu without
+    // duplicating the boundaries by hand.
+    static constexpr int numStraightRates = 6;
+    static constexpr int numTripletRates = 5;
+    static constexpr int numDottedRates = 5;
+    static constexpr int numGrooveRates = 6;
+    static constexpr int numRates = numStraightRates + numTripletRates + numDottedRates + numGrooveRates;
 
     HomeSidechainReceiverAudioProcessor();
     ~HomeSidechainReceiverAudioProcessor() override = default;
