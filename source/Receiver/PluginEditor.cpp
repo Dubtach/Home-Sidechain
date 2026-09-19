@@ -53,7 +53,12 @@ void ReceiverCurveEditor::setGridDivisions (int divisions) noexcept
 
 juce::Rectangle<float> ReceiverCurveEditor::plotBounds() const noexcept
 {
-    return getLocalBounds().toFloat().reduced (10.0f, 12.0f);
+    // Extra top margin reserved for the gain readout drawn in paint() -- a
+    // node at full value (y=1.0) sits exactly at the plot's top edge, and a
+    // symmetric inset put that right where the readout text was, so the two
+    // could touch. Trimming the top further keeps the readout in its own
+    // strip above the curve, clear of every node position.
+    return getLocalBounds().toFloat().reduced (10.0f, 12.0f).withTrimmedTop (10.0f);
 }
 
 float ReceiverCurveEditor::phaseToX (float phase) const noexcept
@@ -333,7 +338,7 @@ void ReceiverCurveEditor::paint (juce::Graphics& g)
     g.setFont (font (8.5f));
     g.setColour (juce::Colours::white.withAlpha (0.45f));
     g.drawText (gainText (processor.currentGainForUI.load (std::memory_order_relaxed)),
-                juce::Rectangle<float> (bounds.getRight() - 62.0f, bounds.getY() + 3.0f, 56.0f, 11.0f),
+                juce::Rectangle<float> (bounds.getRight() - 62.0f, bounds.getY() + 2.0f, 56.0f, 12.0f),
                 juce::Justification::centredRight, false);
 }
 

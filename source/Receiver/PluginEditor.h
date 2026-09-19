@@ -230,10 +230,14 @@ private:
     // that's the one you said you liked). Timing is shorter than the
     // original, and Output is back to its original 200x122 size, moved up
     // to sit directly under Timing instead of down in Shape's row.
+    // Timing grows to fill the space Output used to waste above it; Output
+    // keeps its 122px height and its bottom now lines up exactly with
+    // Shape's bottom (both at y=388), with the same 12px gap under Timing
+    // that every other card-to-card gap in this layout uses.
     static juce::Rectangle<float> graphCard()   { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
-    static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 170.0f }; }
+    static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 178.0f }; }
     static juce::Rectangle<float> shapeCard()   { return { 20.0f, 288.0f, 470.0f, 100.0f }; }
-    static juce::Rectangle<float> outputCard()  { return { 500.0f, 258.0f, 200.0f, 122.0f }; }
+    static juce::Rectangle<float> outputCard()  { return { 500.0f, 266.0f, 200.0f, 122.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
