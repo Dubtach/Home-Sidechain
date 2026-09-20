@@ -654,11 +654,9 @@ juce::String ReceiverRateSelector::categoryName (int rateIndex)
 ReceiverRateSelector::ReceiverRateSelector (HomeSidechainReceiverAudioProcessor& p)
     : processor (p)
 {
-    prevPill.setFontSize (11.0f);
     prevPill.onClick = [this] { step (-1); };
     addAndMakeVisible (prevPill);
 
-    nextPill.setFontSize (11.0f);
     nextPill.onClick = [this] { step (1); };
     addAndMakeVisible (nextPill);
 }
@@ -779,13 +777,6 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
                                               ReceiverCurveEditor& editor)
     : processor (p), curveEditor (editor)
 {
-    smoothKnob.valueText = msText;
-    lowCutKnob.valueText = hertzText;
-    highCutKnob.valueText = hertzText;
-
-    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob })
-        addAndMakeVisible (*knob);
-
     const char* names[] = { "LINK", "MIDI", "BOTH" };
 
     for (int i = 0; i < 3; ++i)
@@ -810,10 +801,6 @@ ReceiverSettingsPanel::ReceiverSettingsPanel (HomeSidechainReceiverAudioProcesso
     closePill.setFontSize (9.5f);
     closePill.onClick = [this] { setVisible (false); };
     addAndMakeVisible (closePill);
-
-    smoothAttachment = std::make_unique<SliderAttachment> (processor.apvts, "SMOOTH", smoothKnob);
-    lowCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LOW_CUT", lowCutKnob);
-    highCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "HIGH_CUT", highCutKnob);
 }
 
 namespace
@@ -821,8 +808,7 @@ namespace
     // Shared between resized() and paint() so the two can't drift apart.
     constexpr int settingsTopPad = 16;
     constexpr int settingsTitleGap = 22;
-    constexpr int settingsKnobRowHeight = 90;
-    constexpr int settingsGap = 10;
+    constexpr int settingsGap = 12;
     constexpr int settingsRowHeight = 26;
 }
 
@@ -832,17 +818,6 @@ void ReceiverSettingsPanel::resized()
     auto inner = card.reduced (18, settingsTopPad);
     inner.removeFromTop (settingsTitleGap);
 
-    auto knobRow = inner.removeFromTop (settingsKnobRowHeight);
-    knobRow = knobRow.reduced (40, 0); // three knobs read better with room to breathe now that Length isn't a fourth
-    const int knobWidth = (knobRow.getWidth() - 16) / 3;
-
-    for (auto* knob : { &smoothKnob, &lowCutKnob, &highCutKnob })
-    {
-        knob->setBounds (knobRow.removeFromLeft (knobWidth));
-        knobRow.removeFromLeft (8);
-    }
-
-    inner.removeFromTop (settingsGap);
     auto sourceRow = inner.removeFromTop (settingsRowHeight);
     sourceRow.removeFromLeft (96);
 
@@ -869,8 +844,7 @@ void ReceiverSettingsPanel::paint (juce::Graphics& g)
 
     // Mirrors resized()'s row math exactly, so labels always land on the
     // controls they describe.
-    float y = card.getY() + settingsTopPad + settingsTitleGap + settingsKnobRowHeight;
-    y += settingsGap;
+    float y = card.getY() + settingsTopPad + settingsTitleGap;
     const float sourceRowY = y;
     y += settingsRowHeight + settingsGap;
     y += settingsRowHeight;
@@ -882,13 +856,8 @@ void ReceiverSettingsPanel::paint (juce::Graphics& g)
     // The checkbox carries its own "Always snap to grid" label now, so
     // there's no separate caption competing with it for the same line.
     drawCardText (g, "Off by default -- drag freely, or hold Shift to snap any drag to the grid.",
-                  juce::Rectangle<float> (card.getX() + 18.0f, y + 2.0f, card.getWidth() - 36.0f, 16.0f),
+                  juce::Rectangle<float> (card.getX() + 18.0f, y + 6.0f, card.getWidth() - 36.0f, 16.0f),
                   8.0f, juce::Justification::topLeft, 0.6f);
-
-    drawCardText (g, "Low cut and high cut set the band that ducks. Everything outside it passes through.",
-                  juce::Rectangle<float> (card.getX() + 18.0f, card.getBottom() - 40.0f,
-                                          card.getWidth() - 110.0f, 28.0f),
-                  9.0f, juce::Justification::centredLeft, 0.65f);
 }
 
 void ReceiverSettingsPanel::mouseDown (const juce::MouseEvent& e)
@@ -926,26 +895,17 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
         curveEditor.repaint();
     };
 
-    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
-    {
-        auto pill = std::make_unique<Pill> (homeSidechain::linkName (i), cyan);
-        pill->setFontSize (9.5f);
-        pill->setCornerRadius (4.0f);
-        pill->onClick = [this, i] { processor.setLink (i); refreshFromParameters(); };
-        addAndMakeVisible (*pill);
-        linkPills[static_cast<size_t> (i)] = std::move (pill);
-    }
+    linkSelector.setFontSize (9.5f);
+    linkSelector.onChange = [this] (int index) { processor.setLink (index); refreshFromParameters(); };
+    addAndMakeVisible (linkSelector);
 
-    const char* runNames[] = { "TRIG", "HOST" };
+    modeSwitch.setFontSize (9.5f);
+    modeSwitch.onChange = [this] (int index) { processor.setRunMode (index); refreshFromParameters(); };
+    addAndMakeVisible (modeSwitch);
 
-    for (int i = 0; i < 2; ++i)
-    {
-        auto pill = std::make_unique<Pill> (runNames[i], green);
-        pill->setFontSize (9.5f);
-        pill->onClick = [this, i] { processor.setRunMode (i); refreshFromParameters(); };
-        addAndMakeVisible (*pill);
-        runPills[static_cast<size_t> (i)] = std::move (pill);
-    }
+    shapesFiltersTab.setFontSize (9.5f);
+    shapesFiltersTab.onChange = [this] (int) { refreshFromParameters(); };
+    addAndMakeVisible (shapesFiltersTab);
 
     syncPill.setClickingTogglesState (true);
     syncPill.setFontSize (9.0f);
@@ -982,9 +942,21 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     lengthKnob.valueText = msText;
     addAndMakeVisible (lengthKnob);
 
+    // Moved here from the Advanced panel; shown behind Shapes card's Filters
+    // tab (see refreshFromParameters()), not always visible.
+    smoothKnob.valueText = msText;
+    lowCutKnob.valueText = hertzText;
+    highCutKnob.valueText = hertzText;
+    addChildComponent (smoothKnob);
+    addChildComponent (lowCutKnob);
+    addChildComponent (highCutKnob);
+
     depthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "DEPTH", depthKnob);
     mixAttachment = std::make_unique<SliderAttachment> (processor.apvts, "MIX", mixKnob);
     lengthAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LENGTH", lengthKnob);
+    smoothAttachment = std::make_unique<SliderAttachment> (processor.apvts, "SMOOTH", smoothKnob);
+    lowCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "LOW_CUT", lowCutKnob);
+    highCutAttachment = std::make_unique<SliderAttachment> (processor.apvts, "HIGH_CUT", highCutKnob);
     bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", power);
     syncAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "SYNC", syncPill);
 
@@ -1005,13 +977,7 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     settingsPanel.setBounds (getLocalBounds());
 
     // ---- header ----
-    int x = 320;
-
-    for (auto& pill : linkPills)
-    {
-        pill->setBounds (x, 30, 20, 20);
-        x += 23;
-    }
+    linkSelector.setBounds (320, 29, 190, 22);
 
     testPill.setBounds (582, 29, 44, 22);
     advPill.setBounds (630, 29, 40, 22);
@@ -1027,13 +993,12 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     auto timing = timingCard().toNearestInt().reduced (14, 12);
     timing.removeFromTop (18);
 
-    // TRIG/HOST are a mutually-exclusive pair (Pill); Sync is an independent
-    // on/off modifier (Checkbox) and gets a visual gap plus a divider line
-    // (drawn in paint()) so it doesn't read as a third option in that pair.
+    // TRIG/HOST are a single connected switch (one mutually-exclusive pair);
+    // Sync is an independent on/off modifier (Checkbox) and gets a visual
+    // gap plus a divider line (drawn in paint()) so it doesn't read as a
+    // third option belonging to that switch.
     auto runRow = timing.removeFromTop (24);
-    runPills[0]->setBounds (runRow.removeFromLeft (48));
-    runRow.removeFromLeft (5);
-    runPills[1]->setBounds (runRow.removeFromLeft (48));
+    modeSwitch.setBounds (runRow.removeFromLeft (100));
     runRow.removeFromLeft (11);
     syncDividerX = runRow.getX();
     runRow.removeFromLeft (9);
@@ -1050,11 +1015,23 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     lengthKnob.setBounds (timing.getCentreX() - lengthKnobWidth / 2, timing.getY(),
                           lengthKnobWidth, timing.getHeight());
 
-    // ---- shape card ----
+    // ---- shape card: Shapes/Filters tab sits where the static title used
+    //      to be, and its two pages share the strip's exact footprint ----
     const auto shapes = shapeCard().toNearestInt();
-    shapeStrip.setBounds (shapes.getX() + 10, shapes.getY() + 28,
-                          shapes.getWidth() - 20, shapes.getHeight() - 38);
+    shapesFiltersTab.setBounds (shapes.getCentreX() - 90, shapes.getY() + 6, 180, 20);
+
+    const auto contentArea = juce::Rectangle<int> (shapes.getX() + 10, shapes.getY() + 28,
+                                                    shapes.getWidth() - 20, shapes.getHeight() - 38);
+    shapeStrip.setBounds (contentArea);
     resetIcon.setBounds (shapes.getRight() - 30, shapes.getY() + 4, 18, 18);
+
+    const int filterKnobWidth = (contentArea.getWidth() - 40) / 3;
+    auto filterRow = contentArea.reduced (10, 0);
+    smoothKnob.setBounds (filterRow.removeFromLeft (filterKnobWidth));
+    filterRow.removeFromLeft (20);
+    lowCutKnob.setBounds (filterRow.removeFromLeft (filterKnobWidth));
+    filterRow.removeFromLeft (20);
+    highCutKnob.setBounds (filterRow);
 
     // ---- output card (restored to its previous size; sits directly under
     //      the now-shorter Timing card instead of matching Shape's row.
@@ -1114,8 +1091,9 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 
     drawCardTitle (g, "SHAPE", graph);
     drawCardTitle (g, "OUTPUT", output);
-    drawCardTitle (g, "SHAPES", shapes);
     drawCardTitle (g, "TIMING", timing);
+    // Shapes card has no static title -- the Shapes/Filters tab switch
+    // occupies that row instead and serves the same purpose.
 
     // Marks Sync as a different kind of control from TRIG/HOST -- a
     // modifier, not a third mode -- rather than relying on the checkbox
@@ -1135,15 +1113,10 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
 
 void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
 {
-    const int link = processor.getLink();
-
-    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
-        linkPills[static_cast<size_t> (i)]->setToggleState (i == link, juce::dontSendNotification);
+    linkSelector.setSelectedIndex (processor.getLink(), juce::dontSendNotification);
 
     const int run = processor.getRunMode();
-
-    for (int i = 0; i < 2; ++i)
-        runPills[static_cast<size_t> (i)]->setToggleState (i == run, juce::dontSendNotification);
+    modeSwitch.setSelectedIndex (run, juce::dontSendNotification);
 
     syncPill.setEnabled (run == 0);
     syncPill.setAlpha (run == 0 ? 1.0f : 0.4f);
@@ -1155,6 +1128,15 @@ void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()
     rateSelector.setVisible (! freeLength);
     rateSelector.setUsable (! freeLength);
     lengthKnob.setVisible (freeLength);
+
+    // Shapes/Filters tab: the two pages share the same footprint, so only
+    // one set is ever visible.
+    const bool showFilters = shapesFiltersTab.getSelectedIndex() == 1;
+    shapeStrip.setVisible (! showFilters);
+    resetIcon.setVisible (! showFilters);
+    smoothKnob.setVisible (showFilters);
+    lowCutKnob.setVisible (showFilters);
+    highCutKnob.setVisible (showFilters);
 
     curveEditor.setGridDivisions (processor.gridDivisions());
 }

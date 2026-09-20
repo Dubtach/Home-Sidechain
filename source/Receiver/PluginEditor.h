@@ -127,8 +127,8 @@ public:
 private:
     HomeSidechainReceiverAudioProcessor& processor;
 
-    homeUI::Pill prevPill { "<", homeUI::green };
-    homeUI::Pill nextPill { ">", homeUI::green };
+    homeUI::ChevronButton prevPill { homeUI::ChevronButton::left, homeUI::green };
+    homeUI::ChevronButton nextPill { homeUI::ChevronButton::right, homeUI::green };
     juce::Rectangle<int> labelArea;
     bool usable = true;
 
@@ -160,18 +160,14 @@ private:
     HomeSidechainReceiverAudioProcessor& processor;
     ReceiverCurveEditor& curveEditor;
 
-    homeUI::Knob smoothKnob { "SMOOTH" };
-    homeUI::Knob lowCutKnob { "LOW CUT" };
-    homeUI::Knob highCutKnob { "HIGH CUT" };
-
     std::array<std::unique_ptr<homeUI::Pill>, 3> sourcePills;
     homeUI::Checkbox alwaysSnapPill { "Always snap to grid", homeUI::green };
     homeUI::Pill closePill { "CLOSE", homeUI::warn };
 
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<SliderAttachment> smoothAttachment, lowCutAttachment, highCutAttachment;
-
-    static juce::Rectangle<float> cardBounds() noexcept { return { 110.0f, 76.0f, 500.0f, 270.0f }; }
+    // Smooth/Low Cut/High Cut moved out to the Shapes card's Filters tab --
+    // this panel only holds the trigger-source picker and the snap toggle
+    // now, so it's considerably shorter than it used to be.
+    static juce::Rectangle<float> cardBounds() noexcept { return { 110.0f, 96.0f, 500.0f, 180.0f }; }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverSettingsPanel)
 };
@@ -199,8 +195,9 @@ private:
     ReceiverRateSelector rateSelector;
     ReceiverSettingsPanel settingsPanel;
 
-    std::array<std::unique_ptr<homeUI::Pill>, homeSidechain::numberOfLinks> linkPills;
-    std::array<std::unique_ptr<homeUI::Pill>, 2> runPills;
+    homeUI::SegmentedSwitch linkSelector { homeSidechain::linkNames(), homeUI::cyan };
+    homeUI::SegmentedSwitch modeSwitch { { "TRIG", "HOST" }, homeUI::cyan };
+    homeUI::SegmentedSwitch shapesFiltersTab { { "SHAPES", "FILTERS" }, homeUI::purple };
 
     homeUI::Checkbox syncPill { "Sync", homeUI::green };
     homeUI::Pill testPill { "TEST", homeUI::cyan };
@@ -216,10 +213,18 @@ private:
     // selector would otherwise be, rather than being buried a click away.
     homeUI::Knob lengthKnob { "LENGTH" };
 
+    // Moved out of Advanced into the Shapes card, behind the Filters tab --
+    // they now share the shape strip's footprint rather than sitting a click
+    // away for something you reach for while shaping a sound.
+    homeUI::Knob smoothKnob { "SMOOTH" };
+    homeUI::Knob lowCutKnob { "LOW CUT" };
+    homeUI::Knob highCutKnob { "HIGH CUT" };
+
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     std::unique_ptr<SliderAttachment> depthAttachment, mixAttachment, lengthAttachment;
+    std::unique_ptr<SliderAttachment> smoothAttachment, lowCutAttachment, highCutAttachment;
     std::unique_ptr<ButtonAttachment> bypassAttachment, syncAttachment;
 
     // X position of the divider line drawn between the TRIG/HOST pair and
@@ -227,13 +232,10 @@ private:
     int syncDividerX = 0;
 
     // Graph and Shape keep their slots (Shape's shorter height stays --
-    // that's the one you said you liked). Timing is shorter than the
-    // original, and Output is back to its original 200x122 size, moved up
-    // to sit directly under Timing instead of down in Shape's row.
-    // Timing grows to fill the space Output used to waste above it; Output
-    // keeps its 122px height and its bottom now lines up exactly with
-    // Shape's bottom (both at y=388), with the same 12px gap under Timing
-    // that every other card-to-card gap in this layout uses.
+    // that's the one you said you liked). Timing grows to fill the space
+    // Output used to waste above it; Output keeps its 122px height and its
+    // bottom lines up exactly with Shape's bottom (both at y=388), with the
+    // same 12px gap under Timing that every other card-to-card gap here uses.
     static juce::Rectangle<float> graphCard()   { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
     static juce::Rectangle<float> timingCard()  { return { 500.0f, 76.0f, 200.0f, 178.0f }; }
     static juce::Rectangle<float> shapeCard()   { return { 20.0f, 288.0f, 470.0f, 100.0f }; }

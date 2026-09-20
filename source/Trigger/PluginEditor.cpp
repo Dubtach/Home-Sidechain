@@ -247,21 +247,15 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
 {
     addAndMakeVisible (scope);
 
-    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
+    linkSelector.setFontSize (9.5f);
+    linkSelector.onChange = [this] (int index)
     {
-        auto pill = std::make_unique<Pill> (homeSidechain::linkName (i), cyan);
-        pill->setFontSize (9.5f);
-        pill->setCornerRadius (4.0f);
-        pill->onClick = [this, i]
-        {
-            if (auto* parameter = processor.apvts.getParameter ("LINK"))
-                parameter->setValueNotifyingHost (parameter->convertTo0to1 (static_cast<float> (i)));
+        if (auto* parameter = processor.apvts.getParameter ("LINK"))
+            parameter->setValueNotifyingHost (parameter->convertTo0to1 (static_cast<float> (index)));
 
-            refreshFromParameters();
-        };
-        addAndMakeVisible (*pill);
-        linkPills[static_cast<size_t> (i)] = std::move (pill);
-    }
+        refreshFromParameters();
+    };
+    addAndMakeVisible (linkSelector);
 
     testPill.setFontSize (9.5f);
     testPill.onClick = [this] { processor.requestTestTrigger(); };
@@ -290,13 +284,7 @@ HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEdi
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    int x = 320;
-
-    for (auto& pill : linkPills)
-    {
-        pill->setBounds (x, 30, 20, 20);
-        x += 23;
-    }
+    linkSelector.setBounds (320, 29, 190, 22);
 
     testPill.setBounds (582, 29, 44, 22);
     power.setBounds (678, 27, 26, 26);
@@ -431,10 +419,7 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 
 void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()
 {
-    const int link = processor.getLink();
-
-    for (int i = 0; i < homeSidechain::numberOfLinks; ++i)
-        linkPills[static_cast<size_t> (i)]->setToggleState (i == link, juce::dontSendNotification);
+    linkSelector.setSelectedIndex (processor.getLink(), juce::dontSendNotification);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::timerCallback()

@@ -395,6 +395,153 @@ namespace homeUI
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ResetButton)
     };
 
+    // A single connected track divided into N segments, with the active one
+    // shown as a sliding white pill -- one control, not N separate buttons
+    // sitting next to each other. Used anywhere the choice is "exactly one
+    // of these": Link, Trigger/Host, Shapes/Filters.
+    class SegmentedSwitch : public juce::Component
+    {
+    public:
+        explicit SegmentedSwitch (juce::StringArray labels, juce::Colour accentColour = cyan)
+            : segmentLabels (std::move (labels)), accent (accentColour)
+        {
+            setInterceptsMouseClicks (true, false);
+        }
+
+        void setSegmentLabels (juce::StringArray labels)
+        {
+            segmentLabels = std::move (labels);
+            selected = juce::jlimit (0, juce::jmax (0, segmentLabels.size() - 1), selected);
+            repaint();
+        }
+
+        void setSelectedIndex (int index, juce::NotificationType notify = juce::sendNotification)
+        {
+            index = juce::jlimit (0, juce::jmax (0, segmentLabels.size() - 1), index);
+
+            if (index != selected)
+            {
+                selected = index;
+                repaint();
+
+                if (notify == juce::sendNotification && onChange != nullptr)
+                    onChange (selected);
+            }
+        }
+
+        int getSelectedIndex() const noexcept { return selected; }
+        void setFontSize (float size) noexcept { fontSize = size; }
+        void setAccent (juce::Colour c) { accent = c; repaint(); }
+
+        std::function<void (int)> onChange;
+
+        void paint (juce::Graphics& g) override
+        {
+            const auto bounds = getLocalBounds().toFloat();
+            const int n = juce::jmax (1, segmentLabels.size());
+            const float segW = bounds.getWidth() / static_cast<float> (n);
+            const bool enabled = isEnabled();
+
+            g.setColour (juce::Colours::black.withAlpha (enabled ? 0.42f : 0.24f));
+            g.fillRoundedRectangle (bounds, bounds.getHeight() * 0.5f);
+
+            const auto activeRect = juce::Rectangle<float> (bounds.getX() + segW * static_cast<float> (selected),
+                                                             bounds.getY(), segW, bounds.getHeight()).reduced (2.2f);
+            g.setColour (enabled ? juce::Colours::white : juce::Colours::white.withAlpha (0.35f));
+            g.fillRoundedRectangle (activeRect, activeRect.getHeight() * 0.5f);
+            g.setColour (accent.withAlpha (enabled ? 0.55f : 0.2f));
+            g.drawRoundedRectangle (activeRect, activeRect.getHeight() * 0.5f, 1.2f);
+
+            g.setFont (font (fontSize, true));
+
+            for (int i = 0; i < n; ++i)
+            {
+                const auto r = juce::Rectangle<float> (bounds.getX() + segW * static_cast<float> (i),
+                                                       bounds.getY(), segW, bounds.getHeight());
+                const bool isSelected = i == selected;
+
+                if (! isSelected && i > 0 && i - 1 != selected)
+                {
+                    g.setColour (juce::Colours::white.withAlpha (enabled ? 0.12f : 0.06f));
+                    g.drawLine (r.getX(), bounds.getY() + 4.0f, r.getX(), bounds.getBottom() - 4.0f, 1.0f);
+                }
+
+                g.setColour (! enabled ? juce::Colours::white.withAlpha (0.28f)
+                                       : (isSelected ? ink : juce::Colours::white.withAlpha (0.78f)));
+                g.drawText (segmentLabels[i], r, juce::Justification::centred, false);
+            }
+
+            g.setColour (juce::Colours::white.withAlpha (enabled ? 0.14f : 0.06f));
+            g.drawRoundedRectangle (bounds, bounds.getHeight() * 0.5f, 1.0f);
+        }
+
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            if (! isEnabled())
+                return;
+
+            const int n = juce::jmax (1, segmentLabels.size());
+            const float segW = static_cast<float> (getWidth()) / static_cast<float> (n);
+            const int index = juce::jlimit (0, n - 1, static_cast<int> (e.position.x / segW));
+            setSelectedIndex (index);
+        }
+
+    private:
+        juce::StringArray segmentLabels;
+        juce::Colour accent;
+        int selected = 0;
+        float fontSize = 9.5f;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SegmentedSwitch)
+    };
+
+    // A stepper arrow -- a triangle on a small dark tile, for "previous /
+    // next" through a list. Reads as navigation, not as a text button that
+    // happens to contain "<" or ">".
+    class ChevronButton : public juce::Button
+    {
+    public:
+        enum Direction { left, right };
+
+        ChevronButton (Direction directionIn, juce::Colour accentColour = cyan)
+            : juce::Button ("Chevron"), direction (directionIn), accent (accentColour)
+        {
+        }
+
+        void setAccent (juce::Colour c) { accent = c; repaint(); }
+
+        void paintButton (juce::Graphics& g, bool over, bool down) override
+        {
+            const auto r = getLocalBounds().toFloat().reduced (1.0f);
+            const bool enabled = isEnabled();
+
+            g.setColour (juce::Colours::black.withAlpha (! enabled ? 0.20f : (down ? 0.55f : (over ? 0.42f : 0.30f))));
+            g.fillRoundedRectangle (r, 6.0f);
+            g.setColour (accent.withAlpha (! enabled ? 0.15f : (over ? 0.75f : 0.45f)));
+            g.drawRoundedRectangle (r, 6.0f, 1.1f);
+
+            const float cx = r.getCentreX();
+            const float cy = r.getCentreY();
+            const float size = juce::jmin (r.getWidth(), r.getHeight()) * 0.26f;
+
+            juce::Path tri;
+
+            if (direction == left)
+                tri.addTriangle (cx + size * 0.55f, cy - size, cx + size * 0.55f, cy + size, cx - size * 0.65f, cy);
+            else
+                tri.addTriangle (cx - size * 0.55f, cy - size, cx - size * 0.55f, cy + size, cx + size * 0.65f, cy);
+
+            g.setColour (enabled ? juce::Colours::white : juce::Colours::white.withAlpha (0.3f));
+            g.fillPath (tri);
+        }
+
+    private:
+        Direction direction;
+        juce::Colour accent;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChevronButton)
+    };
+
     // Black knob body, tick ring, white arc and pointer. Caption and value are
     // drawn in card ink, since knobs always sit on a saturated card here.
     class Knob : public juce::Slider

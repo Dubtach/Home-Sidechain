@@ -62,7 +62,7 @@ private:
 
     TriggerScope scope;
 
-    std::array<std::unique_ptr<homeUI::Pill>, homeSidechain::numberOfLinks> linkPills;
+    homeUI::SegmentedSwitch linkSelector { homeSidechain::linkNames(), homeUI::cyan };
 
     homeUI::Pill testPill { "TEST", homeUI::cyan };
     homeUI::PowerButton power;
