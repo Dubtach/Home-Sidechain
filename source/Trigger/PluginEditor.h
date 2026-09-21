@@ -23,11 +23,17 @@ public:
     void mouseUp (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
 
+    // Called from the editor's timer with the same UI-side smoothed values
+    // it already computed -- the scope doesn't re-derive its own smoothing.
+    void setLevels (float inputLevel, float triggerActivity) noexcept;
+
 private:
     HomeSidechainTriggerAudioProcessor& processor;
 
     bool dragging = false;
     bool hovering = false;
+    float cachedInputLevel = 0.0f;
+    float cachedTriggerActivity = 0.0f;
 
     juce::Rectangle<float> plotBounds() const noexcept;
     float dbToY (float db) const noexcept;
@@ -37,7 +43,8 @@ private:
     void drawGrid (juce::Graphics&, juce::Rectangle<float>) const;
     void drawWaveform (juce::Graphics&, juce::Rectangle<float>) const;
     void drawThreshold (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawLegend (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawSendingLamp (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawLevelBar (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TriggerScope)
 };
@@ -49,7 +56,7 @@ class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEdit
 {
 public:
     static constexpr int designWidth = 720;
-    static constexpr int designHeight = 430;
+    static constexpr int designHeight = 416;
 
     explicit HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor&);
     ~HomeSidechainTriggerAudioProcessorEditor() override;
@@ -62,13 +69,13 @@ private:
 
     TriggerScope scope;
 
-    homeUI::SegmentedSwitch linkSelector { homeSidechain::linkNames(), homeUI::cyan };
+    homeUI::LinkSelector linkSelector { homeSidechain::linkNames() };
 
     homeUI::Pill testPill { "TEST", homeUI::cyan };
     homeUI::PowerButton power;
 
-    homeUI::Knob thresholdKnob { "THRESHOLD" };
-    homeUI::Knob cooldownKnob { "COOL DOWN" };
+    homeUI::Knob thresholdKnob { "THRESHOLD", homeUI::pink };
+    homeUI::Knob cooldownKnob { "COOL DOWN", homeUI::pink };
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -79,16 +86,15 @@ private:
     float inputSmoothed = 0.0f;
     float triggerSmoothed = 0.0f;
 
-    static juce::Rectangle<float> scopeCard()  { return { 20.0f,  76.0f, 470.0f, 202.0f }; }
-    static juce::Rectangle<float> senseCard()  { return { 500.0f, 76.0f, 200.0f, 202.0f }; }
-    static juce::Rectangle<float> meterCard()  { return { 20.0f, 288.0f, 470.0f, 122.0f }; }
-    static juce::Rectangle<float> sendCard()   { return { 500.0f, 288.0f, 200.0f, 122.0f }; }
+    // Input now spans the full content height -- Activity and Sending were
+    // removed and their two indicators (a sending lamp, an input level bar)
+    // live inside this card instead of occupying their own cards below.
+    static juce::Rectangle<float> scopeCard()  { return { 20.0f,  76.0f, 470.0f, 312.0f }; }
+    static juce::Rectangle<float> senseCard()  { return { 500.0f, 76.0f, 200.0f, 312.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
     void drawHeader (juce::Graphics&) const;
-    void drawMeters (juce::Graphics&) const;
-    void drawSend (juce::Graphics&) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HomeSidechainTriggerAudioProcessorEditor)
 };

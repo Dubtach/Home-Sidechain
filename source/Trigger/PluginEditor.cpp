@@ -26,7 +26,10 @@ TriggerScope::TriggerScope (HomeSidechainTriggerAudioProcessor& p)
 
 juce::Rectangle<float> TriggerScope::plotBounds() const noexcept
 {
-    return getLocalBounds().toFloat().reduced (8.0f, 8.0f);
+    // Bottom is trimmed to make room for the level bar drawn in
+    // drawLevelBar() -- it lives inside this card now rather than in its
+    // own Activity card below.
+    return getLocalBounds().toFloat().reduced (8.0f, 8.0f).withTrimmedBottom (18.0f);
 }
 
 float TriggerScope::dbToY (float db) const noexcept
@@ -157,27 +160,69 @@ void TriggerScope::drawThreshold (juce::Graphics& g, juce::Rectangle<float> plot
     g.drawText (juce::String (db, 1) + " dB", badge, juce::Justification::centred, false);
 }
 
-void TriggerScope::drawLegend (juce::Graphics& g, juce::Rectangle<float> plot) const
+void TriggerScope::drawSendingLamp (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    const auto dot = [&g] (juce::Point<float> centre, juce::Colour colour)
+    // Replaces the old standalone Sending card -- a compact lamp inside the
+    // graph itself, lit for a moment whenever a trigger actually fires.
+    const auto dot = [&g] (juce::Point<float> centre, juce::Colour colour, float alpha)
     {
-        g.setColour (colour);
-        g.fillEllipse (centre.x - 3.0f, centre.y - 3.0f, 6.0f, 6.0f);
+        if (alpha > 0.02f)
+        {
+            g.setColour (colour.withAlpha (alpha * 0.35f));
+            g.fillEllipse (juce::Rectangle<float> (centre.x - 6.0f, centre.y - 6.0f, 12.0f, 12.0f));
+        }
+
+        g.setColour (colour.withAlpha (juce::jmax (0.18f, alpha)));
+        g.fillEllipse (juce::Rectangle<float> (centre.x - 3.0f, centre.y - 3.0f, 6.0f, 6.0f));
     };
 
     const float y = plot.getY() + 7.0f;
-    float x = plot.getRight() - 108.0f;
+    const float x = plot.getX() + 4.0f;
 
-    dot ({ x, y }, cyan);
+    dot ({ x, y }, green, cachedTriggerActivity);
     g.setFont (font (7.5f, false));
     g.setColour (juce::Colours::white.withAlpha (0.5f));
-    g.drawText ("AUDIO", juce::Rectangle<float> (x + 6.0f, y - 5.0f, 40.0f, 10.0f),
+    g.drawText ("SENDING", juce::Rectangle<float> (x + 8.0f, y - 5.0f, 56.0f, 10.0f),
                 juce::Justification::centredLeft, false);
 
-    x += 54.0f;
-    dot ({ x, y }, purple);
-    g.drawText ("MIDI", juce::Rectangle<float> (x + 6.0f, y - 5.0f, 36.0f, 10.0f),
+    float lx = plot.getRight() - 108.0f;
+    dot ({ lx, y }, cyan, 1.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.5f));
+    g.drawText ("AUDIO", juce::Rectangle<float> (lx + 6.0f, y - 5.0f, 40.0f, 10.0f),
                 juce::Justification::centredLeft, false);
+
+    lx += 54.0f;
+    dot ({ lx, y }, purple, 1.0f);
+    g.drawText ("MIDI", juce::Rectangle<float> (lx + 6.0f, y - 5.0f, 36.0f, 10.0f),
+                juce::Justification::centredLeft, false);
+}
+
+void TriggerScope::drawLevelBar (juce::Graphics& g, juce::Rectangle<float> plot) const
+{
+    const auto bounds = getLocalBounds().toFloat();
+    const auto bar = juce::Rectangle<float> (plot.getX(), plot.getBottom() + 6.0f, plot.getWidth(),
+                                             bounds.getBottom() - (plot.getBottom() + 6.0f));
+
+    drawWell (g, bar, 3.0f);
+
+    auto fillArea = bar.reduced (2.0f);
+    const float level = juce::jlimit (0.0f, 1.0f, cachedInputLevel);
+
+    juce::ColourGradient gradient (cyan, fillArea.getX(), fillArea.getY(),
+                                   pink, fillArea.getRight(), fillArea.getY(), false);
+    g.setGradientFill (gradient);
+    g.fillRect (fillArea.withWidth (fillArea.getWidth() * level));
+
+    const float thresholdProportion = (processor.getThresholdDb() - minDb) / (maxDb - minDb);
+    const float markX = fillArea.getX() + fillArea.getWidth() * juce::jlimit (0.0f, 1.0f, thresholdProportion);
+    g.setColour (green);
+    g.drawLine (markX, fillArea.getY() - 1.0f, markX, fillArea.getBottom() + 1.0f, 1.6f);
+}
+
+void TriggerScope::setLevels (float inputLevel, float triggerActivity) noexcept
+{
+    cachedInputLevel = inputLevel;
+    cachedTriggerActivity = triggerActivity;
 }
 
 void TriggerScope::paint (juce::Graphics& g)
@@ -189,7 +234,8 @@ void TriggerScope::paint (juce::Graphics& g)
     drawGrid (g, plot);
     drawWaveform (g, plot);
     drawThreshold (g, plot);
-    drawLegend (g, plot);
+    drawSendingLamp (g, plot);
+    drawLevelBar (g, plot);
 }
 
 void TriggerScope::mouseMove (const juce::MouseEvent& e)
@@ -286,16 +332,16 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     linkSelector.setBounds (320, 29, 190, 22);
 
-    testPill.setBounds (582, 29, 44, 22);
-    power.setBounds (678, 27, 26, 26);
+    testPill.setBounds (566, 29, 44, 22);
+    power.setBounds (660, 20, 30, 30);
 
     scope.setBounds (scopeCard().reduced (12.0f, 0.0f)
                                 .withTrimmedTop (26.0f)
                                 .withTrimmedBottom (10.0f).toNearestInt());
 
     const auto sense = senseCard().toNearestInt();
-    thresholdKnob.setBounds (sense.getX() + 32, sense.getY() + 28, 136, 82);
-    cooldownKnob.setBounds (sense.getX() + 32, sense.getY() + 114, 136, 80);
+    thresholdKnob.setBounds (sense.getX() + 16, sense.getY() + 50, 168, 108);
+    cooldownKnob.setBounds (sense.getX() + 16, sense.getY() + 180, 168, 104);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g) const
@@ -316,75 +362,6 @@ void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g) co
     g.setColour (juce::Colours::white.withAlpha (0.45f));
     g.drawText ("LINK", juce::Rectangle<float> (286.0f, 33.0f, 34.0f, 14.0f),
                 juce::Justification::centredLeft, false);
-
-    drawLamp (g, juce::Rectangle<float> (512.0f, 33.0f, 64.0f, 14.0f), "SENDING", green,
-              triggerSmoothed, false);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawMeters (juce::Graphics& g) const
-{
-    const auto card = meterCard();
-
-    auto well = juce::Rectangle<float> (card.getX() + 14.0f, card.getY() + 30.0f,
-                                        card.getWidth() - 28.0f, 30.0f);
-    drawWell (g, well, 4.0f);
-
-    const float threshold = (processor.getThresholdDb() - minDb) / (maxDb - minDb);
-    const float level = (levelToDb (inputSmoothed) - minDb) / (maxDb - minDb);
-    auto bar = well.reduced (4.0f, 5.0f);
-
-    juce::ColourGradient meter (cyan, bar.getX(), bar.getY(),
-                                pink, bar.getRight(), bar.getY(), false);
-    g.setGradientFill (meter);
-    g.fillRoundedRectangle (bar.withWidth (juce::jmax (2.0f, bar.getWidth() * juce::jlimit (0.0f, 1.0f, level))), 3.0f);
-
-    const float markX = bar.getX() + bar.getWidth() * juce::jlimit (0.0f, 1.0f, threshold);
-    g.setColour (green);
-    g.drawLine (markX, well.getY() + 2.0f, markX, well.getBottom() - 2.0f, 2.0f);
-
-    drawCardText (g, "INPUT", juce::Rectangle<float> (card.getX() + 14.0f, card.getY() + 62.0f, 60.0f, 12.0f),
-                  8.5f, juce::Justification::centredLeft, 0.7f);
-    drawCardText (g, "THRESHOLD", juce::Rectangle<float> (markX - 40.0f, card.getY() + 62.0f, 80.0f, 12.0f),
-                  8.5f, juce::Justification::centred, 0.7f);
-
-    const auto stat = [&] (const juce::String& label, const juce::String& value, float cx)
-    {
-        drawCardText (g, value, juce::Rectangle<float> (cx - 50.0f, card.getBottom() - 42.0f, 100.0f, 18.0f), 15.0f);
-        drawCardText (g, label, juce::Rectangle<float> (cx - 50.0f, card.getBottom() - 24.0f, 100.0f, 12.0f),
-                      8.0f, juce::Justification::centred, 0.65f);
-    };
-
-    stat ("TRIGGERS SENT", juce::String (processor.homeLinkCount.load (std::memory_order_relaxed)),
-          card.getX() + 110.0f);
-    stat ("DROPPED", juce::String (processor.getHomeLinkDroppedCount()), card.getX() + 250.0f);
-    stat ("COOL DOWN", juce::String (juce::roundToInt (
-              processor.apvts.getRawParameterValue ("RETRIGGER")->load())) + " ms",
-          card.getX() + 380.0f);
-}
-
-void HomeSidechainTriggerAudioProcessorEditor::drawSend (juce::Graphics& g) const
-{
-    const auto card = sendCard();
-
-    auto lamp = juce::Rectangle<float> (card.getCentreX() - 26.0f, card.getY() + 34.0f, 52.0f, 52.0f);
-    const float activity = juce::jlimit (0.0f, 1.0f, triggerSmoothed);
-
-    g.setColour (juce::Colours::black.withAlpha (0.45f));
-    g.fillEllipse (lamp);
-
-    if (activity > 0.02f)
-    {
-        g.setColour (juce::Colours::white.withAlpha (activity * 0.35f));
-        g.fillEllipse (lamp.expanded (activity * 10.0f));
-    }
-
-    g.setColour (juce::Colours::white.withAlpha (0.25f + activity * 0.75f));
-    g.fillEllipse (lamp.reduced (10.0f));
-    g.setColour (juce::Colours::black.withAlpha (0.4f));
-    g.drawEllipse (lamp, 2.0f);
-
-    drawCardText (g, "LINK " + homeSidechain::linkName (processor.getLink()),
-                  juce::Rectangle<float> (card.getX(), card.getBottom() - 32.0f, card.getWidth(), 16.0f), 12.0f);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
@@ -392,29 +369,21 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (chassis);
 
     g.setColour (face);
-    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f);
     g.setColour (faceEdge);
-    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 410.0f, 8.0f, 1.5f);
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f, 1.5f);
 
     drawHeader (g);
 
     drawCard (g, scopeCard(), cyan);
     drawCard (g, senseCard(), pink);
-    drawCard (g, meterCard(), purple);
-    drawCard (g, sendCard(), green);
 
     drawCardTitle (g, "INPUT", scopeCard());
     drawCardTitle (g, "SENSITIVITY", senseCard());
-    drawCardTitle (g, "ACTIVITY", meterCard());
-    drawCardTitle (g, "SENDING", sendCard());
 
     drawCardText (g, "DRAG THE LINE", juce::Rectangle<float> (scopeCard().getRight() - 106.0f,
                                                              scopeCard().getY() + 7.0f, 94.0f, 15.0f),
                   8.5f, juce::Justification::centredRight, 0.55f);
-
-    drawMeters (g);
-    drawSend (g);
-
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()
@@ -427,9 +396,12 @@ void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
     inputSmoothed = juce::jmax (processor.getInputLevel(), inputSmoothed * 0.72f);
     triggerSmoothed = juce::jmax (processor.getTriggerMeter(), triggerSmoothed * 0.68f);
 
+    // dB-scaled rather than linear, so quiet signals still show meaningful
+    // movement on the bar instead of sitting near zero the whole time.
+    const float levelProportion = (levelToDb (inputSmoothed) - minDb) / (maxDb - minDb);
+    scope.setLevels (levelProportion, triggerSmoothed);
+
     refreshFromParameters();
     scope.repaint();
     repaint (juce::Rectangle<int> (10, 10, 700, 62));
-    repaint (meterCard().toNearestInt());
-    repaint (sendCard().toNearestInt());
 }

@@ -57,8 +57,9 @@ juce::Rectangle<float> ReceiverCurveEditor::plotBounds() const noexcept
     // node at full value (y=1.0) sits exactly at the plot's top edge, and a
     // symmetric inset put that right where the readout text was, so the two
     // could touch. Trimming the top further keeps the readout in its own
-    // strip above the curve, clear of every node position.
-    return getLocalBounds().toFloat().reduced (10.0f, 12.0f).withTrimmedTop (10.0f);
+    // strip above the curve, clear of every node position. The right edge
+    // is trimmed too, reserving a slim strip for the live input meter.
+    return getLocalBounds().toFloat().reduced (10.0f, 12.0f).withTrimmedTop (10.0f).withTrimmedRight (16.0f);
 }
 
 float ReceiverCurveEditor::phaseToX (float phase) const noexcept
@@ -324,6 +325,38 @@ void ReceiverCurveEditor::drawNodes (juce::Graphics& g, juce::Rectangle<float> p
     }
 }
 
+void ReceiverCurveEditor::drawInputMeter (juce::Graphics& g, juce::Rectangle<float> plot) const
+{
+    // Lives in the strip plotBounds() reserves on the right. Not a
+    // scrolling waveform -- the graph's x-axis is cycle phase, not wall
+    // clock time, so a time-based waveform trace would never line up with
+    // it. A live level meter gives the section the movement and feedback
+    // it was missing without implying an axis that isn't there.
+    const auto bounds = getLocalBounds().toFloat();
+    const auto meter = juce::Rectangle<float> (plot.getRight() + 6.0f, plot.getY(),
+                                               bounds.getRight() - (plot.getRight() + 6.0f), plot.getHeight());
+
+    const float level = juce::jlimit (0.0f, 1.0f, processor.inputLevelForUI.load (std::memory_order_relaxed));
+    meterPeakHold = juce::jmax (level, meterPeakHold * 0.93f);
+
+    drawWell (g, meter, 3.0f);
+
+    auto fillArea = meter.reduced (2.0f);
+    const float filledHeight = fillArea.getHeight() * level;
+
+    juce::ColourGradient gradient (green, fillArea.getX(), fillArea.getBottom(),
+                                   cyan, fillArea.getX(), fillArea.getY(), false);
+    g.setGradientFill (gradient);
+    g.fillRect (fillArea.withTop (fillArea.getBottom() - filledHeight));
+
+    if (meterPeakHold > 0.01f)
+    {
+        const float peakY = fillArea.getBottom() - fillArea.getHeight() * meterPeakHold;
+        g.setColour (juce::Colours::white.withAlpha (0.8f));
+        g.fillRect (fillArea.getX(), peakY - 1.0f, fillArea.getWidth(), 1.6f);
+    }
+}
+
 void ReceiverCurveEditor::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
@@ -334,11 +367,12 @@ void ReceiverCurveEditor::paint (juce::Graphics& g)
     drawCurve (g, plot);
     drawPlayhead (g, plot);
     drawNodes (g, plot);
+    drawInputMeter (g, plot);
 
     g.setFont (font (8.5f));
     g.setColour (juce::Colours::white.withAlpha (0.45f));
     g.drawText (gainText (processor.currentGainForUI.load (std::memory_order_relaxed)),
-                juce::Rectangle<float> (bounds.getRight() - 62.0f, bounds.getY() + 2.0f, 56.0f, 12.0f),
+                juce::Rectangle<float> (plot.getRight() - 56.0f, bounds.getY() + 2.0f, 56.0f, 12.0f),
                 juce::Justification::centredRight, false);
 }
 
@@ -915,13 +949,12 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
     testPill.onClick = [this] { processor.requestTestTrigger(); };
     addAndMakeVisible (testPill);
 
-    advPill.setFontSize (9.5f);
-    advPill.onClick = [this]
+    advButton.onClick = [this]
     {
         settingsPanel.refresh();
         settingsPanel.setVisible (! settingsPanel.isVisible());
     };
-    addAndMakeVisible (advPill);
+    addAndMakeVisible (advButton);
 
     resetIcon.setAccent (purple);
     resetIcon.onClick = [this]
@@ -979,9 +1012,9 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     // ---- header ----
     linkSelector.setBounds (320, 29, 190, 22);
 
-    testPill.setBounds (582, 29, 44, 22);
-    advPill.setBounds (630, 29, 40, 22);
-    power.setBounds (678, 27, 26, 26);
+    testPill.setBounds (566, 29, 44, 22);
+    advButton.setBounds (620, 20, 30, 30);
+    power.setBounds (660, 20, 30, 30);
 
     // ---- graph card ----
     const auto graph = graphCard();

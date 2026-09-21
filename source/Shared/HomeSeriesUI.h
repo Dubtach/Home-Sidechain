@@ -307,7 +307,9 @@ namespace homeUI
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Checkbox)
     };
 
-    // Round power switch, top right, exactly like Home-Disto's.
+    // Bypass switch. Exactly Home-Disto's square icon-button treatment: a
+    // dark rounded-square tile with a classic power-symbol icon, not a
+    // circular lamp.
     class PowerButton : public juce::Button
     {
     public:
@@ -315,31 +317,70 @@ namespace homeUI
 
         void paintButton (juce::Graphics& g, bool over, bool) override
         {
-            const auto r = getLocalBounds().toFloat().reduced (1.0f);
-            // Toggled on means bypassed, so the lamp is lit when NOT engaged.
+            const auto bounds = getLocalBounds().toFloat();
+            // Toggled on means bypassed, so the icon dims when engaged
+            // instead of changing shape -- the plugin still reads as "the
+            // same button", just inactive.
             const bool bypassed = getToggleState();
-            const auto colour = bypassed ? juce::Colours::white.withAlpha (0.30f) : green;
 
-            g.setColour (juce::Colours::black.withAlpha (over ? 0.55f : 0.40f));
-            g.fillEllipse (r);
-            g.setColour (colour.withAlpha (0.55f));
-            g.drawEllipse (r, 1.2f);
+            g.setColour (over ? slotEdge : slot);
+            g.fillRoundedRectangle (bounds, 4.0f);
 
-            const auto cx = r.getCentreX();
-            const auto cy = r.getCentreY() + 1.0f;
+            const auto cx = bounds.getCentreX();
+            const auto cy = bounds.getCentreY();
+            const float radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.22f;
 
-            juce::Path arc;
-            arc.addCentredArc (cx, cy, 5.0f, 5.0f, 0.0f,
-                               juce::MathConstants<float>::pi * 0.28f,
-                               juce::MathConstants<float>::pi * 1.72f, true);
+            juce::Path powerArc;
+            const float gap = 0.5f;
+            powerArc.addCentredArc (cx, cy, radius, radius, 0.0f, gap,
+                                    juce::MathConstants<float>::twoPi - gap, true);
 
-            g.setColour (colour);
-            g.strokePath (arc, juce::PathStrokeType (1.7f, juce::PathStrokeType::curved,
-                                                     juce::PathStrokeType::rounded));
-            g.drawLine (cx, cy - 7.0f, cx, cy - 1.5f, 1.7f);
+            g.setColour (juce::Colours::white.withAlpha (bypassed ? 0.35f : 1.0f));
+            g.strokePath (powerArc, juce::PathStrokeType (1.6f, juce::PathStrokeType::mitered,
+                                                          juce::PathStrokeType::rounded));
+            g.drawLine (cx, cy - radius, cx, cy - radius * 0.35f, 1.6f);
         }
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PowerButton)
+    };
+
+    // Settings/Advanced button. Home-Disto's gear: six rectangular spokes
+    // around a small ringed hub, on the same dark rounded-square tile as
+    // the power button.
+    class SettingsButton : public juce::Button
+    {
+    public:
+        SettingsButton() : juce::Button ("Settings") {}
+
+        void paintButton (juce::Graphics& g, bool over, bool) override
+        {
+            const auto bounds = getLocalBounds().toFloat();
+
+            g.setColour (over ? slotEdge : slot);
+            g.fillRoundedRectangle (bounds, 4.0f);
+
+            const auto cx = bounds.getCentreX();
+            const auto cy = bounds.getCentreY();
+            const float scale = juce::jmin (bounds.getWidth(), bounds.getHeight()) / 30.0f;
+
+            g.setColour (juce::Colours::white);
+
+            for (int i = 0; i < 6; ++i)
+            {
+                juce::Path spoke;
+                spoke.addRectangle (-1.5f * scale, -9.0f * scale, 3.0f * scale, 18.0f * scale);
+                spoke.applyTransform (juce::AffineTransform::rotation (
+                    juce::MathConstants<float>::pi * static_cast<float> (i) / 3.0f).translated (cx, cy));
+                g.fillPath (spoke);
+            }
+
+            g.setColour (over ? slotEdge : slot);
+            g.fillEllipse (cx - 5.0f * scale, cy - 5.0f * scale, 10.0f * scale, 10.0f * scale);
+            g.setColour (juce::Colours::white);
+            g.drawEllipse (cx - 5.0f * scale, cy - 5.0f * scale, 10.0f * scale, 10.0f * scale, 1.5f * scale);
+        }
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SettingsButton)
     };
 
     // Small circular icon button: a refresh/reset glyph, no text. Same read
@@ -393,6 +434,86 @@ namespace homeUI
         juce::Colour accent = purple;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ResetButton)
+    };
+
+    // Link picker: a row of small dark square tiles, matching Home-Disto's
+    // own icon-button tiles (same fill colour, same 4px corner radius), with
+    // the active one filled solid cyan -- the same "solid fill = engaged"
+    // language Home-Disto's own lock icon uses. Deliberately not the same
+    // widget as SegmentedSwitch: this needs to read as a bank of individual
+    // switches (any one of eight discrete links), not a slider-like track.
+    class LinkSelector : public juce::Component
+    {
+    public:
+        explicit LinkSelector (juce::StringArray labels) : segmentLabels (std::move (labels)) {}
+
+        void setSelectedIndex (int index, juce::NotificationType notify = juce::sendNotification)
+        {
+            index = juce::jlimit (0, juce::jmax (0, segmentLabels.size() - 1), index);
+
+            if (index != selected)
+            {
+                selected = index;
+                repaint();
+
+                if (notify == juce::sendNotification && onChange != nullptr)
+                    onChange (selected);
+            }
+        }
+
+        int getSelectedIndex() const noexcept { return selected; }
+        void setFontSize (float size) noexcept { fontSize = size; }
+
+        std::function<void (int)> onChange;
+
+        void paint (juce::Graphics& g) override
+        {
+            const int n = juce::jmax (1, segmentLabels.size());
+            const float gap = 3.0f;
+            const float tileW = (static_cast<float> (getWidth()) - gap * static_cast<float> (n - 1))
+                               / static_cast<float> (n);
+
+            g.setFont (font (fontSize, true));
+
+            for (int i = 0; i < n; ++i)
+            {
+                const auto r = juce::Rectangle<float> (static_cast<float> (i) * (tileW + gap), 0.0f,
+                                                       tileW, static_cast<float> (getHeight()));
+                const bool isSelected = i == selected;
+
+                g.setColour (juce::Colours::black.withAlpha (0.35f));
+                g.fillRoundedRectangle (r.translated (0.0f, 1.0f), 4.0f);
+
+                g.setColour (isSelected ? cyan : slot);
+                g.fillRoundedRectangle (r, 4.0f);
+
+                if (! isSelected)
+                {
+                    g.setColour (slotEdge);
+                    g.drawRoundedRectangle (r, 4.0f, 1.0f);
+                }
+
+                g.setColour (isSelected ? ink : juce::Colours::white.withAlpha (0.75f));
+                g.drawText (segmentLabels[i], r, juce::Justification::centred, false);
+            }
+        }
+
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            const int n = juce::jmax (1, segmentLabels.size());
+            const float gap = 3.0f;
+            const float tileW = (static_cast<float> (getWidth()) - gap * static_cast<float> (n - 1))
+                               / static_cast<float> (n);
+            const int index = juce::jlimit (0, n - 1, static_cast<int> (e.position.x / (tileW + gap)));
+            setSelectedIndex (index);
+        }
+
+    private:
+        juce::StringArray segmentLabels;
+        int selected = 0;
+        float fontSize = 9.5f;
+
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LinkSelector)
     };
 
     // A single connected track divided into N segments, with the active one
@@ -542,13 +663,16 @@ namespace homeUI
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ChevronButton)
     };
 
-    // Black knob body, tick ring, white arc and pointer. Caption and value are
-    // drawn in card ink, since knobs always sit on a saturated card here.
+    // Matches Home-Disto's rotary slider exactly: dark body, tick ring,
+    // a neon glow arc under a white arc, and a glowing pointer needle.
+    // Disto sets its glow colour via a Slider colour ID per-knob; this
+    // takes the same idea as a constructor argument since every knob here
+    // already needs one to match its card's accent.
     class Knob : public juce::Slider
     {
     public:
-        Knob (const juce::String& captionText)
-            : caption (captionText)
+        Knob (const juce::String& captionText, juce::Colour accentColour = cyan)
+            : caption (captionText), accent (accentColour)
         {
             setSliderStyle (juce::Slider::RotaryVerticalDrag);
             setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -560,6 +684,7 @@ namespace homeUI
 
         void setCaption (const juce::String& c) { caption = c; repaint(); }
         void setCaptionSize (float s) noexcept { captionSize = s; }
+        void setAccent (juce::Colour c) { accent = c; repaint(); }
 
         void paint (juce::Graphics& g) override
         {
@@ -569,19 +694,21 @@ namespace homeUI
 
             drawCardText (g, caption, captionRow, captionSize);
 
-            const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f - 5.0f;
+            const float radius = juce::jmin (area.getWidth(), area.getHeight()) * 0.5f - 4.0f;
             const float cx = area.getCentreX();
             const float cy = area.getCentreY();
             const auto proportion = juce::jlimit (0.0f, 1.0f,
                                                   static_cast<float> (valueToProportionOfLength (getValue())));
             const float angle = startAngle + proportion * (endAngle - startAngle);
 
-            g.setColour (juce::Colours::black.withAlpha (0.35f));
-            g.fillEllipse (cx - radius, cy - radius + 2.0f, radius * 2.0f, radius * 2.0f);
+            // Dark knob body.
+            g.setColour (juce::Colour (0xff0a0a0c));
+            g.fillEllipse (cx - radius + 2.0f, cy - radius + 2.0f, (radius - 2.0f) * 2.0f, (radius - 2.0f) * 2.0f);
 
+            // Tick marks around the travel.
             {
-                const int ticks = 11;
-                g.setColour (juce::Colours::black.withAlpha (0.28f));
+                constexpr int ticks = 11;
+                g.setColour (juce::Colours::white.withAlpha (0.18f));
 
                 for (int t = 0; t < ticks; ++t)
                 {
@@ -591,34 +718,46 @@ namespace homeUI
                     const float outer = radius + 5.0f;
                     g.drawLine (cx + std::sin (a) * inner, cy - std::cos (a) * inner,
                                 cx + std::sin (a) * outer, cy - std::cos (a) * outer,
-                                (t == 0 || t == ticks - 1 || t == ticks / 2) ? 1.5f : 1.0f);
+                                (t == 0 || t == ticks - 1 || t == ticks / 2) ? 1.4f : 1.0f);
                 }
             }
 
-            juce::Path track;
-            track.addCentredArc (cx, cy, radius, radius, 0.0f, startAngle, endAngle, true);
-            g.setColour (juce::Colours::black.withAlpha (0.42f));
-            g.strokePath (track, juce::PathStrokeType (5.5f, juce::PathStrokeType::curved,
+            // Background arc, then the neon glow arc, then a white arc on top.
+            juce::Path bgArc;
+            bgArc.addCentredArc (cx, cy, radius, radius, 0.0f, startAngle, endAngle, true);
+            g.setColour (juce::Colours::black.withAlpha (0.4f));
+            g.strokePath (bgArc, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved,
                                                        juce::PathStrokeType::rounded));
 
             if (angle > startAngle + 0.001f)
             {
-                juce::Path value;
-                value.addCentredArc (cx, cy, radius, radius, 0.0f, startAngle, angle, true);
-                g.setColour (juce::Colours::white.withAlpha (0.55f));
-                g.strokePath (value, juce::PathStrokeType (10.0f, juce::PathStrokeType::curved,
-                                                           juce::PathStrokeType::rounded));
+                juce::Path fillArc;
+                fillArc.addCentredArc (cx, cy, radius, radius, 0.0f, startAngle, angle, true);
+
+                g.setColour (accent.withAlpha (0.6f));
+                g.strokePath (fillArc, juce::PathStrokeType (14.0f, juce::PathStrokeType::curved,
+                                                             juce::PathStrokeType::rounded));
                 g.setColour (juce::Colours::white);
-                g.strokePath (value, juce::PathStrokeType (4.0f, juce::PathStrokeType::curved,
-                                                           juce::PathStrokeType::rounded));
+                g.strokePath (fillArc, juce::PathStrokeType (5.0f, juce::PathStrokeType::curved,
+                                                             juce::PathStrokeType::rounded));
             }
 
-            g.setColour (juce::Colour (0xff0a0a0c));
-            g.fillEllipse (cx - radius + 4.0f, cy - radius + 4.0f, (radius - 4.0f) * 2.0f, (radius - 4.0f) * 2.0f);
-
             g.setColour (juce::Colours::white);
-            g.drawLine (cx + std::sin (angle) * radius * 0.16f, cy - std::cos (angle) * radius * 0.16f,
-                        cx + std::sin (angle) * (radius - 6.0f), cy - std::cos (angle) * (radius - 6.0f), 2.2f);
+            g.fillEllipse (cx - 3.5f, cy - 3.5f, 7.0f, 7.0f);
+
+            juce::Path pointer;
+            pointer.startNewSubPath (cx, cy);
+            pointer.lineTo (cx + (radius - 7.0f) * std::sin (angle), cy - (radius - 7.0f) * std::cos (angle));
+
+            g.setColour (accent.withAlpha (0.5f));
+            g.strokePath (pointer, juce::PathStrokeType (6.0f, juce::PathStrokeType::curved,
+                                                         juce::PathStrokeType::rounded));
+            g.setColour (juce::Colours::white);
+            g.strokePath (pointer, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved,
+                                                         juce::PathStrokeType::rounded));
+
+            g.setColour (juce::Colours::white.withAlpha (0.1f));
+            g.drawEllipse (cx - (radius - 7.0f), cy - (radius - 7.0f), (radius - 7.0f) * 2.0f, (radius - 7.0f) * 2.0f, 1.0f);
 
             drawCardText (g, valueText != nullptr ? valueText (getValue()) : juce::String (getValue(), 2),
                           valueRow, 9.5f);
@@ -629,6 +768,7 @@ namespace homeUI
         static constexpr float endAngle = juce::MathConstants<float>::pi * 2.78f;
 
         juce::String caption;
+        juce::Colour accent;
         float captionSize = 10.0f;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Knob)

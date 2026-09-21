@@ -52,6 +52,11 @@ private:
     int hoveredSlot = -1;
     int hoveredSegment = -1;
 
+    // Decaying peak-hold for the input meter, updated each repaint (~30Hz
+    // via the editor's timer). Mutable because it's visual-only state, not
+    // part of this component's logical value, and paint() is const.
+    mutable float meterPeakHold = 0.0f;
+
     int buildSorted (std::array<SortedNode, maxNodes>&) const;
 
     juce::Rectangle<float> plotBounds() const noexcept;
@@ -71,6 +76,7 @@ private:
     void drawCurve (juce::Graphics&, juce::Rectangle<float>) const;
     void drawPlayhead (juce::Graphics&, juce::Rectangle<float>) const;
     void drawNodes (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawInputMeter (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverCurveEditor)
 };
@@ -195,30 +201,30 @@ private:
     ReceiverRateSelector rateSelector;
     ReceiverSettingsPanel settingsPanel;
 
-    homeUI::SegmentedSwitch linkSelector { homeSidechain::linkNames(), homeUI::cyan };
+    homeUI::LinkSelector linkSelector { homeSidechain::linkNames() };
     homeUI::SegmentedSwitch modeSwitch { { "TRIG", "HOST" }, homeUI::cyan };
     homeUI::SegmentedSwitch shapesFiltersTab { { "SHAPES", "FILTERS" }, homeUI::purple };
 
     homeUI::Checkbox syncPill { "Sync", homeUI::green };
     homeUI::Pill testPill { "TEST", homeUI::cyan };
-    homeUI::Pill advPill { "ADV", homeUI::cyan };
+    homeUI::SettingsButton advButton;
     homeUI::ResetButton resetIcon;
     homeUI::PowerButton power;
 
-    homeUI::Knob depthKnob { "DEPTH" };
-    homeUI::Knob mixKnob { "MIX" };
+    homeUI::Knob depthKnob { "DEPTH", homeUI::pink };
+    homeUI::Knob mixKnob { "MIX", homeUI::pink };
 
     // Lives in the timing card, not Advanced: it only means anything when
     // Sync is off, so it swaps in for the rate selector right where the rate
     // selector would otherwise be, rather than being buried a click away.
-    homeUI::Knob lengthKnob { "LENGTH" };
+    homeUI::Knob lengthKnob { "LENGTH", homeUI::green };
 
     // Moved out of Advanced into the Shapes card, behind the Filters tab --
     // they now share the shape strip's footprint rather than sitting a click
     // away for something you reach for while shaping a sound.
-    homeUI::Knob smoothKnob { "SMOOTH" };
-    homeUI::Knob lowCutKnob { "LOW CUT" };
-    homeUI::Knob highCutKnob { "HIGH CUT" };
+    homeUI::Knob smoothKnob { "SMOOTH", homeUI::purple };
+    homeUI::Knob lowCutKnob { "LOW CUT", homeUI::purple };
+    homeUI::Knob highCutKnob { "HIGH CUT", homeUI::purple };
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
