@@ -76,7 +76,7 @@ private:
     void drawCurve (juce::Graphics&, juce::Rectangle<float>) const;
     void drawPlayhead (juce::Graphics&, juce::Rectangle<float>) const;
     void drawNodes (juce::Graphics&, juce::Rectangle<float>) const;
-    void drawInputMeter (juce::Graphics&, juce::Rectangle<float>) const;
+    void drawOutputMeter (juce::Graphics&, juce::Rectangle<float>) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverCurveEditor)
 };

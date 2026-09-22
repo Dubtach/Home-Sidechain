@@ -325,35 +325,38 @@ void ReceiverCurveEditor::drawNodes (juce::Graphics& g, juce::Rectangle<float> p
     }
 }
 
-void ReceiverCurveEditor::drawInputMeter (juce::Graphics& g, juce::Rectangle<float> plot) const
+void ReceiverCurveEditor::drawOutputMeter (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
     // Lives in the strip plotBounds() reserves on the right. Not a
     // scrolling waveform -- the graph's x-axis is cycle phase, not wall
     // clock time, so a time-based waveform trace would never line up with
     // it. A live level meter gives the section the movement and feedback
-    // it was missing without implying an axis that isn't there.
+    // it was missing without implying an axis that isn't there. Shows the
+    // processed (post-mix) signal, not the dry input -- this is what the
+    // shape actually did to the sound.
     const auto bounds = getLocalBounds().toFloat();
     const auto meter = juce::Rectangle<float> (plot.getRight() + 6.0f, plot.getY(),
                                                bounds.getRight() - (plot.getRight() + 6.0f), plot.getHeight());
 
-    const float level = juce::jlimit (0.0f, 1.0f, processor.inputLevelForUI.load (std::memory_order_relaxed));
+    const float level = juce::jlimit (0.0f, 1.0f, processor.outputLevelForUI.load (std::memory_order_relaxed));
     meterPeakHold = juce::jmax (level, meterPeakHold * 0.93f);
 
     drawWell (g, meter, 3.0f);
 
+    // Deliberately quiet: a single muted fill rather than a bright
+    // multi-colour gradient, so this reads as a background utility meter
+    // and doesn't compete with the curve for attention.
     auto fillArea = meter.reduced (2.0f);
     const float filledHeight = fillArea.getHeight() * level;
 
-    juce::ColourGradient gradient (green, fillArea.getX(), fillArea.getBottom(),
-                                   cyan, fillArea.getX(), fillArea.getY(), false);
-    g.setGradientFill (gradient);
+    g.setColour (juce::Colours::white.withAlpha (0.22f));
     g.fillRect (fillArea.withTop (fillArea.getBottom() - filledHeight));
 
     if (meterPeakHold > 0.01f)
     {
         const float peakY = fillArea.getBottom() - fillArea.getHeight() * meterPeakHold;
-        g.setColour (juce::Colours::white.withAlpha (0.8f));
-        g.fillRect (fillArea.getX(), peakY - 1.0f, fillArea.getWidth(), 1.6f);
+        g.setColour (juce::Colours::white.withAlpha (0.35f));
+        g.fillRect (fillArea.getX(), peakY - 1.0f, fillArea.getWidth(), 1.2f);
     }
 }
 
@@ -367,7 +370,7 @@ void ReceiverCurveEditor::paint (juce::Graphics& g)
     drawCurve (g, plot);
     drawPlayhead (g, plot);
     drawNodes (g, plot);
-    drawInputMeter (g, plot);
+    drawOutputMeter (g, plot);
 
     g.setFont (font (8.5f));
     g.setColour (juce::Colours::white.withAlpha (0.45f));
@@ -1079,15 +1082,17 @@ void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) c
 {
     drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
 
-    g.setFont (font (8.5f));
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    // More breathing room from the title than before, and both lines now
+    // share the same weight (regular, not bold) so they read as one
+    // consistent subtitle block instead of two mismatched labels.
+    g.setFont (font (8.5f, false));
     g.setColour (cyan.withAlpha (0.75f));
-    g.drawText ("RECEIVER", juce::Rectangle<float> (202.0f, 22.0f, 80.0f, 13.0f),
+    g.drawText ("RECEIVER", juce::Rectangle<float> (235.0f, 22.0f, 80.0f, 13.0f),
                 juce::Justification::centredLeft, false);
 
     g.setColour (juce::Colours::white.withAlpha (0.35f));
     g.drawText (juce::String (processor.hostBpmForUI.load (std::memory_order_relaxed), 1) + " BPM",
-                juce::Rectangle<float> (202.0f, 37.0f, 80.0f, 12.0f),
+                juce::Rectangle<float> (235.0f, 37.0f, 80.0f, 12.0f),
                 juce::Justification::centredLeft, false);
 
     g.setColour (juce::Colours::white.withAlpha (0.45f));
@@ -1142,6 +1147,21 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     drawCardText (g, "ENDS LOCKED", juce::Rectangle<float> (graph.getRight() - 96.0f, graph.getY() + 7.0f,
                                                             84.0f, 15.0f),
                   8.5f, juce::Justification::centredRight, 0.55f);
+
+    // Bypass overlay, matching Home-Disto's exactly: dim the whole face
+    // plate except the button that turns it back off, and say so in the
+    // middle of it.
+    if (power.getToggleState())
+    {
+        g.excludeClipRegion (power.getBounds());
+
+        g.setColour (juce::Colours::black.withAlpha (0.70f));
+        g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f);
+
+        g.setFont (juce::FontOptions (48.0f).withName ("Helvetica").withStyle ("Bold"));
+        g.setColour (juce::Colours::white);
+        g.drawText ("BYPASSED", 10, 10, 700, 396, juce::Justification::centred);
+    }
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::refreshFromParameters()

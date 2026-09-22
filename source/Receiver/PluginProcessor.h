@@ -172,7 +172,7 @@ public:
     std::atomic<float> envelopeDisplayPhase { 0.0f };
     std::atomic<bool> envelopeActiveForUI { false };
     std::atomic<float> currentGainForUI { 1.0f };
-    std::atomic<float> inputLevelForUI { 0.0f };
+    std::atomic<float> outputLevelForUI { 0.0f };
     std::atomic<int> triggerCount { 0 };
     std::atomic<int> midiEventCount { 0 };
     std::atomic<int> lastMidiNote { -1 };

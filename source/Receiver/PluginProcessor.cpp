@@ -781,17 +781,18 @@ void HomeSidechainReceiverAudioProcessor::processBlock (juce::AudioBuffer<float>
 
             const float wet = below + above + band * gain;
 
-            buffer.setSample (channel, i, in + (wet - in) * mix);
+            const float outSample = in + (wet - in) * mix;
+            buffer.setSample (channel, i, outSample);
 
             if (channel == 0)
-                blockPeak = juce::jmax (blockPeak, std::abs (in));
+                blockPeak = juce::jmax (blockPeak, std::abs (outSample));
         }
     }
 
     envelopeDisplayPhase.store (juce::jlimit (0.0f, 1.0f, static_cast<float> (envelopePhase)),
                                 std::memory_order_relaxed);
     currentGainForUI.store (juce::jlimit (0.0f, 1.0f, lastGain), std::memory_order_relaxed);
-    inputLevelForUI.store (juce::jmax (inputLevelForUI.load (std::memory_order_relaxed) * 0.80f, blockPeak),
+    outputLevelForUI.store (juce::jmax (outputLevelForUI.load (std::memory_order_relaxed) * 0.80f, blockPeak),
                            std::memory_order_relaxed);
 }
 

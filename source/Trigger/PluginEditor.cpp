@@ -303,10 +303,6 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     };
     addAndMakeVisible (linkSelector);
 
-    testPill.setFontSize (9.5f);
-    testPill.onClick = [this] { processor.requestTestTrigger(); };
-    addAndMakeVisible (testPill);
-
     addAndMakeVisible (power);
 
     thresholdKnob.valueText = [] (double value) { return juce::String (value, 1) + "dB"; };
@@ -332,7 +328,6 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
     linkSelector.setBounds (320, 29, 190, 22);
 
-    testPill.setBounds (566, 29, 44, 22);
     power.setBounds (660, 20, 30, 30);
 
     scope.setBounds (scopeCard().reduced (12.0f, 0.0f)
@@ -340,23 +335,26 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
                                 .withTrimmedBottom (10.0f).toNearestInt());
 
     const auto sense = senseCard().toNearestInt();
-    thresholdKnob.setBounds (sense.getX() + 16, sense.getY() + 50, 168, 108);
-    cooldownKnob.setBounds (sense.getX() + 16, sense.getY() + 180, 168, 104);
+    thresholdKnob.setBounds (sense.getX() + 16, sense.getY() + 30, 168, 84);
+    cooldownKnob.setBounds (sense.getX() + 16, sense.getY() + 126, 168, 84);
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g) const
 {
     drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
 
-    g.setFont (font (8.5f));
+    // More breathing room from the title than before, and both lines share
+    // the same weight (regular, not bold) so they read as one consistent
+    // subtitle block instead of two mismatched labels -- matches Receiver.
+    g.setFont (font (8.5f, false));
     g.setColour (cyan.withAlpha (0.75f));
-    g.drawText ("TRIGGER", juce::Rectangle<float> (202.0f, 22.0f, 80.0f, 13.0f),
+    g.drawText ("TRIGGER", juce::Rectangle<float> (235.0f, 22.0f, 80.0f, 13.0f),
                 juce::Justification::centredLeft, false);
 
     g.setColour (juce::Colours::white.withAlpha (0.35f));
     g.drawText ("NOTE " + juce::MidiMessage::getMidiNoteName (
                     homeSidechain::midiNoteForLink (processor.getLink()), true, true, 3),
-                juce::Rectangle<float> (202.0f, 37.0f, 80.0f, 12.0f),
+                juce::Rectangle<float> (235.0f, 37.0f, 80.0f, 12.0f),
                 juce::Justification::centredLeft, false);
 
     g.setColour (juce::Colours::white.withAlpha (0.45f));
@@ -369,9 +367,9 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     g.fillAll (chassis);
 
     g.setColour (face);
-    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f);
+    g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 300.0f, 8.0f);
     g.setColour (faceEdge);
-    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 396.0f, 8.0f, 1.5f);
+    g.drawRoundedRectangle (10.0f, 10.0f, 700.0f, 300.0f, 8.0f, 1.5f);
 
     drawHeader (g);
 
@@ -384,6 +382,21 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     drawCardText (g, "DRAG THE LINE", juce::Rectangle<float> (scopeCard().getRight() - 106.0f,
                                                              scopeCard().getY() + 7.0f, 94.0f, 15.0f),
                   8.5f, juce::Justification::centredRight, 0.55f);
+
+    // Bypass overlay, matching Home-Disto's exactly: dim the whole face
+    // plate except the button that turns it back off, and say so in the
+    // middle of it.
+    if (power.getToggleState())
+    {
+        g.excludeClipRegion (power.getBounds());
+
+        g.setColour (juce::Colours::black.withAlpha (0.70f));
+        g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 300.0f, 8.0f);
+
+        g.setFont (juce::FontOptions (48.0f).withName ("Helvetica").withStyle ("Bold"));
+        g.setColour (juce::Colours::white);
+        g.drawText ("BYPASSED", 10, 10, 700, 300, juce::Justification::centred);
+    }
 }
 
 void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()

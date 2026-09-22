@@ -56,7 +56,7 @@ class HomeSidechainTriggerAudioProcessorEditor : public juce::AudioProcessorEdit
 {
 public:
     static constexpr int designWidth = 720;
-    static constexpr int designHeight = 416;
+    static constexpr int designHeight = 320;
 
     explicit HomeSidechainTriggerAudioProcessorEditor (HomeSidechainTriggerAudioProcessor&);
     ~HomeSidechainTriggerAudioProcessorEditor() override;
@@ -71,7 +71,6 @@ private:
 
     homeUI::LinkSelector linkSelector { homeSidechain::linkNames() };
 
-    homeUI::Pill testPill { "TEST", homeUI::cyan };
     homeUI::PowerButton power;
 
     homeUI::Knob thresholdKnob { "THRESHOLD", homeUI::pink };
@@ -89,8 +88,13 @@ private:
     // Input now spans the full content height -- Activity and Sending were
     // removed and their two indicators (a sending lamp, an input level bar)
     // live inside this card instead of occupying their own cards below.
-    static juce::Rectangle<float> scopeCard()  { return { 20.0f,  76.0f, 470.0f, 312.0f }; }
-    static juce::Rectangle<float> senseCard()  { return { 500.0f, 76.0f, 200.0f, 312.0f }; }
+    // Input and Sensitivity fill the content height between them, same idea
+    // as before -- just not stretched out further than the content
+    // actually needs. 220px gives the graph (plus its lamp/legend/level
+    // bar) and the two knobs comfortable room without padding for its own
+    // sake.
+    static juce::Rectangle<float> scopeCard()  { return { 20.0f,  76.0f, 470.0f, 220.0f }; }
+    static juce::Rectangle<float> senseCard()  { return { 500.0f, 76.0f, 200.0f, 220.0f }; }
 
     void timerCallback() override;
     void refreshFromParameters();
