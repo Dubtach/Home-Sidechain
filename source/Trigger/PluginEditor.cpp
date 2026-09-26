@@ -162,37 +162,49 @@ void TriggerScope::drawThreshold (juce::Graphics& g, juce::Rectangle<float> plot
 
 void TriggerScope::drawSendingLamp (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    // Replaces the old standalone Sending card -- a compact lamp inside the
-    // graph itself, lit for a moment whenever a trigger actually fires.
-    const auto dot = [&g] (juce::Point<float> centre, juce::Colour colour, float alpha)
+    // Replaces the old standalone Sending card -- a lamp inside the graph
+    // itself, lit whenever a trigger actually fires. Deliberately bigger
+    // and bolder than the Audio/Midi legend next to it: this is the
+    // indicator that matters moment to moment, so it needs to read at a
+    // glance, not blend in as a third equally-weighted dot.
+    const float y = plot.getY() + 8.0f;
+    const float x = plot.getX() + 5.0f;
+    const float activity = cachedTriggerActivity;
+
+    if (activity > 0.03f)
     {
-        if (alpha > 0.02f)
-        {
-            g.setColour (colour.withAlpha (alpha * 0.35f));
-            g.fillEllipse (juce::Rectangle<float> (centre.x - 6.0f, centre.y - 6.0f, 12.0f, 12.0f));
-        }
+        g.setColour (green.withAlpha (activity * 0.30f));
+        g.fillEllipse (juce::Rectangle<float> (x - 9.0f, y - 9.0f, 18.0f, 18.0f));
+    }
 
-        g.setColour (colour.withAlpha (juce::jmax (0.18f, alpha)));
-        g.fillEllipse (juce::Rectangle<float> (centre.x - 3.0f, centre.y - 3.0f, 6.0f, 6.0f));
-    };
+    constexpr float dotSize = 9.0f;
+    const auto dotArea = juce::Rectangle<float> (x - dotSize * 0.5f, y - dotSize * 0.5f, dotSize, dotSize);
+    g.setColour (green.withAlpha (juce::jmax (0.4f, activity)));
+    g.fillEllipse (dotArea);
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawEllipse (dotArea, 1.0f);
 
-    const float y = plot.getY() + 7.0f;
-    const float x = plot.getX() + 4.0f;
-
-    dot ({ x, y }, green, cachedTriggerActivity);
-    g.setFont (font (7.5f, false));
-    g.setColour (juce::Colours::white.withAlpha (0.5f));
-    g.drawText ("SENDING", juce::Rectangle<float> (x + 8.0f, y - 5.0f, 56.0f, 10.0f),
+    g.setFont (font (8.5f, true));
+    g.setColour (juce::Colours::white.withAlpha (juce::jmax (0.6f, activity)));
+    g.drawText ("SENDING", juce::Rectangle<float> (x + 9.0f, y - 6.0f, 62.0f, 12.0f),
                 juce::Justification::centredLeft, false);
 
-    float lx = plot.getRight() - 108.0f;
-    dot ({ lx, y }, cyan, 1.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.5f));
+    // Audio/Midi legend: smaller, dimmer, secondary.
+    const auto legendDot = [&g] (juce::Point<float> centre, juce::Colour colour)
+    {
+        g.setColour (colour.withAlpha (0.65f));
+        g.fillEllipse (centre.x - 2.5f, centre.y - 2.5f, 5.0f, 5.0f);
+    };
+
+    float lx = plot.getRight() - 100.0f;
+    legendDot ({ lx, y }, cyan);
+    g.setFont (font (7.0f, false));
+    g.setColour (juce::Colours::white.withAlpha (0.4f));
     g.drawText ("AUDIO", juce::Rectangle<float> (lx + 6.0f, y - 5.0f, 40.0f, 10.0f),
                 juce::Justification::centredLeft, false);
 
-    lx += 54.0f;
-    dot ({ lx, y }, purple, 1.0f);
+    lx += 48.0f;
+    legendDot ({ lx, y }, purple);
     g.drawText ("MIDI", juce::Rectangle<float> (lx + 6.0f, y - 5.0f, 36.0f, 10.0f),
                 juce::Justification::centredLeft, false);
 }
@@ -293,7 +305,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
 {
     addAndMakeVisible (scope);
 
-    linkSelector.setFontSize (9.5f);
+    linkSelector.setFontSize (11.0f);
     linkSelector.onChange = [this] (int index)
     {
         if (auto* parameter = processor.apvts.getParameter ("LINK"))
@@ -326,7 +338,7 @@ HomeSidechainTriggerAudioProcessorEditor::~HomeSidechainTriggerAudioProcessorEdi
 
 void HomeSidechainTriggerAudioProcessorEditor::resized()
 {
-    linkSelector.setBounds (320, 29, 190, 22);
+    linkSelector.setBounds (314, 20, 300, 30);
 
     power.setBounds (660, 20, 30, 30);
 
@@ -341,24 +353,13 @@ void HomeSidechainTriggerAudioProcessorEditor::resized()
 
 void HomeSidechainTriggerAudioProcessorEditor::drawHeader (juce::Graphics& g) const
 {
-    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
+    // The plugin name now lives in the title itself -- "Home-Sidechain
+    // (Trigger)" -- so there's no separate subtitle row any more.
+    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f, "Trigger");
 
-    // More breathing room from the title than before, and both lines share
-    // the same weight (regular, not bold) so they read as one consistent
-    // subtitle block instead of two mismatched labels -- matches Receiver.
     g.setFont (font (8.5f, false));
-    g.setColour (cyan.withAlpha (0.75f));
-    g.drawText ("TRIGGER", juce::Rectangle<float> (235.0f, 22.0f, 80.0f, 13.0f),
-                juce::Justification::centredLeft, false);
-
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
-    g.drawText ("NOTE " + juce::MidiMessage::getMidiNoteName (
-                    homeSidechain::midiNoteForLink (processor.getLink()), true, true, 3),
-                juce::Rectangle<float> (235.0f, 37.0f, 80.0f, 12.0f),
-                juce::Justification::centredLeft, false);
-
     g.setColour (juce::Colours::white.withAlpha (0.45f));
-    g.drawText ("LINK", juce::Rectangle<float> (286.0f, 33.0f, 34.0f, 14.0f),
+    g.drawText ("LINK", juce::Rectangle<float> (280.0f, 24.0f, 30.0f, 22.0f),
                 juce::Justification::centredLeft, false);
 }
 
@@ -382,10 +383,18 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
     drawCardText (g, "DRAG THE LINE", juce::Rectangle<float> (scopeCard().getRight() - 106.0f,
                                                              scopeCard().getY() + 7.0f, 94.0f, 15.0f),
                   8.5f, juce::Justification::centredRight, 0.55f);
+}
 
+void HomeSidechainTriggerAudioProcessorEditor::paintOverChildren (juce::Graphics& g)
+{
     // Bypass overlay, matching Home-Disto's exactly: dim the whole face
     // plate except the button that turns it back off, and say so in the
-    // middle of it.
+    // middle of it. Has to be paintOverChildren(), not paint() -- paint()
+    // runs before every child component (knobs, pills, the graph) paints,
+    // so anything drawn there gets immediately painted over wherever a
+    // child sits, breaking the dim and the text up into whatever gaps
+    // happen to exist between controls. Disto's own implementation draws
+    // this in paintOverChildren() for exactly that reason.
     if (power.getToggleState())
     {
         g.excludeClipRegion (power.getBounds());
@@ -407,7 +416,9 @@ void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()
 void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
 {
     inputSmoothed = juce::jmax (processor.getInputLevel(), inputSmoothed * 0.72f);
-    triggerSmoothed = juce::jmax (processor.getTriggerMeter(), triggerSmoothed * 0.68f);
+    // Slightly slower decay than before, paired with the bigger/bolder
+    // lamp -- the flash needs to last long enough to actually catch.
+    triggerSmoothed = juce::jmax (processor.getTriggerMeter(), triggerSmoothed * 0.75f);
 
     // dB-scaled rather than linear, so quiet signals still show meaningful
     // movement on the bar instead of sitting near zero the whole time.

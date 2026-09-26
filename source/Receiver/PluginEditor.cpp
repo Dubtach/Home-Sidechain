@@ -932,7 +932,7 @@ HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEd
         curveEditor.repaint();
     };
 
-    linkSelector.setFontSize (9.5f);
+    linkSelector.setFontSize (11.0f);
     linkSelector.onChange = [this] (int index) { processor.setLink (index); refreshFromParameters(); };
     addAndMakeVisible (linkSelector);
 
@@ -1013,7 +1013,7 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
     settingsPanel.setBounds (getLocalBounds());
 
     // ---- header ----
-    linkSelector.setBounds (320, 29, 190, 22);
+    linkSelector.setBounds (314, 20, 224, 30);
 
     testPill.setBounds (566, 29, 44, 22);
     advButton.setBounds (620, 20, 30, 30);
@@ -1080,30 +1080,33 @@ void HomeSidechainReceiverAudioProcessorEditor::resized()
 
 void HomeSidechainReceiverAudioProcessorEditor::drawHeader (juce::Graphics& g) const
 {
-    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f);
+    // The plugin name now lives in the title itself -- "Home-Sidechain
+    // (Receiver)" -- so there's no separate subtitle row to align or crowd
+    // the title with any more.
+    drawBrand (g, "Sidechain", cyan, 25.0f, 16.0f, 695.0f, "Receiver");
 
-    // More breathing room from the title than before, and both lines now
-    // share the same weight (regular, not bold) so they read as one
-    // consistent subtitle block instead of two mismatched labels.
     g.setFont (font (8.5f, false));
-    g.setColour (cyan.withAlpha (0.75f));
-    g.drawText ("RECEIVER", juce::Rectangle<float> (235.0f, 22.0f, 80.0f, 13.0f),
-                juce::Justification::centredLeft, false);
-
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
-    g.drawText (juce::String (processor.hostBpmForUI.load (std::memory_order_relaxed), 1) + " BPM",
-                juce::Rectangle<float> (235.0f, 37.0f, 80.0f, 12.0f),
-                juce::Justification::centredLeft, false);
-
     g.setColour (juce::Colours::white.withAlpha (0.45f));
-    g.drawText ("LINK", juce::Rectangle<float> (286.0f, 33.0f, 34.0f, 14.0f),
+    g.drawText ("LINK", juce::Rectangle<float> (280.0f, 24.0f, 30.0f, 22.0f),
                 juce::Justification::centredLeft, false);
 
+    // A plain status dot -- vertically centred on the same row as the Link
+    // tiles and the gear/power icons -- rather than a separate labelled
+    // lamp competing for header width.
     const bool connected = processor.homeLinkConnected.load (std::memory_order_relaxed);
+    const float activity = processor.homeLinkActivity.load (std::memory_order_relaxed);
+    const float level = juce::jlimit (0.0f, 1.0f, (connected ? 0.55f : 0.0f) + activity * 0.75f);
+    const auto dotColour = connected ? green : warn;
+    const auto dot = juce::Rectangle<float> (546.0f, 31.0f, 8.0f, 8.0f);
 
-    drawLamp (g, juce::Rectangle<float> (512.0f, 33.0f, 64.0f, 14.0f),
-              connected ? "LINKED" : "NO LINK", connected ? green : warn,
-              processor.homeLinkActivity.load (std::memory_order_relaxed), connected);
+    if (level > 0.45f)
+    {
+        g.setColour (dotColour.withAlpha ((level - 0.45f) * 0.5f));
+        g.fillEllipse (dot.expanded (4.0f));
+    }
+
+    g.setColour (dotColour.withAlpha (juce::jmax (0.25f, level)));
+    g.fillEllipse (dot);
 }
 
 void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
@@ -1147,10 +1150,20 @@ void HomeSidechainReceiverAudioProcessorEditor::paint (juce::Graphics& g)
     drawCardText (g, "ENDS LOCKED", juce::Rectangle<float> (graph.getRight() - 96.0f, graph.getY() + 7.0f,
                                                             84.0f, 15.0f),
                   8.5f, juce::Justification::centredRight, 0.55f);
+}
 
+void HomeSidechainReceiverAudioProcessorEditor::paintOverChildren (juce::Graphics& g)
+{
     // Bypass overlay, matching Home-Disto's exactly: dim the whole face
     // plate except the button that turns it back off, and say so in the
-    // middle of it.
+    // middle of it. This has to happen in paintOverChildren(), not paint():
+    // paint() runs *before* child components (every knob, pill, the curve
+    // graph) are painted, so anything drawn there gets immediately painted
+    // over wherever a child sits, leaving the dim and the text broken up
+    // into whatever gaps happen to exist between controls. Disto's own
+    // implementation draws its overlay in paintOverChildren() for exactly
+    // this reason -- it runs after every child has already painted, so it
+    // sits cleanly on top of all of them.
     if (power.getToggleState())
     {
         g.excludeClipRegion (power.getBounds());

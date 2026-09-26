@@ -143,8 +143,11 @@ namespace homeUI
     }
 
     // The Home-Disto header: name, accent half, company line, hairline rule.
-    inline void drawBrand (juce::Graphics& g, const juce::String& tail, juce::Colour accent,
-                           float x, float y, float ruleRight)
+    // Returns the x position where the drawn text ends, so callers can
+    // position whatever comes next (the Link section) relative to the
+    // actual rendered width instead of a guessed constant.
+    inline float drawBrand (juce::Graphics& g, const juce::String& tail, juce::Colour accent,
+                            float x, float y, float ruleRight, const juce::String& pluginSuffix = {})
     {
         const auto titleFont = font (22.0f);
         g.setFont (titleFont);
@@ -171,6 +174,29 @@ namespace homeUI
 
         g.setColour (rule);
         g.drawLine (x, y + 46.0f, ruleRight, y + 46.0f, 2.0f);
+
+        float endX = x + headWidth + tailWidth;
+
+        // The plugin name, in brackets, right on the title line -- replaces
+        // the separate subtitle row this used to be. Smaller and dimmer
+        // than the title so it still reads as secondary, but it's part of
+        // the same line now instead of its own row underneath.
+        if (pluginSuffix.isNotEmpty())
+        {
+            const auto suffixFont = font (15.0f);
+            g.setFont (suffixFont);
+            const juce::String suffixText = " (" + pluginSuffix + ")";
+            const auto suffixWidth = static_cast<float> (
+                juce::GlyphArrangement::getStringWidthInt (suffixFont, suffixText));
+
+            g.setColour (juce::Colours::white.withAlpha (0.45f));
+            g.drawText (suffixText, juce::Rectangle<float> (endX, y, suffixWidth + 4.0f, 28.0f),
+                        juce::Justification::centredLeft, false);
+
+            endX += suffixWidth;
+        }
+
+        return endX;
     }
 
     // =========================================================================
