@@ -86,6 +86,10 @@ private:
     float inputSmoothed = 0.0f;
     float triggerSmoothed = 0.0f;
 
+    // Tracked so the timer can force a full repaint the moment bypass
+    // actually changes -- see timerCallback().
+    bool lastBypassState = false;
+
     // Input now spans the full content height -- Activity and Sending were
     // removed and their two indicators (a sending lamp, an input level bar)
     // live inside this card instead of occupying their own cards below.

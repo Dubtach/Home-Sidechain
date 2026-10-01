@@ -387,22 +387,24 @@ void HomeSidechainTriggerAudioProcessorEditor::paint (juce::Graphics& g)
 
 void HomeSidechainTriggerAudioProcessorEditor::paintOverChildren (juce::Graphics& g)
 {
-    // Bypass overlay, matching Home-Disto's exactly: dim the whole face
-    // plate except the button that turns it back off, and say so in the
-    // middle of it. Has to be paintOverChildren(), not paint() -- paint()
+    // Bypass overlay. Lives in paintOverChildren(), not paint(): paint()
     // runs before every child component (knobs, pills, the graph) paints,
     // so anything drawn there gets immediately painted over wherever a
     // child sits, breaking the dim and the text up into whatever gaps
-    // happen to exist between controls. Disto's own implementation draws
-    // this in paintOverChildren() for exactly that reason.
+    // happen to exist between controls. paintOverChildren() runs after
+    // every child has already painted, so this sits cleanly on top of all
+    // of them, everywhere, every time.
+    //
+    // Deliberately simple: one flat dim over the entire face, including the
+    // power button itself -- it's still just as clickable under the dim,
+    // and not carving it out removes any chance of a clip-region edge case
+    // causing a visible seam or gap.
     if (power.getToggleState())
     {
-        g.excludeClipRegion (power.getBounds());
-
-        g.setColour (juce::Colours::black.withAlpha (0.70f));
+        g.setColour (juce::Colours::black.withAlpha (0.72f));
         g.fillRoundedRectangle (10.0f, 10.0f, 700.0f, 300.0f, 8.0f);
 
-        g.setFont (juce::FontOptions (48.0f).withName ("Helvetica").withStyle ("Bold"));
+        g.setFont (font (44.0f, true));
         g.setColour (juce::Colours::white);
         g.drawText ("BYPASSED", 10, 10, 700, 300, juce::Justification::centred);
     }
@@ -428,4 +430,21 @@ void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
     refreshFromParameters();
     scope.repaint();
     repaint (juce::Rectangle<int> (10, 10, 700, 62));
+
+    // The bypass overlay is drawn in paintOverChildren() over the entire
+    // face, but JUCE only ever actually paints the region a repaint call
+    // invalidated -- the two repaint calls above only cover the header and
+    // the graph. Without this, toggling bypass (from our own button or from
+    // host automation) would only ever redraw the overlay within whatever
+    // small area happened to be invalidated at that moment, leaving the
+    // rest of the window's controls un-dimmed. A full repaint the instant
+    // the state actually changes keeps it correct without repainting
+    // everything on every single tick.
+    const bool bypassed = power.getToggleState();
+
+    if (bypassed != lastBypassState)
+    {
+        lastBypassState = bypassed;
+        repaint();
+    }
 }

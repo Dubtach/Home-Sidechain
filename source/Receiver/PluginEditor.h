@@ -207,7 +207,6 @@ private:
     homeUI::SegmentedSwitch shapesFiltersTab { { "SHAPES", "FILTERS" }, homeUI::purple };
 
     homeUI::Checkbox syncPill { "Sync", homeUI::green };
-    homeUI::Pill testPill { "TEST", homeUI::cyan };
     homeUI::SettingsButton advButton;
     homeUI::ResetButton resetIcon;
     homeUI::PowerButton power;
@@ -237,6 +236,10 @@ private:
     // X position of the divider line drawn between the TRIG/HOST pair and
     // the Sync checkbox, so Sync doesn't read as a third mode option.
     int syncDividerX = 0;
+
+    // Tracked so the timer can force a full repaint the moment bypass
+    // actually changes -- see timerCallback().
+    bool lastBypassState = false;
 
     // Graph and Shape keep their slots (Shape's shorter height stays --
     // that's the one you said you liked). Timing grows to fill the space

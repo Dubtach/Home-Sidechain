@@ -139,6 +139,15 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
+    // Tells hosts that support it to use this parameter for their own
+    // track/channel bypass control, so bypassing from the host (not just
+    // clicking the plugin's own power icon) keeps our APVTS state -- and
+    // therefore the bypass overlay -- in sync either way.
+    juce::AudioProcessorParameter* getBypassParameter() const override
+    {
+        return apvts.getParameter ("BYPASS");
+    }
+
     const juce::String getName() const override { return "Home-Sidechain Receiver"; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
