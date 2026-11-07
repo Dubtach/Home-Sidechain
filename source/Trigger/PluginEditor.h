@@ -90,6 +90,11 @@ private:
     // actually changes -- see timerCallback().
     bool lastBypassState = false;
 
+    // Last value of the processor's trigger counter the timer saw, so a
+    // trigger can be detected by the count changing rather than by catching
+    // a meter that decays between 30Hz ticks.
+    int lastSentCount = 0;
+
     // Input now spans the full content height -- Activity and Sending were
     // removed and their two indicators (a sending lamp, an input level bar)
     // live inside this card instead of occupying their own cards below.

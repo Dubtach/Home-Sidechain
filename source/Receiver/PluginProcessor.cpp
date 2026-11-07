@@ -30,7 +30,15 @@ namespace
     // four-to-the-floor pumping its shape.
     const PresetDefinition presets[HomeSidechainReceiverAudioProcessor::numPresets] =
     {
-        { "Classic", 3, { { 0.00f, 0.00f, 0.34f }, { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
+        // The default, and the one most people judge the plugin by, so it
+        // should read as an actual sidechain duck: an instant drop, a brief
+        // hold at the bottom (the "punch" a kick needs room for), then a
+        // release that recovers quickly at first and eases into the top --
+        // not a curve that starts rising the instant the trigger lands.
+        // (A node's tension shapes the segment that STARTS at it, so the
+        // 0.30 sits on the node where the release begins, not where it ends.)
+        { "Classic", 5, { { 0.00f, 0.00f, 0.50f }, { 0.10f, 0.00f, 0.30f }, { 0.80f, 1.00f, 0.50f },
+                          { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
         { "Tight",   4, { { 0.00f, 0.00f, 0.20f }, { 0.50f, 1.00f, 0.50f }, { 0.95f, 1.00f, 0.50f },
                           { 1.00f, 0.00f, 0.50f } } },
         { "Long",    3, { { 0.00f, 0.00f, 0.50f }, { 0.95f, 1.00f, 0.50f }, { 1.00f, 0.00f, 0.50f } } },
@@ -47,25 +55,25 @@ namespace
     // Defaults mirror the Classic preset, including its fall at the end.
     constexpr float defaultNodeX[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        0.0f, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.10f, 0.80f, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
     };
 
     constexpr float defaultNodeY[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f, 1.0f,
         1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f
     };
 
     constexpr float defaultTension[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        0.34f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
+        0.5f, 0.30f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f,
         0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f
     };
 
     constexpr bool defaultNodeActive[HomeSidechainReceiverAudioProcessor::maxNodes] =
     {
-        true, true, true, false, false, false, false, false,
+        true, true, true, true, true, false, false, false,
         false, false, false, false, false, false, false, false
     };
 
@@ -88,6 +96,7 @@ HomeSidechainReceiverAudioProcessor::HomeSidechainReceiverAudioProcessor()
       apvts (*this, nullptr, "Parameters", createParameters())
 {
     activeCurve = buildSnapshot();
+    loadCustomCarvesFromDisk();
 }
 
 juce::StringArray HomeSidechainReceiverAudioProcessor::rateNames()
@@ -130,20 +139,129 @@ double HomeSidechainReceiverAudioProcessor::beatsForRate (int rate) noexcept
     return beats[juce::jlimit (0, numRates - 1, rate)];
 }
 
-juce::String HomeSidechainReceiverAudioProcessor::presetName (int index)
+juce::String HomeSidechainReceiverAudioProcessor::presetName (int index) const
 {
-    return presets[juce::jlimit (0, numPresets - 1, index)].name;
+    const auto slot = static_cast<size_t> (juce::jlimit (0, numPresets - 1, index));
+
+    // The trailing mark matches the "*" Home-Disto uses for an edited
+    // preset: this isn't the factory shape any more.
+    if (customCarveActive[slot])
+        return juce::String (presets[slot].name) + " *";
+
+    return presets[slot].name;
 }
 
-receiverCurve::Snapshot HomeSidechainReceiverAudioProcessor::presetSnapshot (int index)
+receiverCurve::Snapshot HomeSidechainReceiverAudioProcessor::presetSnapshot (int index) const
 {
-    const auto& preset = presets[juce::jlimit (0, numPresets - 1, index)];
+    const auto slot = static_cast<size_t> (juce::jlimit (0, numPresets - 1, index));
+
+    if (customCarveActive[slot])
+        return customCarves[slot];
+
+    const auto& preset = presets[slot];
     receiverCurve::Snapshot snapshot;
 
     for (int i = 0; i < preset.count; ++i)
         snapshot.add (preset.points[i].x, preset.points[i].y, preset.points[i].tension);
 
     return snapshot;
+}
+
+bool HomeSidechainReceiverAudioProcessor::isSlotCustom (int slot) const noexcept
+{
+    return customCarveActive[static_cast<size_t> (juce::jlimit (0, numPresets - 1, slot))];
+}
+
+void HomeSidechainReceiverAudioProcessor::saveCurrentCurveToSlot (int slot)
+{
+    const auto safeSlot = static_cast<size_t> (juce::jlimit (0, numPresets - 1, slot));
+    customCarves[safeSlot] = buildSnapshot();
+    customCarveActive[safeSlot] = true;
+    saveCustomCarvesToDisk();
+}
+
+void HomeSidechainReceiverAudioProcessor::restoreFactorySlot (int slot)
+{
+    const auto safeSlot = static_cast<size_t> (juce::jlimit (0, numPresets - 1, slot));
+    customCarveActive[safeSlot] = false;
+    customCarves[safeSlot] = {};
+    saveCustomCarvesToDisk();
+}
+
+juce::File HomeSidechainReceiverAudioProcessor::getCustomCarvesFile()
+{
+    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+             .getChildFile ("Dubtach")
+             .getChildFile ("Home-Sidechain")
+             .getChildFile ("CustomCarves.xml");
+}
+
+void HomeSidechainReceiverAudioProcessor::loadCustomCarvesFromDisk()
+{
+    const auto file = getCustomCarvesFile();
+
+    if (! file.existsAsFile())
+        return;
+
+    auto xml = juce::XmlDocument::parse (file);
+
+    if (xml == nullptr || xml->getTagName() != "CustomCarves")
+        return;
+
+    for (auto* slotXml : xml->getChildWithTagNameIterator ("Slot"))
+    {
+        const int slot = slotXml->getIntAttribute ("index", -1);
+
+        if (slot < 0 || slot >= numPresets)
+            continue;
+
+        receiverCurve::Snapshot snapshot;
+
+        for (auto* nodeXml : slotXml->getChildWithTagNameIterator ("Node"))
+        {
+            if (snapshot.count >= receiverCurve::maxNodes)
+                break;
+
+            snapshot.add (static_cast<float> (nodeXml->getDoubleAttribute ("x")),
+                          static_cast<float> (nodeXml->getDoubleAttribute ("y")),
+                          static_cast<float> (nodeXml->getDoubleAttribute ("tension")));
+        }
+
+        if (snapshot.count >= 2)
+        {
+            customCarves[static_cast<size_t> (slot)] = snapshot;
+            customCarveActive[static_cast<size_t> (slot)] = true;
+        }
+    }
+}
+
+void HomeSidechainReceiverAudioProcessor::saveCustomCarvesToDisk() const
+{
+    juce::XmlElement root ("CustomCarves");
+
+    for (int slot = 0; slot < numPresets; ++slot)
+    {
+        if (! customCarveActive[static_cast<size_t> (slot)])
+            continue;
+
+        auto* slotXml = root.createNewChildElement ("Slot");
+        slotXml->setAttribute ("index", slot);
+
+        const auto& snapshot = customCarves[static_cast<size_t> (slot)];
+
+        for (int i = 0; i < snapshot.count; ++i)
+        {
+            const auto n = static_cast<size_t> (i);
+            auto* nodeXml = slotXml->createNewChildElement ("Node");
+            nodeXml->setAttribute ("x", static_cast<double> (snapshot.x[n]));
+            nodeXml->setAttribute ("y", static_cast<double> (snapshot.y[n]));
+            nodeXml->setAttribute ("tension", static_cast<double> (snapshot.tension[n]));
+        }
+    }
+
+    const auto file = getCustomCarvesFile();
+    file.getParentDirectory().createDirectory();
+    root.writeTo (file);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout HomeSidechainReceiverAudioProcessor::createParameters()
@@ -472,18 +590,21 @@ void HomeSidechainReceiverAudioProcessor::removeNode (int slot)
 
 void HomeSidechainReceiverAudioProcessor::applyPreset (int index)
 {
-    const auto& preset = presets[juce::jlimit (0, numPresets - 1, index)];
+    // Through presetSnapshot() rather than the factory table, so a slot
+    // that's been saved over loads the user's carve, not the shape under it.
+    const auto snapshot = presetSnapshot (index);
 
     for (int i = 0; i < maxNodes; ++i)
     {
-        const bool used = i < preset.count;
+        const bool used = i < snapshot.count;
         setNodeActive (i, used);
 
         if (used)
         {
-            setNodeX (i, preset.points[i].x);
-            setNodeY (i, preset.points[i].y);
-            setTension (i, preset.points[i].tension);
+            const auto n = static_cast<size_t> (i);
+            setNodeX (i, snapshot.x[n]);
+            setNodeY (i, snapshot.y[n]);
+            setTension (i, snapshot.tension[n]);
         }
     }
 }

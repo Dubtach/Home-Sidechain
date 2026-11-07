@@ -550,6 +550,11 @@ void ReceiverCurveEditor::mouseDoubleClick (const juce::MouseEvent& e)
 // ReceiverShapeStrip
 // =============================================================================
 
+ReceiverShapeStrip::ReceiverShapeStrip (HomeSidechainReceiverAudioProcessor& p)
+    : processor (p)
+{
+}
+
 juce::Rectangle<float> ReceiverShapeStrip::cellBounds (int index) const noexcept
 {
     const float width = static_cast<float> (getWidth())
@@ -606,7 +611,7 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
         auto plot = cell.reduced (7.0f, 6.0f);
         auto nameRow = plot.removeFromBottom (11.0f);
 
-        const auto snapshot = HomeSidechainReceiverAudioProcessor::presetSnapshot (i);
+        const auto snapshot = processor.presetSnapshot (i);
 
         juce::Path curve;
         const int steps = juce::jmax (8, juce::roundToInt (plot.getWidth()));
@@ -629,7 +634,7 @@ void ReceiverShapeStrip::paint (juce::Graphics& g)
 
         g.setFont (font (8.0f, isSelected));
         g.setColour (isSelected ? juce::Colours::white : juce::Colours::white.withAlpha (0.55f));
-        g.drawText (HomeSidechainReceiverAudioProcessor::presetName (i), nameRow,
+        g.drawText (processor.presetName (i), nameRow,
                     juce::Justification::centred, false);
     }
 }
@@ -651,12 +656,44 @@ void ReceiverShapeStrip::mouseExit (const juce::MouseEvent&)
     repaint();
 }
 
+void ReceiverShapeStrip::showSlotMenu (int slot)
+{
+    juce::PopupMenu menu;
+    menu.addItem (1, "Save current shape to this slot");
+
+    // Only offered once a slot has actually been saved over.
+    if (processor.isSlotCustom (slot))
+        menu.addItem (2, "Restore factory shape");
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (*this),
+                        [this, slot] (int result)
+                        {
+                            if (result == 1)
+                            {
+                                processor.saveCurrentCurveToSlot (slot);
+                                setSelected (slot);
+                                repaint();
+                            }
+                            else if (result == 2)
+                            {
+                                processor.restoreFactorySlot (slot);
+                                repaint();
+                            }
+                        });
+}
+
 void ReceiverShapeStrip::mouseDown (const juce::MouseEvent& e)
 {
     const int cell = cellAt (e.position);
 
     if (cell < 0)
         return;
+
+    if (e.mods.isPopupMenu())
+    {
+        showSlotMenu (cell);
+        return;
+    }
 
     setSelected (cell);
 
@@ -919,7 +956,7 @@ void ReceiverSettingsPanel::refresh()
 
 HomeSidechainReceiverAudioProcessorEditor::HomeSidechainReceiverAudioProcessorEditor (
     HomeSidechainReceiverAudioProcessor& p)
-    : juce::AudioProcessorEditor (&p), processor (p), curveEditor (p), rateSelector (p),
+    : juce::AudioProcessorEditor (&p), processor (p), curveEditor (p), shapeStrip (p), rateSelector (p),
       settingsPanel (p, curveEditor)
 {
     addAndMakeVisible (curveEditor);

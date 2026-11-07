@@ -166,8 +166,22 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     static juce::StringArray rateNames();
     static double beatsForRate (int rate) noexcept;
-    static juce::String presetName (int index);
-    static receiverCurve::Snapshot presetSnapshot (int index);
+
+    // Instance methods now: a slot holds either the factory shape or a carve
+    // the user saved over it.
+    juce::String presetName (int index) const;
+    receiverCurve::Snapshot presetSnapshot (int index) const;
+
+    // Saves the curve currently on the graph into a slot (0-6) and writes
+    // the custom set to disk straight away. The file is shared by every
+    // instance, so these behave like permanent additions to the shape bank
+    // rather than something tied to one project.
+    void saveCurrentCurveToSlot (int slot);
+    bool isSlotCustom (int slot) const noexcept;
+
+    // Puts a slot back to its factory shape, so overwriting is never a
+    // one-way door.
+    void restoreFactorySlot (int slot);
 
     juce::AudioProcessorValueTreeState apvts;
 
@@ -251,6 +265,13 @@ private:
     std::array<float, 2> highCutState { 0.0f, 0.0f };
 
     receiverCurve::Snapshot activeCurve;
+
+    std::array<receiverCurve::Snapshot, numPresets> customCarves;
+    std::array<bool, numPresets> customCarveActive {};
+
+    static juce::File getCustomCarvesFile();
+    void loadCustomCarvesFromDisk();
+    void saveCustomCarvesToDisk() const;
 
     void triggerEnvelope();
     float gainForPhase (float phase, float depth) const noexcept;

@@ -162,34 +162,47 @@ void TriggerScope::drawThreshold (juce::Graphics& g, juce::Rectangle<float> plot
 
 void TriggerScope::drawSendingLamp (juce::Graphics& g, juce::Rectangle<float> plot) const
 {
-    // Replaces the old standalone Sending card -- a lamp inside the graph
-    // itself, lit whenever a trigger actually fires. Deliberately bigger
-    // and bolder than the Audio/Midi legend next to it: this is the
-    // indicator that matters moment to moment, so it needs to read at a
-    // glance, not blend in as a third equally-weighted dot.
-    const float y = plot.getY() + 8.0f;
-    const float x = plot.getX() + 5.0f;
-    const float activity = cachedTriggerActivity;
+    // A pill that physically lights up, not a small dot beside some text. A
+    // trigger is the most important event this plugin produces, and a dot
+    // that brightened by a few alpha steps was too easy to miss. Idle, it's
+    // a dark quiet pill; firing, it floods solid green with dark text,
+    // throws a glow, and washes the whole graph faintly, so it registers
+    // even when you're looking at the threshold line instead of the corner.
+    const float a = juce::jlimit (0.0f, 1.0f, cachedTriggerActivity);
 
-    if (activity > 0.03f)
+    // The fill saturates well before the fade ends. A straight blend spends
+    // most of the flash as a muddy dark-green with grey text -- visible, but
+    // not obviously "on". Ramping 1.6x means the pill is a solid, fully lit
+    // green LED for the first part of the fade and only then drops away.
+    const float lit = juce::jlimit (0.0f, 1.0f, a * 1.6f);
+    const auto pill = juce::Rectangle<float> (plot.getX() + 4.0f, plot.getY() + 4.0f, 76.0f, 18.0f);
+
+    if (a > 0.02f)
     {
-        g.setColour (green.withAlpha (activity * 0.30f));
-        g.fillEllipse (juce::Rectangle<float> (x - 9.0f, y - 9.0f, 18.0f, 18.0f));
+        g.setColour (green.withAlpha (a * 0.10f));
+        g.fillRect (plot);
+
+        g.setColour (green.withAlpha (lit * 0.35f));
+        g.fillRoundedRectangle (pill.expanded (2.0f + 4.0f * lit), 12.0f);
     }
 
-    constexpr float dotSize = 9.0f;
-    const auto dotArea = juce::Rectangle<float> (x - dotSize * 0.5f, y - dotSize * 0.5f, dotSize, dotSize);
-    g.setColour (green.withAlpha (juce::jmax (0.4f, activity)));
-    g.fillEllipse (dotArea);
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawEllipse (dotArea, 1.0f);
+    g.setColour (slot.interpolatedWith (green, lit));
+    g.fillRoundedRectangle (pill, 9.0f);
+    g.setColour (green.withAlpha (0.35f + 0.65f * lit));
+    g.drawRoundedRectangle (pill, 9.0f, 1.2f);
+
+    // Text and dot switch colour outright rather than blending, so they
+    // stay legible against the fill at every point in the fade.
+    const bool on = lit > 0.5f;
+    g.setColour (on ? ink : green);
+    g.fillEllipse (pill.getX() + 7.0f, pill.getCentreY() - 3.0f, 6.0f, 6.0f);
 
     g.setFont (font (8.5f, true));
-    g.setColour (juce::Colours::white.withAlpha (juce::jmax (0.6f, activity)));
-    g.drawText ("SENDING", juce::Rectangle<float> (x + 9.0f, y - 6.0f, 62.0f, 12.0f),
-                juce::Justification::centredLeft, false);
+    g.setColour (on ? ink : juce::Colours::white.withAlpha (0.65f));
+    g.drawText ("SENDING", pill.withTrimmedLeft (18.0f), juce::Justification::centredLeft, false);
 
-    // Audio/Midi legend: smaller, dimmer, secondary.
+    // Audio / Midi legend: smaller, dimmer, secondary.
+    const float y = pill.getCentreY();
     const auto legendDot = [&g] (juce::Point<float> centre, juce::Colour colour)
     {
         g.setColour (colour.withAlpha (0.65f));
@@ -326,6 +339,7 @@ HomeSidechainTriggerAudioProcessorEditor::HomeSidechainTriggerAudioProcessorEdit
     cooldownAttachment = std::make_unique<SliderAttachment> (processor.apvts, "RETRIGGER", cooldownKnob);
     bypassAttachment = std::make_unique<ButtonAttachment> (processor.apvts, "BYPASS", power);
 
+    lastSentCount = processor.homeLinkCount.load (std::memory_order_relaxed);
     setSize (designWidth, designHeight);
     refreshFromParameters();
     startTimerHz (30);
@@ -418,9 +432,22 @@ void HomeSidechainTriggerAudioProcessorEditor::refreshFromParameters()
 void HomeSidechainTriggerAudioProcessorEditor::timerCallback()
 {
     inputSmoothed = juce::jmax (processor.getInputLevel(), inputSmoothed * 0.72f);
-    // Slightly slower decay than before, paired with the bigger/bolder
-    // lamp -- the flash needs to last long enough to actually catch.
-    triggerSmoothed = juce::jmax (processor.getTriggerMeter(), triggerSmoothed * 0.75f);
+    // Latch on the trigger *counter* changing, then fade. The processor's
+    // own meter decays per audio block, which at small buffer sizes can
+    // fall to nothing between two 30Hz UI ticks -- so a trigger could fire
+    // and never be seen. A counter can't be missed, and the fade gives
+    // every trigger a flash of about half a second regardless of block size.
+    const int sentCount = processor.homeLinkCount.load (std::memory_order_relaxed);
+
+    if (sentCount != lastSentCount)
+    {
+        lastSentCount = sentCount;
+        triggerSmoothed = 1.0f;
+    }
+    else
+    {
+        triggerSmoothed *= 0.86f;
+    }
 
     // dB-scaled rather than linear, so quiet signals still show meaningful
     // movement on the bar instead of sitting near zero the whole time.

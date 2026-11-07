@@ -86,7 +86,7 @@ private:
 class ReceiverShapeStrip : public juce::Component
 {
 public:
-    ReceiverShapeStrip() = default;
+    explicit ReceiverShapeStrip (HomeSidechainReceiverAudioProcessor&);
 
     void paint (juce::Graphics&) override;
     void mouseMove (const juce::MouseEvent&) override;
@@ -98,11 +98,16 @@ public:
     std::function<void (int)> onSelect;
 
 private:
+    HomeSidechainReceiverAudioProcessor& processor;
     int selected = 0;
     int hovered = -1;
 
     juce::Rectangle<float> cellBounds (int) const noexcept;
     int cellAt (juce::Point<float>) const noexcept;
+
+    // Right-click on a slot opens a menu instead of saving outright, so a
+    // stray right-click can't silently overwrite a shape.
+    void showSlotMenu (int slot);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ReceiverShapeStrip)
 };
